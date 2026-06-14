@@ -162,6 +162,13 @@
           <button class="btn" onclick="pullPerformansFromSheets()" id="dash-pull-btn" title="Sheets'ten performans verisini çek">
             <span data-i18n="pull_from_sheets">📥 Sheets'ten Çek</span>
           </button>
+          <div id="general-absence-rate-group" style="display:none;align-items:center">
+            <div style="display:flex;align-items:center;gap:6px;background:var(--lred);border:1px solid #FFCDD2;border-radius:8px;padding:6px 12px;white-space:nowrap">
+              <span style="font-size:14px">📉</span>
+              <span style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.2px;text-transform:uppercase" data-i18n="general_absence_rate">Devamsızlık Oranı</span>
+              <span style="font-size:15px;font-weight:700;color:var(--red);line-height:1" id="general-absence-rate">0%</span>
+            </div>
+          </div>
           <button class="btn btn-warning" onclick="clearDashboardData()" id="btn-temizle" style="display:none">
             <span data-i18n="clear">🗑️ Temizle</span>
           </button>
@@ -288,13 +295,7 @@
             <span data-i18n="team_only_filter">👥 Sadece Ekibim</span>
           </label>
         </div>
-        <div class="filter-group" id="general-absence-rate-group" style="display:none;align-items:center">
-          <div style="display:flex;align-items:center;gap:6px;background:var(--lred);border:1px solid #FFCDD2;border-radius:8px;padding:6px 12px;white-space:nowrap">
-            <span style="font-size:14px">📉</span>
-            <span style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.2px;text-transform:uppercase" data-i18n="general_absence_rate">Devamsızlık Oranı</span>
-            <span style="font-size:15px;font-weight:700;color:var(--red);line-height:1" id="general-absence-rate">0%</span>
-          </div>
-        </div>
+      
       </div>
 
       <!-- Inspector Kartları -->
