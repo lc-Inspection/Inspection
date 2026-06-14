@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -159,11 +160,6 @@
           <p data-i18n="dash_sub">Tüm inspectörlerin performans durumunu tek ekranda izleyin</p>
         </div>
         <div class="ph-buttons">
-          <div id="general-absence-rate-group" style="display:none;align-items:center;gap:6px;background:var(--lred);border:1px solid #FFCDD2;border-radius:8px;padding:7px 14px;white-space:nowrap">
-            <span style="font-size:14px">📉</span>
-            <span style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.2px;text-transform:uppercase" data-i18n="general_absence_rate">Devamsızlık Oranı</span>
-            <span style="font-size:15px;font-weight:700;color:var(--red);line-height:1" id="general-absence-rate">0%</span>
-          </div>
           <button class="btn" onclick="pullPerformansFromSheets()" id="dash-pull-btn" title="Sheets'ten performans verisini çek">
             <span data-i18n="pull_from_sheets">📥 Sheets'ten Çek</span>
           </button>
@@ -204,10 +200,6 @@
             <div class="summary-stat" style="background:linear-gradient(135deg,var(--lblue3) 0%,#fff 100%);border-color:var(--lblue)">
               <div class="summary-stat-value" id="team-avg-days" style="color:var(--blue)">0</div>
               <div class="summary-stat-label" data-i18n="team_avg_days">Ekip Ort. Çalışma Günü</div>
-            </div>
-            <div class="summary-stat" style="background:linear-gradient(135deg,var(--lred) 0%,#fff 100%);border-color:#FFCDD2">
-              <div class="summary-stat-value" id="team-absence-rate" style="color:var(--red)">0%</div>
-              <div class="summary-stat-label" data-i18n="team_absence_rate">Ekip Devamsızlık Oranı</div>
             </div>
           </div>
           <div id="team-members-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
