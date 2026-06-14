@@ -159,6 +159,11 @@
           <p data-i18n="dash_sub">Tüm inspectörlerin performans durumunu tek ekranda izleyin</p>
         </div>
         <div class="ph-buttons">
+          <div id="general-absence-rate-group" style="display:none;align-items:center;gap:6px;background:var(--lred);border:1px solid #FFCDD2;border-radius:8px;padding:7px 14px;white-space:nowrap">
+            <span style="font-size:14px">📉</span>
+            <span style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.2px;text-transform:uppercase" data-i18n="general_absence_rate">Devamsızlık Oranı</span>
+            <span style="font-size:15px;font-weight:700;color:var(--red);line-height:1" id="general-absence-rate">0%</span>
+          </div>
           <button class="btn" onclick="pullPerformansFromSheets()" id="dash-pull-btn" title="Sheets'ten performans verisini çek">
             <span data-i18n="pull_from_sheets">📥 Sheets'ten Çek</span>
           </button>
@@ -200,8 +205,7 @@
               <div class="summary-stat-value" id="team-avg-days" style="color:var(--blue)">0</div>
               <div class="summary-stat-label" data-i18n="team_avg_days">Ekip Ort. Çalışma Günü</div>
             </div>
-            <div class="summary-stat" style="background:linear-gradient(135deg,var(--lred) 0%,#fff 100%);border-color:#FFCDD2;position:relative">
-              <button onclick="openAbsenceDetailModal('team')" title="Detayı Gör" style="position:absolute;top:6px;right:6px;width:20px;height:20px;border:none;border-radius:50%;background:rgba(255,255,255,.7);color:var(--red);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0">ⓘ</button>
+            <div class="summary-stat" style="background:linear-gradient(135deg,var(--lred) 0%,#fff 100%);border-color:#FFCDD2">
               <div class="summary-stat-value" id="team-absence-rate" style="color:var(--red)">0%</div>
               <div class="summary-stat-label" data-i18n="team_absence_rate">Ekip Devamsızlık Oranı</div>
             </div>
@@ -288,14 +292,6 @@
             <input type="checkbox" id="team-only-filter" onchange="filterInspectors()" style="width:15px;height:15px;margin:0;cursor:pointer;accent-color:var(--blue2)">
             <span data-i18n="team_only_filter">👥 Sadece Ekibim</span>
           </label>
-        </div>
-        <div class="filter-group" id="general-absence-rate-group" style="display:none;align-items:center">
-          <div style="display:flex;align-items:center;gap:10px;background:var(--lred);border:1px solid #FFCDD2;border-radius:8px;padding:10px 18px;white-space:nowrap;position:relative">
-            <span style="font-size:18px">📉</span>
-            <span style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.4px;text-transform:uppercase" data-i18n="general_absence_rate">Devamsızlık Oranı</span>
-            <span style="font-size:20px;font-weight:700;color:var(--red);line-height:1" id="general-absence-rate">0%</span>
-            <button onclick="openAbsenceDetailModal('general')" title="Detayı Gör" style="width:20px;height:20px;border:none;border-radius:50%;background:rgba(255,255,255,.7);color:var(--red);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;margin-left:2px">ⓘ</button>
-          </div>
         </div>
       </div>
 
@@ -958,18 +954,6 @@
     <div class="modal-actions">
       <button class="btn btn-success" onclick="exportInspectorDetail()" data-i18n="download_excel">📊 Download Excel</button>
       <button class="btn" onclick="closeDetailModal()">Kapat</button>
-    </div>
-  </div>
-</div>
-
-<!-- Devamsızlık Oranı Detay Modal -->
-<div class="modal-overlay" id="absence-detail-modal">
-  <div class="modal-box" style="max-width:520px;">
-    <div class="modal-title" data-i18n="absence_detail_title">📉 Devamsızlık Oranı Detayı</div>
-    <div class="modal-sub" data-i18n="absence_detail_sub">Oranın nasıl hesaplandığını aşağıda görebilirsiniz</div>
-    <div id="absence-detail-content"></div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeAbsenceDetailModal()" data-i18n="close_btn">Kapat</button>
     </div>
   </div>
 </div>
