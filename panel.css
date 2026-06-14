@@ -216,6 +216,23 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   .team-summary-stats { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* Ekip Yöneticileri kartları — sabit sütun sayısı, simetrik yerleşim */
+.team-managers-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+@media (max-width: 1200px) {
+  .team-managers-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 860px) {
+  .team-managers-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 540px) {
+  .team-managers-grid { grid-template-columns: 1fr; }
+}
+
 /* Ekip üyesi kartı */
 .team-member-chip {
   display: flex; align-items: center; gap: 8px;
