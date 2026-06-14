@@ -217,6 +217,8 @@ const translations = {
     team_avg_perf:         'Ekip Ort. Performans',
     team_total_product:    'Ekip Toplam Ürün',
     team_avg_days:         'Ekip Ort. Çalışma Günü',
+    team_absence_rate:     'Ekip Devamsızlık Oranı',
+    general_absence_rate:  'Devamsızlık Oranı',
     team_empty_hint:       'Henüz ekibinize inspector eklemediniz. "Ekibi Düzenle" butonuyla başlayın.',
     remove_from_team:      'Ekipten çıkar',
     team_modal_title:      '👥 Ekibimi Düzenle',
@@ -610,6 +612,8 @@ const translations = {
     team_avg_perf:         'Team Avg. Performance',
     team_total_product:    'Team Total Quantity',
     team_avg_days:         'Team Avg. Working Days',
+    team_absence_rate:     'Team Absenteeism Rate',
+    general_absence_rate:  'Absenteeism Rate',
     team_empty_hint:       "You haven't added any inspectors to your team yet. Click \"Manage Team\" to get started.",
     remove_from_team:      'Remove from team',
     team_modal_title:      '👥 Manage My Team',
@@ -1300,6 +1304,10 @@ function applyUserPermissions() {
   if (teamCard)   teamCard.style.display   = showTeamUi ? '' : 'none';
   if (teamFilter) teamFilter.style.display = showTeamUi ? '' : 'none';
   if (genelLabel) genelLabel.style.display = showTeamUi ? 'flex' : 'none';
+
+  // Genel devamsızlık oranı sadece admin'e gösterilir
+  const absenceGroup = document.getElementById('general-absence-rate-group');
+  if (absenceGroup) absenceGroup.style.display = isAdmin ? 'flex' : 'none';
 
   // "Temizle" butonu sadece admin tarafından görülebilir
   const temizleBtn = document.getElementById('btn-temizle');
@@ -3072,6 +3080,22 @@ function hesaplaInspectorFiiliSure(kayitlar) {
   return toplam > 0 ? toplam : null;
 }
 
+// Verilen [minTarih, maxTarih] aralığında (her ikisi de saat 00:00'a normalize
+// edilmiş Date nesneleri), Pazar günleri hariç toplam gün sayısını döndürür.
+// Haftada 6 gün çalışma esası: Pazar (getDay() === 0) tatildir ve devamsızlık
+// hesabına dahil edilmez. Aralık geçersizse 0 döner.
+function hesaplaBeklenenCalismaGunu(minTarih, maxTarih) {
+  if (!minTarih || !maxTarih || maxTarih < minTarih) return 0;
+  let gun = 0;
+  const cursor = new Date(minTarih.getFullYear(), minTarih.getMonth(), minTarih.getDate());
+  const son = new Date(maxTarih.getFullYear(), maxTarih.getMonth(), maxTarih.getDate());
+  while (cursor <= son) {
+    if (cursor.getDay() !== 0) gun++; // Pazar (0) hariç
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return gun;
+}
+
 function hesaplaGunlukMesaiSuresi(kayitListesi) {
   if (!kayitListesi || kayitListesi.length === 0) return null;
 
@@ -3326,6 +3350,14 @@ function updateSummaryStats(inspectors) {
 
   const totalProducts = inspectors.reduce((sum, i) => sum + (i.adet || 0), 0);
 
+  // Genel devamsızlık oranı (admin görünümü) — toplam beklenen gün / toplam
+  // gerçek çalışılan gün (Pazar hariç, haftada 6 gün esası)
+  const toplamBeklenenGenel = inspectors.reduce((sum, i) => sum + (i.beklenenGunSayisi || 0), 0);
+  const toplamGercekGenel   = inspectors.reduce((sum, i) => sum + (i.gercekCalismaGunSayisi || 0), 0);
+  const genelDevamsizlik = toplamBeklenenGenel > 0
+    ? Math.round(Math.max(0, (toplamBeklenenGenel - toplamGercekGenel) / toplamBeklenenGenel) * 100)
+    : 0;
+
   document.getElementById('total-inspectors').textContent = total;
   document.getElementById('excellent-count').textContent = excellent;
   document.getElementById('good-count').textContent = good;
@@ -3334,6 +3366,8 @@ function updateSummaryStats(inspectors) {
   document.getElementById('avg-performance').textContent = avgPerformans + '%';
   document.getElementById('avg-working-days').textContent = avgWorkingDays + ' ' + (translations[currentLang]||translations.tr).days_suffix;
   document.getElementById('total-products').textContent = totalProducts.toLocaleString('tr-TR');
+  const elGenelDevamsizlik = document.getElementById('general-absence-rate');
+  if (elGenelDevamsizlik) elGenelDevamsizlik.textContent = genelDevamsizlik + '%';
 
 }
 
@@ -5085,6 +5119,12 @@ function performansHesapla(){
 
   let kaldiSatirSayisi = 0;
 
+  // Devamsızlık oranı hesaplaması için: verideki en eski ve en yeni başlangıç
+  // tarihleri (sadece tarihGecerli olan satırlardan). Bu aralık, beklenen
+  // çalışma günü sayısının (Pazar hariç, haftada 6 gün) referansıdır.
+  let genelMinTarih = null;
+  let genelMaxTarih = null;
+
   excelRows.forEach(row => {
     const excelKlasman = String(row[klasmanCol]||'').trim();
     const ins = String(row[insCol]||'').trim();
@@ -5164,6 +5204,11 @@ function performansHesapla(){
       );
       if (!zatenVar) inspectorMap[ins].kayitListesi.push({ parsedBaslangic, parsedBitis });
       basariliTarihKayitlar++;
+
+      // Genel tarih aralığını güncelle (sadece tarih kısmı — saat önemsiz)
+      const gunBaslangici = new Date(parsedBaslangic.getFullYear(), parsedBaslangic.getMonth(), parsedBaslangic.getDate());
+      if (!genelMinTarih || gunBaslangici < genelMinTarih) genelMinTarih = gunBaslangici;
+      if (!genelMaxTarih || gunBaslangici > genelMaxTarih) genelMaxTarih = gunBaslangici;
     } else {
       tarihHataliKayitlar++;
     }
@@ -5218,6 +5263,11 @@ function performansHesapla(){
       kaldiOzet.style.display = 'none';
     }
   }
+
+  // Beklenen çalışma günü sayısı: verideki en eski–en yeni tarih aralığında,
+  // haftada 6 gün çalışma esasına göre Pazar günleri hariç tutularak hesaplanır.
+  // (Pazar günü tatildir; çalışılsa bile devamsızlık hesabına dahil edilmez.)
+  const beklenenGunSayisi = hesaplaBeklenenCalismaGunu(genelMinTarih, genelMaxTarih);
 
   // Inspector bazında sonuç map'i oluştur
   const map = {};
@@ -5281,6 +5331,17 @@ function performansHesapla(){
       });
     }
 
+    // Devamsızlık oranı: Pazar hariç (haftada 6 gün esası) gerçek çalışılan gün
+    // sayısı / beklenen çalışma günü sayısı oranına göre hesaplanır.
+    const gunlukDetayArr = mesaiHesap ? (mesaiHesap.gunlukDetay || []) : [];
+    const gercekCalismaGunSayisi = gunlukDetayArr.filter(gunStr => {
+      const d = new Date(gunStr);
+      return d.getDay() !== 0; // Pazar (0) hariç
+    }).length;
+    const devamsizlikOrani = beklenenGunSayisi > 0
+      ? Math.round(Math.max(0, (beklenenGunSayisi - gercekCalismaGunSayisi) / beklenenGunSayisi) * 100)
+      : 0;
+
     map[ins] = {
       ins: ins,
       adet: toplamAdet,
@@ -5301,8 +5362,13 @@ function performansHesapla(){
       gunSayisi: mesaiHesap ? mesaiHesap.gunSayisi : 0,
       gunlukDetay: mesaiHesap ? mesaiHesap.gunlukDetay : [],
       toplamMesaistiSaniye: mesaiHesap ? (mesaiHesap.toplamMesaistiSaniye || 0) : 0,
-      gunlukOvertimeDetay: mesaiHesap ? (mesaiHesap.gunlukOvertimeDetay || {}) : {}
+      gunlukOvertimeDetay: mesaiHesap ? (mesaiHesap.gunlukOvertimeDetay || {}) : {},
+      // Devamsızlık (haftada 6 gün, Pazar hariç)
+      beklenenGunSayisi: beklenenGunSayisi,
+      gercekCalismaGunSayisi: gercekCalismaGunSayisi,
+      devamsizlikOrani: devamsizlikOrani
     };
+
     
     // Debug log
     console.log(`[${ins}] Gün:${mesaiHesap?.gunSayisi || 0} Standart:${Math.round(toplamStandartSure/60)}dk Mesai:${Math.round(mesaiSureSn/60)}dk Mesaisti:${Math.round((mesaiHesap?.toplamMesaistiSaniye||0)/60)}dk Performans:${performans}% VPerf:${performans !== null ? Math.round(performans*(100/verimlilikHedef)) : null}%`);
@@ -7191,14 +7257,25 @@ function renderTeamSection() {
     ? Math.round(teamInspectors.reduce((s, i) => s + (i.gunSayisi || 0), 0) / total)
     : 0;
 
+  // Ekip devamsızlık oranı: toplam beklenen gün / toplam gerçek çalışılan gün
+  // (Pazar hariç, haftada 6 gün esası) üzerinden hesaplanır.
+  const toplamBeklenen = teamInspectors.reduce((s, i) => s + (i.beklenenGunSayisi || 0), 0);
+  const toplamGercek   = teamInspectors.reduce((s, i) => s + (i.gercekCalismaGunSayisi || 0), 0);
+  const devamsizlikOrani = toplamBeklenen > 0
+    ? Math.round(Math.max(0, (toplamBeklenen - toplamGercek) / toplamBeklenen) * 100)
+    : 0;
+
   const elMembers  = document.getElementById('team-total-members');
   const elAvgPerf  = document.getElementById('team-avg-perf');
   const elProducts = document.getElementById('team-total-products');
   const elAvgDays  = document.getElementById('team-avg-days');
+  const elAbsence  = document.getElementById('team-absence-rate');
   if (elMembers)  elMembers.textContent  = total;
   if (elAvgPerf)  elAvgPerf.textContent  = avgPerf + '%';
   if (elProducts) elProducts.textContent = totalProducts.toLocaleString('tr-TR');
   if (elAvgDays)  elAvgDays.textContent  = avgDays + ' ' + t.days_suffix;
+  if (elAbsence)  elAbsence.textContent  = devamsizlikOrani + '%';
+
 
   const listEl = document.getElementById('team-members-list');
   if (!listEl) return;
