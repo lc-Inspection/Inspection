@@ -219,6 +219,9 @@ const translations = {
     team_avg_days:         'Ekip Ort. Çalışma Günü',
     team_absence_rate:     'Ekip Devamsızlık Oranı',
     general_absence_rate:  'Devamsızlık Oranı',
+    absence_detail_title:  '📉 Devamsızlık Oranı Detayı',
+    absence_detail_sub:    'Oranın nasıl hesaplandığını aşağıda görebilirsiniz',
+    close_btn:             'Kapat',
     team_empty_hint:       'Henüz ekibinize inspector eklemediniz. "Ekibi Düzenle" butonuyla başlayın.',
     remove_from_team:      'Ekipten çıkar',
     team_modal_title:      '👥 Ekibimi Düzenle',
@@ -614,6 +617,9 @@ const translations = {
     team_avg_days:         'Team Avg. Working Days',
     team_absence_rate:     'Team Absenteeism Rate',
     general_absence_rate:  'Absenteeism Rate',
+    absence_detail_title:  '📉 Absenteeism Rate Detail',
+    absence_detail_sub:    'See how this rate is calculated below',
+    close_btn:             'Close',
     team_empty_hint:       "You haven't added any inspectors to your team yet. Click \"Manage Team\" to get started.",
     remove_from_team:      'Remove from team',
     team_modal_title:      '👥 Manage My Team',
@@ -871,6 +877,9 @@ let excelRows = [];
 let excelCols = [];
 let performansData = [];
 
+// Devamsızlık hesabı için genel tarih aralığı bilgisi (popup'ta gösterilir)
+let devamsizlikGenelBilgi = { minTarih: null, maxTarih: null, beklenenGunSayisi: 0 };
+
 // Dashboard
 let filteredInspectors = [];
 let currentDashboardPage = 1;
@@ -896,7 +905,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxU0BbqnEBddK2e28PeO2tvQX-Pqr1pBtEDOSs_47LYPAllKWBpXZEKbN4Yb7XWa2Y3/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwU1I1YUmbFIciziLwzjy5o_wjqiMCG6370JT0zqNcIbm6f0x43SgDEgiLISYDpFZry/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -3832,6 +3841,85 @@ function closeDetailModal() {
 }
 
 // ────────────────────────────
+// DEVAMSIZLIK ORANI DETAY POPUP
+// ────────────────────────────
+// scope: 'team' (ekip kartındaki devamsızlık) veya 'general' (admin genel devamsızlık)
+function openAbsenceDetailModal(scope) {
+  const t = translations[currentLang] || translations.tr;
+  const fmt = d => d ? d.toLocaleDateString(currentLang === 'en' ? 'en-GB' : 'tr-TR', {day:'2-digit', month:'2-digit', year:'numeric'}) : '—';
+
+  let toplamBeklenen, toplamGercek, oran, title, kisiSayisi;
+
+  if (scope === 'team') {
+    const teamInspectors = getTeamInspectors();
+    kisiSayisi   = teamInspectors.length;
+    toplamBeklenen = teamInspectors.reduce((s, i) => s + (i.beklenenGunSayisi || 0), 0);
+    toplamGercek   = teamInspectors.reduce((s, i) => s + (i.gercekCalismaGunSayisi || 0), 0);
+    title = t.team_absence_rate || 'Ekip Devamsızlık Oranı';
+  } else {
+    kisiSayisi   = performansData.length;
+    toplamBeklenen = performansData.reduce((s, i) => s + (i.beklenenGunSayisi || 0), 0);
+    toplamGercek   = performansData.reduce((s, i) => s + (i.gercekCalismaGunSayisi || 0), 0);
+    title = t.general_absence_rate || 'Devamsızlık Oranı';
+  }
+
+  oran = toplamBeklenen > 0
+    ? Math.round(Math.max(0, (toplamBeklenen - toplamGercek) / toplamBeklenen) * 100)
+    : 0;
+
+  const minTarih = devamsizlikGenelBilgi.minTarih;
+  const maxTarih = devamsizlikGenelBilgi.maxTarih;
+  const beklenenKisiBasi = devamsizlikGenelBilgi.beklenenGunSayisi || 0;
+
+  const html = `
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--navy)">
+      <div style="background:var(--lblue3);border:1px solid var(--border2);border-radius:8px;padding:12px">
+        <div style="font-weight:700;margin-bottom:6px">${title}</div>
+        <div style="font-size:28px;font-weight:800;color:var(--red)">${oran}%</div>
+      </div>
+
+      <div style="background:#fff;border:1px solid var(--border2);border-radius:8px;padding:12px">
+        <div style="font-weight:700;margin-bottom:8px">📅 Referans Tarih Aralığı</div>
+        <div>Verideki en eski tarih: <strong>${fmt(minTarih)}</strong></div>
+        <div>Verideki en yeni tarih: <strong>${fmt(maxTarih)}</strong></div>
+        <div style="margin-top:6px;color:var(--muted);font-size:12px">
+          Bu aralık (Pazar hariç, haftada 6 gün esası) <strong>${beklenenKisiBasi} gün</strong> olarak hesaplanır
+          ve dosyadaki <u>her inspector için aynı</u> "beklenen gün sayısı" referansı olarak kullanılır.
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid var(--border2);border-radius:8px;padding:12px">
+        <div style="font-weight:700;margin-bottom:8px">🧮 Hesaplama</div>
+        <div>Kişi sayısı: <strong>${kisiSayisi}</strong></div>
+        <div>Toplam beklenen gün (kişi × ${beklenenKisiBasi}): <strong>${toplamBeklenen.toLocaleString('tr-TR')}</strong></div>
+        <div>Toplam gerçek çalışılan gün: <strong>${toplamGercek.toLocaleString('tr-TR')}</strong></div>
+        <div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border2)">
+          Oran = (Toplam Beklenen − Toplam Gerçek) / Toplam Beklenen × 100
+        </div>
+        <div style="margin-top:4px">
+          = (${toplamBeklenen.toLocaleString('tr-TR')} − ${toplamGercek.toLocaleString('tr-TR')}) / ${toplamBeklenen.toLocaleString('tr-TR')} × 100
+          = <strong style="color:var(--red)">${oran}%</strong>
+        </div>
+      </div>
+
+      <div style="background:var(--lamber);border:1px solid #FFE082;border-radius:8px;padding:10px;font-size:12px;color:var(--muted)">
+        ⚠️ Not: "Beklenen gün sayısı" tüm dosyadaki en eski ve en yeni tarihe göre hesaplanır.
+        Bir inspector bu aralığın tamamında çalışmamış olsa bile (örn. ay ortasında işe başladıysa),
+        beklenen gün sayısı aynı kalır — bu da devamsızlık oranının gerçekte olduğundan
+        yüksek görünmesine sebep olabilir.
+      </div>
+    </div>
+  `;
+
+  document.getElementById('absence-detail-content').innerHTML = html;
+  document.getElementById('absence-detail-modal').classList.add('open');
+}
+
+function closeAbsenceDetailModal() {
+  document.getElementById('absence-detail-modal').classList.remove('open');
+}
+
+// ────────────────────────────
 // EXCEL EXPORT
 // ────────────────────────────
 function exportToExcel() {
@@ -5269,6 +5357,13 @@ function performansHesapla(){
   // (Pazar günü tatildir; çalışılsa bile devamsızlık hesabına dahil edilmez.)
   const beklenenGunSayisi = hesaplaBeklenenCalismaGunu(genelMinTarih, genelMaxTarih);
 
+  // Devamsızlık popup'ı için genel tarih aralığı bilgisini sakla
+  devamsizlikGenelBilgi = {
+    minTarih: genelMinTarih,
+    maxTarih: genelMaxTarih,
+    beklenenGunSayisi: beklenenGunSayisi
+  };
+
   // Inspector bazında sonuç map'i oluştur
   const map = {};
   Object.values(inspectorMap).forEach(inspectorData => {
@@ -6137,6 +6232,9 @@ document.addEventListener('keydown', function(e) {
     if (document.getElementById('detail-modal').classList.contains('open')) {
       closeDetailModal();
     }
+    if (document.getElementById('absence-detail-modal')?.classList.contains('open')) {
+      closeAbsenceDetailModal();
+    }
   }
   
   if (e.ctrlKey && e.key === 'n' && document.getElementById('page-klasmanlar').classList.contains('active')) {
@@ -6225,6 +6323,10 @@ document.getElementById('modal').addEventListener('click', function(e) {
 
 document.getElementById('detail-modal').addEventListener('click', function(e) {
   if (e.target === this) closeDetailModal();
+});
+
+document.getElementById('absence-detail-modal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeAbsenceDetailModal();
 });
 
 // Drag & Drop desteği
