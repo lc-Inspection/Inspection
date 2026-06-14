@@ -283,6 +283,18 @@ const translations = {
     record_count:          'Kayıt Sayısı',
     reset:                 '↺ Sıfırla',
     sampling_mode:         'Örnekleme Modu',
+    sampling_date_toggle:  '📅 Tarihe Göre Farklı Seviyeler Kullan',
+    sampling_date_hint:    'Aktif edildiğinde, başlangıç tarihi belirlenen aralıklara denk gelen kayıtlar o döneme ait örnekleme moduna göre hesaplanır. Aralık dışında kalan kayıtlar için yukarıdaki varsayılan mod kullanılır.',
+    sampling_period_add:   '+ Dönem Ekle',
+    sampling_period_max:   'En fazla 3 dönem ekleyebilirsiniz',
+    sampling_period_start: 'Başlangıç',
+    sampling_period_end:   'Bitiş',
+    sampling_period_mode:  'Mod',
+    sampling_period_remove:'Dönemi kaldır',
+    sampling_default_label:'Varsayılan (aralık dışı kayıtlar)',
+    mode_kapali:           'Kapalı',
+    mode_bir:              'Bir Alttan',
+    mode_iki:              'İki Alttan',
     see_details:           'Detayları Gör',
     select_icon:           'İkon Seç',
     select_icon_btn:       'İkon Seç',
@@ -664,6 +676,18 @@ const translations = {
     record_count:          'Record Count',
     reset:                 '↺ Reset',
     sampling_mode:         'Sampling Mode',
+    sampling_date_toggle:  '📅 Use Different Levels by Date',
+    sampling_date_hint:    "When enabled, rows whose start date falls within a defined period are calculated using that period's sampling mode. Rows outside all periods use the default mode above.",
+    sampling_period_add:   '+ Add Period',
+    sampling_period_max:   'You can add up to 3 periods',
+    sampling_period_start: 'Start',
+    sampling_period_end:   'End',
+    sampling_period_mode:  'Mode',
+    sampling_period_remove:'Remove period',
+    sampling_default_label:'Default (rows outside all periods)',
+    mode_kapali:           'Off',
+    mode_bir:              'One Below',
+    mode_iki:              'Two Below',
     see_details:           'See Details',
     select_icon:           'Select Icon',
     select_icon_btn:       'Select Icon',
@@ -868,7 +892,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbySyj0N2HN_5od7WvLQH6DAc6xSmjhNZCDyAlwlCsoult2S3aOOJt67A9lRajKsskUl/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycby5CkmVd7nxtUEqToRinG8r-xAsojqJJ3dK3SLScmvZ-FxNWY-Jg0dqra5BNJ2HXLJq1g/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -1276,6 +1300,10 @@ function applyUserPermissions() {
   if (teamCard)   teamCard.style.display   = showTeamUi ? '' : 'none';
   if (teamFilter) teamFilter.style.display = showTeamUi ? '' : 'none';
   if (genelLabel) genelLabel.style.display = showTeamUi ? 'flex' : 'none';
+
+  // "Temizle" butonu sadece admin tarafından görülebilir
+  const temizleBtn = document.getElementById('btn-temizle');
+  if (temizleBtn) temizleBtn.style.display = (!currentUser || currentUser.isAdmin) ? '' : 'none';
 }
 
 // Geriye dönük uyumluluk: bazı eski nav öğeleri requirePassword çağırabilir.
@@ -2098,6 +2126,7 @@ async function pushPerformansRawToSheets(liste) {
     // YENİ
 const _pushHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
 const _pushOrneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
+const _pushOrneklemeTarihliAktif = document.getElementById('ornekleme-tarihli-aktif')?.checked || false;
 const listeTemiz = liste.map(inspector => {
   const klasmanlarTemiz = {};
   Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
@@ -2113,7 +2142,9 @@ const listeTemiz = liste.map(inspector => {
     gunlukOvertimeDetay: inspector.gunlukOvertimeDetay || {},
     hedefVerimlilik: _pushHedef,
     verimlilikPerf: inspector.genelHizPerf != null ? Math.round(inspector.genelHizPerf * (100 / _pushHedef)) : inspector.verimlilikPerf,
-    orneklemeMod: _pushOrneklemeMod
+    orneklemeMod: _pushOrneklemeMod,
+    orneklemeTarihliAktif: _pushOrneklemeTarihliAktif,
+    orneklemeDonemleri: _pushOrneklemeTarihliAktif ? orneklemeDonemleri : []
   };
 });
 
@@ -2367,6 +2398,7 @@ async function pushPerformansManual(ev) {
     // Not: kayitlar ayrıca pushInspectorKayitlarToSheets ile gönderilecek
     const _manualHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
     const _manualOrneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
+    const _manualOrneklemeTarihliAktif = document.getElementById('ornekleme-tarihli-aktif')?.checked || false;
     const performansDataTemiz = performansData.map(inspector => {
   const klasmanlarTemiz = {};
   Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
@@ -2382,7 +2414,9 @@ async function pushPerformansManual(ev) {
     gunlukOvertimeDetay: inspector.gunlukOvertimeDetay || {},
     hedefVerimlilik: _manualHedef,
     verimlilikPerf: inspector.genelHizPerf != null ? Math.round(inspector.genelHizPerf * (100 / _manualHedef)) : inspector.verimlilikPerf,
-    orneklemeMod: _manualOrneklemeMod
+    orneklemeMod: _manualOrneklemeMod,
+    orneklemeTarihliAktif: _manualOrneklemeTarihliAktif,
+    orneklemeDonemleri: _manualOrneklemeTarihliAktif ? orneklemeDonemleri : []
   };
 });
     await fetch(url, {
@@ -2686,6 +2720,20 @@ function fixVerimlilikPerf(liste) {
   const sheetsOrneklemeMod = liste[0]?.orneklemeMod || 'kapali';
   const radioEl = document.getElementById('ornekleme-' + sheetsOrneklemeMod);
   if (radioEl) radioEl.checked = true;
+
+  // Tarihe göre farklı seviyeler (dönemler) — Sheets'ten gelen değere göre geri yükle
+  const sheetsTarihliAktif = !!liste[0]?.orneklemeTarihliAktif;
+  const sheetsDonemler = Array.isArray(liste[0]?.orneklemeDonemleri) ? liste[0].orneklemeDonemleri : [];
+  const tarihliCb = document.getElementById('ornekleme-tarihli-aktif');
+  if (tarihliCb) tarihliCb.checked = sheetsTarihliAktif;
+  orneklemeDonemleri = sheetsTarihliAktif
+    ? sheetsDonemler.map(p => ({ start: p.start || '', end: p.end || '', mode: p.mode || 'kapali' }))
+    : [];
+  const tarihliWrap = document.getElementById('ornekleme-donemler-wrap');
+  if (tarihliWrap) tarihliWrap.style.display = sheetsTarihliAktif ? 'flex' : 'none';
+  const tarihliTag = document.getElementById('ornekleme-default-tag');
+  if (tarihliTag) tarihliTag.style.display = sheetsTarihliAktif ? 'inline-block' : 'none';
+  renderOrneklemeDonemleri();
 
   // 3) Her inspector'ın verimlilikPerf ve hedefVerimlilik'ini güncelle
   liste.forEach(inspector => {
@@ -4846,6 +4894,97 @@ function orneklemeAdet(adet, mod) {
   return adet;
 }
 
+// ════════════════════════════════════════════════════════════════════════════════
+// TARİHE GÖRE FARKLI ÖRNEKLEME SEVİYELERİ (Dönemler)
+// ════════════════════════════════════════════════════════════════════════════════
+// Aynı Excel dosyasında, farklı tarih aralıkları için farklı örnekleme modu
+// kullanılabilmesi sağlanır (örn. 1-15 Ocak Kapalı, 16-28 Ocak Bir Alttan,
+// 29 Ocak - 28 Şubat İki Alttan). En fazla 3 dönem desteklenir.
+// Her dönem: { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD', mode: 'kapali'|'bir'|'iki' }
+const ORNEKLEME_DONEM_MAX = 3;
+let orneklemeDonemleri = [];
+
+function toggleOrneklemeDonemleri() {
+  const aktif = document.getElementById('ornekleme-tarihli-aktif')?.checked;
+  const wrap = document.getElementById('ornekleme-donemler-wrap');
+  const tag  = document.getElementById('ornekleme-default-tag');
+  if (wrap) wrap.style.display = aktif ? 'flex' : 'none';
+  if (tag)  tag.style.display  = aktif ? 'inline-block' : 'none';
+  if (aktif && orneklemeDonemleri.length === 0) {
+    // İlk açılışta kullanım kolaylığı için bir dönem ekle
+    orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali' });
+  }
+  renderOrneklemeDonemleri();
+  performansHesapla();
+}
+
+function addOrneklemeDonemi() {
+  if (orneklemeDonemleri.length >= ORNEKLEME_DONEM_MAX) return;
+  orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali' });
+  renderOrneklemeDonemleri();
+  performansHesapla();
+}
+
+function removeOrneklemeDonemi(idx) {
+  orneklemeDonemleri.splice(idx, 1);
+  renderOrneklemeDonemleri();
+  performansHesapla();
+}
+
+function onOrneklemeDonemChange(el) {
+  const idx = parseInt(el.dataset.idx, 10);
+  const field = el.dataset.field;
+  if (!orneklemeDonemleri[idx]) return;
+  orneklemeDonemleri[idx][field] = el.value;
+  performansHesapla();
+}
+
+function renderOrneklemeDonemleri() {
+  const listEl = document.getElementById('ornekleme-donemler-list');
+  const addBtn = document.getElementById('btn-ornekleme-donem-ekle');
+  const maxHint = document.getElementById('ornekleme-donem-max-hint');
+  if (!listEl) return;
+  const t = translations[currentLang] || translations.tr;
+
+  listEl.innerHTML = orneklemeDonemleri.map((p, idx) => `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #E1BEE7;border-radius:7px;padding:6px 10px">
+      <span style="font-size:11px;font-weight:700;color:#8E24AA;min-width:14px">${idx + 1}.</span>
+      <label style="font-size:10.5px;color:var(--muted);margin:0" data-i18n="sampling_period_start">${t.sampling_period_start}</label>
+      <input type="date" data-idx="${idx}" data-field="start" value="${p.start || ''}" onchange="onOrneklemeDonemChange(this)" style="width:auto;padding:4px 6px;font-size:12px">
+      <label style="font-size:10.5px;color:var(--muted);margin:0" data-i18n="sampling_period_end">${t.sampling_period_end}</label>
+      <input type="date" data-idx="${idx}" data-field="end" value="${p.end || ''}" onchange="onOrneklemeDonemChange(this)" style="width:auto;padding:4px 6px;font-size:12px">
+      <label style="font-size:10.5px;color:var(--muted);margin:0" data-i18n="sampling_period_mode">${t.sampling_period_mode}</label>
+      <select data-idx="${idx}" data-field="mode" onchange="onOrneklemeDonemChange(this)" style="width:auto;padding:4px 8px;font-size:12px">
+        <option value="kapali" ${p.mode === 'kapali' ? 'selected' : ''}>${t.mode_kapali}</option>
+        <option value="bir" ${p.mode === 'bir' ? 'selected' : ''}>${t.mode_bir}</option>
+        <option value="iki" ${p.mode === 'iki' ? 'selected' : ''}>${t.mode_iki}</option>
+      </select>
+      <button type="button" onclick="removeOrneklemeDonemi(${idx})" title="${t.sampling_period_remove}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:14px;padding:2px 6px;margin-left:auto">✕</button>
+    </div>
+  `).join('');
+
+  if (addBtn) addBtn.style.display = orneklemeDonemleri.length >= ORNEKLEME_DONEM_MAX ? 'none' : '';
+  if (maxHint) maxHint.style.display = orneklemeDonemleri.length >= ORNEKLEME_DONEM_MAX ? '' : 'none';
+}
+
+// Verilen tarih için, tarih aralıklı mod aktifse ve tarih bir döneme denk
+// geliyorsa o dönemin örnekleme modunu döndürür. Aksi halde null döner
+// (yani varsayılan/genel mod kullanılmalı).
+function getOrneklemeModForDate(date) {
+  if (!date) return null;
+  const aktif = document.getElementById('ornekleme-tarihli-aktif')?.checked;
+  if (!aktif) return null;
+  for (const p of orneklemeDonemleri) {
+    if (!p.start || !p.end) continue;
+    const [sy, sm, sd] = p.start.split('-').map(Number);
+    const [ey, em, ed] = p.end.split('-').map(Number);
+    const startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+    const endDate   = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+    if (date >= startDate && date <= endDate) return p.mode;
+  }
+  return null;
+}
+
 function updateOrneklemeUI() {
   const mod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
   const preview = document.getElementById('ornekleme-tablo-preview');
@@ -4950,9 +5089,26 @@ function performansHesapla(){
     const excelKlasman = String(row[klasmanCol]||'').trim();
     const ins = String(row[insCol]||'').trim();
     const adetHam = parseFloat(row[adetCol])||0;
+    const baslangicTarih = baslangicCol ? row[baslangicCol] : null;
+    const bitisTarih = bitisCol ? row[bitisCol] : null;
+    const mesaiHam = mesaiCol ? row[mesaiCol] : null;
 
-    // InspectionSonuc "Kaldı" ise bu satır için örnekleme modu kapalı (tüm adet kontrol edilmeli)
+    // Tarihleri en başta parse et — örnekleme modu seçimi için de kullanılır
+    const parsedBaslangic = baslangicTarih ? parseFlexibleDate(baslangicTarih) : null;
+    const parsedBitis     = bitisTarih     ? parseFlexibleDate(bitisTarih)     : null;
+    const tarihGecerli = parsedBaslangic && parsedBitis &&
+                         parsedBitis > parsedBaslangic &&
+                         parsedBaslangic.getFullYear() > 2000;
+
+    // Örnekleme modu önceliği:
+    // 1) Varsayılan: yukarıdaki genel mod (radio)
+    // 2) Tarih aralıklı mod aktifse ve satırın başlangıç tarihi bir döneme denk
+    //    geliyorsa o dönemin modu kullanılır
+    // 3) InspectionSonuc "Kaldı" ise her durumda Kapalı (en yüksek öncelik —
+    //    tüm adet kontrol edilmeli)
     let satırOrneklemeMod = orneklemeMod;
+    const donemMod = getOrneklemeModForDate(parsedBaslangic);
+    if (donemMod !== null) satırOrneklemeMod = donemMod;
     if (sonucCol) {
       const sonucRaw = String(row[sonucCol] || '').trim();
       // Türkçe karakter duyarsız karşılaştırma (ı→i, İ→i, ğ→g vs.)
@@ -4964,9 +5120,6 @@ function performansHesapla(){
     }
 
     const adet = orneklemeAdet(adetHam, satırOrneklemeMod);
-    const baslangicTarih = baslangicCol ? row[baslangicCol] : null;
-    const bitisTarih = bitisCol ? row[bitisCol] : null;
-    const mesaiHam = mesaiCol ? row[mesaiCol] : null;
 
     // InspectionYapilanDepo filtresi: sütun seçiliyse boş satırları atla
     if (yapilanDepoCol) {
@@ -5003,14 +5156,7 @@ function performansHesapla(){
         }
       }
     }
-    
-    // Tarihleri parse et
-    const parsedBaslangic = baslangicTarih ? parseFlexibleDate(baslangicTarih) : null;
-    const parsedBitis     = bitisTarih     ? parseFlexibleDate(bitisTarih)     : null;
-    const tarihGecerli = parsedBaslangic && parsedBitis &&
-                         parsedBitis > parsedBaslangic &&
-                         parsedBaslangic.getFullYear() > 2000;
-    
+
     if (tarihGecerli) {
       const zatenVar = inspectorMap[ins].kayitListesi.some(
         r => r.parsedBaslangic.getTime() === parsedBaslangic.getTime() &&
