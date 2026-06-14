@@ -7243,30 +7243,30 @@ async function renderTeamManagersSection() {
 
     return `
       <div class="card" style="margin-bottom:0;overflow:hidden">
-        <div class="card-header" style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);border-bottom:none;padding:14px 16px">
-          <h2 style="color:#fff;gap:8px">
-            <span style="background:rgba(255,255,255,.12);border-radius:7px;padding:4px 7px;font-size:13px">🧑‍💼</span>
+        <div class="card-header" style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);border-bottom:none;padding:10px 14px">
+          <h2 style="color:#fff;gap:8px;font-size:12px">
+            <span style="background:rgba(255,255,255,.12);border-radius:6px;padding:3px 6px;font-size:12px">🧑‍💼</span>
             <span>${t.team_manager_prefix}: ${_escapeHtml(mgr.username)}</span>
           </h2>
         </div>
-        <div class="card-body">
+        <div class="card-body" style="padding:12px 14px">
           ${total > 0 ? `
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-              <div class="summary-stat" style="padding:12px 8px">
-                <div class="summary-stat-value" style="font-size:18px">${total}</div>
-                <div class="summary-stat-label" style="font-size:10px">${t.team_manager_member_count}</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              <div style="text-align:center;padding:8px 4px;border-radius:8px;background:var(--lblue3);border:1px solid var(--border2)">
+                <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace;line-height:1">${total}</div>
+                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-top:4px">${t.team_manager_member_count}</div>
               </div>
-              <div class="summary-stat" style="padding:12px 8px;background:linear-gradient(135deg,var(--lamber) 0%,#fff 100%);border-color:#FFE082">
-                <div class="summary-stat-value" style="font-size:18px;color:var(--amber)">${totalAdet.toLocaleString('tr-TR')}</div>
-                <div class="summary-stat-label" style="font-size:10px">${t.team_manager_total_qty}</div>
+              <div style="text-align:center;padding:8px 4px;border-radius:8px;background:var(--lamber);border:1px solid #FFE082">
+                <div style="font-size:18px;font-weight:700;color:var(--amber);font-family:'DM Mono',monospace;line-height:1">${totalAdet.toLocaleString('tr-TR')}</div>
+                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-top:4px">${t.team_manager_total_qty}</div>
               </div>
-              <div class="summary-stat" style="padding:12px 8px;background:linear-gradient(135deg,var(--lgreen) 0%,#fff 100%);border-color:#B2DFDB">
-                <div class="summary-stat-value" style="font-size:18px;color:${perfColor}">${avgPerf}%</div>
-                <div class="summary-stat-label" style="font-size:10px">${t.team_manager_avg_perf}</div>
+              <div style="text-align:center;padding:8px 4px;border-radius:8px;background:var(--lgreen);border:1px solid #B2DFDB">
+                <div style="font-size:18px;font-weight:700;color:${perfColor};font-family:'DM Mono',monospace;line-height:1">${avgPerf}%</div>
+                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-top:4px">${t.team_manager_avg_perf}</div>
               </div>
             </div>
           ` : `
-            <div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">${t.team_manager_no_members}</div>
+            <div style="text-align:center;color:var(--muted);font-size:12px;padding:4px 0">${t.team_manager_no_members}</div>
           `}
         </div>
       </div>
