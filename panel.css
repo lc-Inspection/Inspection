@@ -1065,6 +1065,18 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 .pw-title { font-size: 17px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
 .pw-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
 .pw-input { text-align: center; font-size: 18px; letter-spacing: 4px; font-family: 'DM Mono', monospace; margin-bottom: 14px; }
+/* Kullanıcı adı alanı: şifre alanından farklı olarak küçük, normal aralıklı yazı */
+#pw-username {
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  font-family: 'DM Sans', sans-serif;
+  text-align: left;
+}
+#pw-username::placeholder {
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  color: var(--muted2);
+}
 .pw-err { color: var(--red); font-size: 12px; margin-bottom: 10px; min-height: 18px; }
 .pw-btn { width: 100%; padding: 10px; background: var(--blue2); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s; }
 .pw-btn:hover { background: var(--blue); }
