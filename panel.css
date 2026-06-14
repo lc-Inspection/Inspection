@@ -201,12 +201,15 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   margin-bottom: 20px;
 }
 
-/* Ekibim kartı içindeki özet istatistikler — 4 sütun */
+/* Ekibim kartı içindeki özet istatistikler — 5 sütun */
 .team-summary-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 14px;
   margin-bottom: 16px;
+}
+@media (max-width: 1100px) {
+  .team-summary-stats { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 768px) {
   .team-summary-stats { grid-template-columns: repeat(2, 1fr); }
@@ -1070,7 +1073,7 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   font-size: 13px;
   letter-spacing: 0.3px;
   font-family: 'DM Sans', sans-serif;
-  text-align: left;
+  text-align: center;
 }
 #pw-username::placeholder {
   font-size: 12px;
