@@ -225,6 +225,12 @@ const translations = {
     team_no_result:        'Sonuç bulunamadı',
     team_only_filter:      '👥 Sadece Ekibim',
     team_remove_confirm:   'ekipten çıkarılsın mı?',
+    team_managers_label:   'Ekip Yöneticileri',
+    team_manager_prefix:   'Ekip Yöneticisi',
+    team_manager_member_count: 'Çalışan Sayısı',
+    team_manager_total_qty:    'Kontrol Edilen Adet',
+    team_manager_avg_perf:     'Performans Ortalaması',
+    team_manager_no_members:   'Bu ekibe henüz inspector eklenmemiş.',
     general_status_label:  'Genel Durum',
     display_not_started:   'Gösterim başlamadı',
     download_excel:        '📊 Excel İndir',
@@ -618,6 +624,12 @@ const translations = {
     team_no_result:        'No results found',
     team_only_filter:      '👥 My Team Only',
     team_remove_confirm:   'remove from team?',
+    team_managers_label:   'Team Managers',
+    team_manager_prefix:   'Team Manager',
+    team_manager_member_count: 'Number of Employees',
+    team_manager_total_qty:    'Inspected Quantity',
+    team_manager_avg_perf:     'Average Performance',
+    team_manager_no_members:   'No inspectors have been added to this team yet.',
     general_status_label:  'General Status',
     display_not_started:   'Display not started',
     download_excel:        '📊 Download Excel',
@@ -1300,6 +1312,10 @@ function applyUserPermissions() {
   if (teamCard)   teamCard.style.display   = showTeamUi ? '' : 'none';
   if (teamFilter) teamFilter.style.display = showTeamUi ? '' : 'none';
   if (genelLabel) genelLabel.style.display = showTeamUi ? 'flex' : 'none';
+
+  // Ekip yöneticileri özet kartları sadece admin'e gösterilir
+  const teamManagersSection = document.getElementById('team-managers-section');
+  if (teamManagersSection && showTeamUi) teamManagersSection.style.display = 'none';
 
   // "Temizle" butonu sadece admin tarafından görülebilir
   const temizleBtn = document.getElementById('btn-temizle');
@@ -3379,6 +3395,7 @@ function renderDashboard() {
     document.getElementById('dashboard-pagination').style.display = 'none';
     updateSummaryStats([]);
     renderTeamSection();
+    renderTeamManagersSection();
     return;
   }
 
@@ -3397,6 +3414,7 @@ function renderDashboard() {
   filterInspectors();
   updateSummaryStats(inspectors);
   renderTeamSection();
+  renderTeamManagersSection();
 }
 
 function updateKlasmanFilter() {
@@ -5303,6 +5321,7 @@ function performansHesapla(){
       toplamMesaistiSaniye: mesaiHesap ? (mesaiHesap.toplamMesaistiSaniye || 0) : 0,
       gunlukOvertimeDetay: mesaiHesap ? (mesaiHesap.gunlukOvertimeDetay || {}) : {}
     };
+
     
     // Debug log
     console.log(`[${ins}] Gün:${mesaiHesap?.gunSayisi || 0} Standart:${Math.round(toplamStandartSure/60)}dk Mesai:${Math.round(mesaiSureSn/60)}dk Mesaisti:${Math.round((mesaiHesap?.toplamMesaistiSaniye||0)/60)}dk Performans:${performans}% VPerf:${performans !== null ? Math.round(performans*(100/verimlilikHedef)) : null}%`);
@@ -6972,7 +6991,7 @@ async function loadAndRenderUsers() {
   try {
     const data = await jsonpFetch(url, { action: 'getUsers', token });
     if (data.status === 'ok') {
-      _usersCache = (data.users || []).map(u => ({ username: u.username, tabs: u.tabs || [] }));
+      _usersCache = (data.users || []).map(u => ({ username: u.username, tabs: u.tabs || [], team: u.team || [] }));
     } else {
       _usersCache = [];
     }
@@ -7153,11 +7172,12 @@ async function _pushUsersToSheets() {
 // ekibini seçer. Ekip bilgisi Users sayfasının "Team" sütununda saklanır ve
 // currentUser.team içinde (virgülle ayrılmış değil, dizi olarak) tutulur.
 
-// performansData içinden, hedef verimliliğe göre normalize edilmiş "performans"
-// alanı eklenmiş ekip üyelerini döndürür.
-function getTeamInspectors() {
-  if (!currentUser || currentUser.isAdmin) return [];
-  const teamSet = new Set((currentUser.team || []).map(n => n.toLowerCase()));
+// performansData içinden, verilen ekip listesine (kullanıcı adları) ait
+// inspectorleri, hedef verimliliğe göre normalize edilmiş "performans" alanı
+// eklenmiş olarak döndürür. Genel amaçlı: hem "Ekibim" kartı hem de admin'in
+// "Ekip Yöneticileri" bölümü tarafından kullanılır.
+function getInspectorsForTeam(teamArr) {
+  const teamSet = new Set((teamArr || []).map(n => String(n).toLowerCase()));
   if (!teamSet.size) return [];
   const hedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
   return performansData
@@ -7170,6 +7190,106 @@ function getTeamInspectors() {
             ? Math.round(inspector.genelHizPerf * (100 / hedef))
             : 0)
     }));
+}
+
+// performansData içinden, hedef verimliliğe göre normalize edilmiş "performans"
+// alanı eklenmiş ekip üyelerini döndürür.
+function getTeamInspectors() {
+  if (!currentUser || currentUser.isAdmin) return [];
+  return getInspectorsForTeam(currentUser.team || []);
+}
+
+// Admin görünümünde, her ekip yöneticisi için özet kart oluşturur:
+// kullanıcı adı, çalışan sayısı, toplam kontrol edilen adet ve performans
+// ortalaması. _usersCache'teki "team" alanına sahip (admin olmayan)
+// kullanıcılar üzerinden çalışır.
+async function renderTeamManagersSection() {
+  const section = document.getElementById('team-managers-section');
+  const grid = document.getElementById('team-managers-grid');
+  if (!section || !grid) return;
+
+  const isAdmin = !currentUser || currentUser.isAdmin;
+  if (!isAdmin || !performansData.length) {
+    section.style.display = 'none';
+    return;
+  }
+
+  // _usersCache henüz yüklenmediyse (Kullanıcılar sekmesine girilmemiş olabilir),
+  // sessizce yükle.
+  if (!_usersCache.length) {
+    await _silentLoadUsersCache();
+  }
+
+  const managers = _usersCache.filter(u => (u.team || []).length > 0);
+  if (!managers.length) {
+    section.style.display = 'none';
+    return;
+  }
+
+  const t = translations[currentLang] || translations.tr;
+
+  grid.innerHTML = managers.map(mgr => {
+    const teamInspectors = getInspectorsForTeam(mgr.team);
+    const total = teamInspectors.length;
+    const totalAdet = teamInspectors.reduce((s, i) => s + (i.adet || 0), 0);
+    const avgPerf = total > 0
+      ? Math.round(teamInspectors.reduce((s, i) => s + (i.performans || 0), 0) / total)
+      : 0;
+
+    const perfColor = avgPerf >= 95 ? 'var(--green)'
+      : avgPerf >= 85 ? 'var(--blue)'
+      : avgPerf >= 70 ? 'var(--amber)'
+      : 'var(--red)';
+
+    return `
+      <div class="card" style="margin-bottom:0;overflow:hidden">
+        <div class="card-header" style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);border-bottom:none;padding:14px 16px">
+          <h2 style="color:#fff;gap:8px">
+            <span style="background:rgba(255,255,255,.12);border-radius:7px;padding:4px 7px;font-size:13px">🧑‍💼</span>
+            <span>${t.team_manager_prefix}: ${_escapeHtml(mgr.username)}</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          ${total > 0 ? `
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+              <div class="summary-stat" style="padding:12px 8px">
+                <div class="summary-stat-value" style="font-size:18px">${total}</div>
+                <div class="summary-stat-label" style="font-size:10px">${t.team_manager_member_count}</div>
+              </div>
+              <div class="summary-stat" style="padding:12px 8px;background:linear-gradient(135deg,var(--lamber) 0%,#fff 100%);border-color:#FFE082">
+                <div class="summary-stat-value" style="font-size:18px;color:var(--amber)">${totalAdet.toLocaleString('tr-TR')}</div>
+                <div class="summary-stat-label" style="font-size:10px">${t.team_manager_total_qty}</div>
+              </div>
+              <div class="summary-stat" style="padding:12px 8px;background:linear-gradient(135deg,var(--lgreen) 0%,#fff 100%);border-color:#B2DFDB">
+                <div class="summary-stat-value" style="font-size:18px;color:${perfColor}">${avgPerf}%</div>
+                <div class="summary-stat-label" style="font-size:10px">${t.team_manager_avg_perf}</div>
+              </div>
+            </div>
+          ` : `
+            <div style="text-align:center;color:var(--muted);font-size:12px;padding:8px 0">${t.team_manager_no_members}</div>
+          `}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  section.style.display = '';
+}
+
+// _usersCache'i (Kullanıcılar sekmesine girmeden) sessizce doldurur.
+// Hata olursa _usersCache boş bırakılır; section gizli kalır.
+async function _silentLoadUsersCache() {
+  const url   = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url || !token) return;
+  try {
+    const data = await jsonpFetch(url, { action: 'getUsers', token });
+    if (data.status === 'ok') {
+      _usersCache = (data.users || []).map(u => ({ username: u.username, tabs: u.tabs || [], team: u.team || [] }));
+    }
+  } catch(e) {
+    console.warn('_silentLoadUsersCache hatası:', e.message);
+  }
 }
 
 // "Ekibim" kartını (özet istatistikler + üye listesi) çizer.
@@ -7199,6 +7319,7 @@ function renderTeamSection() {
   if (elAvgPerf)  elAvgPerf.textContent  = avgPerf + '%';
   if (elProducts) elProducts.textContent = totalProducts.toLocaleString('tr-TR');
   if (elAvgDays)  elAvgDays.textContent  = avgDays + ' ' + t.days_suffix;
+
 
   const listEl = document.getElementById('team-members-list');
   if (!listEl) return;
