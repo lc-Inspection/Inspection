@@ -235,7 +235,7 @@ const translations = {
     ekip_analiz_title:     '🧑‍🤝‍🧑 Ekibim Analizi',
     ekip_analiz_sub:       'Ekip üyelerinizin performansını klasman bazında karşılaştırın',
     ekip_analiz_other_members:    'diğer üye',
-    ekip_analiz_top_producer:     'En Çok Üretim',
+    ekip_analiz_top_producer:     'En Çok Insp. Adet',
     ekip_analiz_general_ranking:  'Genel Performans Sıralaması',
     ekip_analiz_col_name:         'Inspector',
     ekip_analiz_col_perf:         'Performans',
