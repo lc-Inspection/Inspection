@@ -241,11 +241,7 @@ const translations = {
     ekip_analiz_col_qty:          'Toplam Adet',
     ekip_analiz_col_klasman_count: 'Klasman Sayısı',
     ekip_analiz_dist_title:       'Performans Dağılımı',
-    ekip_analiz_gelisim_title:    'Gelişim Alanları (En Yavaş Klasmanlar)',
-    ekip_analiz_col_klasman:      'Klasman',
-    ekip_analiz_col_avg_perf:     'Ortalama Performans',
-    ekip_analiz_col_member_count: 'Çalışan Sayısı',
-    ekip_analiz_no_klasman_data:  'Klasman verisi bulunamadı.',
+    ekip_analiz_uretim_title:     'Verimlilik / Adet Dağılımı',
     general_status_label:  'Genel Durum',
     display_not_started:   'Gösterim başlamadı',
     download_excel:        '📊 Excel İndir',
@@ -655,11 +651,7 @@ const translations = {
     ekip_analiz_col_qty:          'Total Quantity',
     ekip_analiz_col_klasman_count: 'Classification Count',
     ekip_analiz_dist_title:       'Performance Distribution',
-    ekip_analiz_gelisim_title:    'Improvement Areas (Slowest Classifications)',
-    ekip_analiz_col_klasman:      'Classification',
-    ekip_analiz_col_avg_perf:     'Average Performance',
-    ekip_analiz_col_member_count: 'Employee Count',
-    ekip_analiz_no_klasman_data:  'No classification data found.',
+    ekip_analiz_uretim_title:     'Productivity / Quantity Distribution',
     general_status_label:  'General Status',
     display_not_started:   'Display not started',
     download_excel:        '📊 Download Excel',
@@ -7321,37 +7313,24 @@ function renderEkipAnaliz() {
     `;
   }).join('');
 
-  // ── 3) Gelişim Alanları: ekibin en düşük performans gösterdiği klasmanlar ──
-  // Her klasman için, o klasmanda çalışan ekip üyelerinin ortalama hizPerf'i.
-  const klasmanMap = {}; // { klasmanAdi: { toplamPerf, toplamAdet, kisiSayisi } }
-  teamInspectors.forEach(ins => {
-    Object.entries(ins.klasmanlar || {}).forEach(([klasmanAd, kd]) => {
-      if (!kd.adet) return; // hiç çalışmadıysa dahil etme
-      if (!klasmanMap[klasmanAd]) klasmanMap[klasmanAd] = { toplamPerf: 0, toplamAdet: 0, kisiSayisi: 0 };
-      klasmanMap[klasmanAd].toplamPerf  += kd.hizPerf || 0;
-      klasmanMap[klasmanAd].toplamAdet  += kd.adet || 0;
-      klasmanMap[klasmanAd].kisiSayisi  += 1;
-    });
-  });
+  // ── 3) Verimlilik/Adet Dağılımı: ekip üretiminin üyeler arasındaki payı ────
+  const ekipToplamAdet = teamInspectors.reduce((s, i) => s + (i.adet || 0), 0);
+  const uretimSirali = [...teamInspectors].sort((a, b) => (b.adet || 0) - (a.adet || 0));
+  const maxUyeAdet = Math.max(1, ...uretimSirali.map(i => i.adet || 0));
 
-  const klasmanOrtalamalari = Object.entries(klasmanMap).map(([ad, v]) => ({
-    ad,
-    ortalamaPerf: Math.round(v.toplamPerf / v.kisiSayisi),
-    toplamAdet: v.toplamAdet,
-    kisiSayisi: v.kisiSayisi
-  })).sort((a, b) => a.ortalamaPerf - b.ortalamaPerf);
-
-  const gelisimAlanlari = klasmanOrtalamalari.slice(0, 5);
-
-  const gelisimHtml = gelisimAlanlari.map(k => {
-    const perfClass = getPerformanceClass(k.ortalamaPerf);
+  const uretimDagilimHtml = uretimSirali.map(ins => {
+    const adet = ins.adet || 0;
+    const pay = ekipToplamAdet > 0 ? Math.round((adet / ekipToplamAdet) * 100) : 0;
+    const barYuzde = Math.round((adet / maxUyeAdet) * 100);
+    const perfClass = getPerformanceClass(ins.performans || 0);
     return `
-      <tr>
-        <td style="padding:10px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(k.ad)}</td>
-        <td style="padding:10px 12px;text-align:center"><span class="${perfClass}" style="font-weight:700;font-family:'DM Mono',monospace">${k.ortalamaPerf}%</span></td>
-        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${k.toplamAdet.toLocaleString('tr-TR')}</td>
-        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${k.kisiSayisi}</td>
-      </tr>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:130px;font-size:12px;font-weight:600;color:var(--navy);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_escapeHtml(_formatDisplayName(ins.ins))}">${_escapeHtml(_formatDisplayName(ins.ins))}</div>
+        <div style="flex:1;background:var(--offwhite);border-radius:6px;height:22px;overflow:hidden">
+          <div class="${perfClass}" style="height:100%;width:${barYuzde}%;background:currentColor;border-radius:6px;transition:width .3s"></div>
+        </div>
+        <div style="width:120px;text-align:right;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">${adet.toLocaleString('tr-TR')} (${pay}%)</div>
+      </div>
     `;
   }).join('');
 
@@ -7410,24 +7389,12 @@ function renderEkipAnaliz() {
       </div>
     </div>
 
-    <!-- Gelişim Alanları: en yavaş klasmanlar -->
-    <div style="background:#fff;border:1px solid var(--border2);border-radius:12px;overflow:hidden;margin-bottom:8px">
-      <div style="padding:14px 16px;border-bottom:1px solid var(--border2);font-weight:700;color:var(--navy)">
-        🛠️ ${t.ekip_analiz_gelisim_title}
+    <!-- Verimlilik/Adet Dağılımı -->
+    <div style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:8px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:12px">📦 ${t.ekip_analiz_uretim_title}</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${uretimDagilimHtml}
       </div>
-      ${gelisimAlanlari.length ? `
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead>
-            <tr style="background:#f8f9fa">
-              <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_klasman}</th>
-              <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_avg_perf}</th>
-              <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_qty}</th>
-              <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_member_count}</th>
-            </tr>
-          </thead>
-          <tbody>${gelisimHtml}</tbody>
-        </table>
-      ` : `<div style="padding:14px 16px;color:var(--muted);font-size:13px">${t.ekip_analiz_no_klasman_data}</div>`}
     </div>
   `;
 }
