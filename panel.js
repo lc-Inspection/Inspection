@@ -93,6 +93,7 @@ const translations = {
     no_data_js_hint:      'Önce Performans Analizi sayfasından Excel yükleyin',
     data_not_found:       'Veri bulunamadı',
     days_suffix:          'gün',
+    days_suffix_short:    'gün',
     filter_none:          '— Filtre yok (tüm satırlar) —',
     detailed_perf:        'Detaylı Performans',
     loading_records:      'Kayıt detayları yükleniyor...',
@@ -242,6 +243,7 @@ const translations = {
     ekip_analiz_col_klasman_count: 'Klasman Sayısı',
     ekip_analiz_dist_title:       'Performans Dağılımı',
     ekip_analiz_uretim_title:     'Verimlilik / Adet Dağılımı',
+    ekip_analiz_daily_avg:        'Günlük ortalama adet',
     general_status_label:  'Genel Durum',
     display_not_started:   'Gösterim başlamadı',
     download_excel:        '📊 Excel İndir',
@@ -503,6 +505,7 @@ const translations = {
     no_data_js_hint:      'First upload an Excel file from the Performance Analysis page',
     data_not_found:       'Data not found',
     days_suffix:          'days',
+    days_suffix_short:    'day',
     filter_none:          '— No filter (all rows) —',
     detailed_perf:        'Detailed Performance',
     loading_records:      'Loading record details...',
@@ -652,6 +655,7 @@ const translations = {
     ekip_analiz_col_klasman_count: 'Classification Count',
     ekip_analiz_dist_title:       'Performance Distribution',
     ekip_analiz_uretim_title:     'Productivity / Quantity Distribution',
+    ekip_analiz_daily_avg:        'Average daily quantity',
     general_status_label:  'General Status',
     display_not_started:   'Display not started',
     download_excel:        '📊 Download Excel',
@@ -7320,6 +7324,8 @@ function renderEkipAnaliz() {
 
   const uretimDagilimHtml = uretimSirali.map(ins => {
     const adet = ins.adet || 0;
+    const gunSayisi = ins.gunSayisi || 0;
+    const gunlukOrt = gunSayisi > 0 ? Math.round(adet / gunSayisi) : 0;
     const pay = ekipToplamAdet > 0 ? Math.round((adet / ekipToplamAdet) * 100) : 0;
     const barYuzde = Math.round((adet / maxUyeAdet) * 100);
     const perfClass = getPerformanceClass(ins.performans || 0);
@@ -7329,6 +7335,8 @@ function renderEkipAnaliz() {
         <div style="flex:1;background:var(--offwhite);border-radius:6px;height:22px;overflow:hidden">
           <div class="${perfClass}" style="height:100%;width:${barYuzde}%;background:currentColor;border-radius:6px;transition:width .3s"></div>
         </div>
+        <div style="width:64px;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">📅 ${gunSayisi} ${t.days_suffix}</div>
+        <div style="width:80px;text-align:right;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0" title="${t.ekip_analiz_daily_avg}">⌀ ${gunlukOrt.toLocaleString('tr-TR')}/${t.days_suffix_short}</div>
         <div style="width:120px;text-align:right;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">${adet.toLocaleString('tr-TR')} (${pay}%)</div>
       </div>
     `;
