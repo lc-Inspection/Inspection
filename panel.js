@@ -231,6 +231,18 @@ const translations = {
     team_manager_total_qty:    'Kontrol Edilen Adet',
     team_manager_avg_perf:     'Performans Ortalaması',
     team_manager_no_members:   'Bu ekibe henüz inspector eklenmemiş.',
+    nav_ekip_analiz:       'Ekibim Analizi',
+    ekip_analiz_title:     '🧑‍🤝‍🧑 Ekibim Analizi',
+    ekip_analiz_sub:       'Ekip üyelerinizin performansını klasman bazında karşılaştırın',
+    ekip_analiz_other_members:    'diğer üye',
+    ekip_analiz_top_producer:     'En Çok Üretim',
+    ekip_analiz_general_ranking:  'Genel Performans Sıralaması',
+    ekip_analiz_col_name:         'Inspector',
+    ekip_analiz_col_perf:         'Performans',
+    ekip_analiz_col_qty:          'Toplam Adet',
+    ekip_analiz_col_klasman_count: 'Klasman Sayısı',
+    ekip_analiz_klasman_leaders:  'Klasman Bazında En İyi Performans',
+    ekip_analiz_no_klasman_data:  'Klasman verisi bulunamadı.',
     general_status_label:  'Genel Durum',
     display_not_started:   'Gösterim başlamadı',
     download_excel:        '📊 Excel İndir',
@@ -630,6 +642,18 @@ const translations = {
     team_manager_total_qty:    'Inspected Quantity',
     team_manager_avg_perf:     'Average Performance',
     team_manager_no_members:   'No inspectors have been added to this team yet.',
+    nav_ekip_analiz:       'My Team Analysis',
+    ekip_analiz_title:     '🧑‍🤝‍🧑 My Team Analysis',
+    ekip_analiz_sub:       'Compare your team members\' performance by classification',
+    ekip_analiz_other_members:    'other member(s)',
+    ekip_analiz_top_producer:     'Top Producer',
+    ekip_analiz_general_ranking:  'Overall Performance Ranking',
+    ekip_analiz_col_name:         'Inspector',
+    ekip_analiz_col_perf:         'Performance',
+    ekip_analiz_col_qty:          'Total Quantity',
+    ekip_analiz_col_klasman_count: 'Classification Count',
+    ekip_analiz_klasman_leaders:  'Top Performance by Classification',
+    ekip_analiz_no_klasman_data:  'No classification data found.',
     general_status_label:  'General Status',
     display_not_started:   'Display not started',
     download_excel:        '📊 Download Excel',
@@ -1316,6 +1340,13 @@ function applyUserPermissions() {
   // Ekip yöneticileri özet kartları sadece admin'e gösterilir
   const teamManagersSection = document.getElementById('team-managers-section');
   if (teamManagersSection && showTeamUi) teamManagersSection.style.display = 'none';
+
+  // "Ekibim Analizi" sekmesi: yalnızca atanmış ekibi olan kullanıcılara gösterilir
+  const navEkipAnaliz = document.getElementById('nav-ekip-analiz');
+  if (navEkipAnaliz) {
+    const hasTeam = showTeamUi && (currentUser.team || []).length > 0;
+    navEkipAnaliz.style.display = hasTeam ? '' : 'none';
+  }
 
   // "Temizle" butonu sadece admin tarafından görülebilir
   const temizleBtn = document.getElementById('btn-temizle');
@@ -3237,6 +3268,8 @@ function showPage(id, navEl){
   if (currentUser && !currentUser.isAdmin) {
     if (id === 'klasmanlar' || id === 'kullanicilar') {
       blocked = true;
+    } else if (id === 'ekip-analiz') {
+      blocked = !(currentUser.team || []).length;
     } else if (id !== 'dashboard' && !(currentUser.tabs || []).includes(id)) {
       blocked = true;
     }
@@ -3266,6 +3299,8 @@ function showPage(id, navEl){
     autoFetchPerfIfNeeded();
   } else if(id === 'kullanicilar') {
     loadAndRenderUsers();
+  } else if(id === 'ekip-analiz') {
+    renderEkipAnaliz();
   }
 }
 
@@ -7209,6 +7244,137 @@ function getInspectorsForTeam(teamArr) {
 function getTeamInspectors() {
   if (!currentUser || currentUser.isAdmin) return [];
   return getInspectorsForTeam(currentUser.team || []);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EKİBİM ANALİZİ — Ekip yöneticisi için ekip üyeleri arası karşılaştırma
+// ══════════════════════════════════════════════════════════════════════════════
+function renderEkipAnaliz() {
+  const container = document.getElementById('ekip-analiz-icerik');
+  if (!container) return;
+  const t = translations[currentLang] || translations.tr;
+
+  const teamInspectors = getTeamInspectors();
+
+  if (!performansData.length || !teamInspectors.length) {
+    container.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">🧑‍🤝‍🧑</div>
+        <h3>${t.waiting_data}</h3>
+        <p>${t.waiting_data_sub}</p>
+      </div>
+    `;
+    return;
+  }
+
+  // ── 1) Genel sıralama: performansa göre yüksekten alçağa ──────────────────
+  const siraliUyeler = [...teamInspectors].sort((a, b) => (b.performans || 0) - (a.performans || 0));
+
+  const genelSiraHtml = siraliUyeler.map((ins, idx) => {
+    const klasmanSayisi = Object.keys(ins.klasmanlar || {}).length;
+    const perfClass = getPerformanceClass(ins.performans || 0);
+    const madalya = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1) + '.';
+    return `
+      <tr>
+        <td style="padding:10px 12px;font-weight:700;color:var(--muted);width:36px;text-align:center">${madalya}</td>
+        <td style="padding:10px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(ins.ins))}</td>
+        <td style="padding:10px 12px;text-align:center"><span class="${perfClass}" style="font-weight:700;font-family:'DM Mono',monospace">${ins.performans || 0}%</span></td>
+        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${(ins.adet || 0).toLocaleString('tr-TR')}</td>
+        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${klasmanSayisi}</td>
+      </tr>
+    `;
+  }).join('');
+
+  // ── 2) Klasman bazında en iyi performans ──────────────────────────────────
+  // Her klasman için: o klasmanda en yüksek hizPerf'e sahip ekip üyesi.
+  const klasmanMap = {}; // { klasmanAdi: [{ins, hizPerf, adet}, ...] }
+  teamInspectors.forEach(ins => {
+    Object.entries(ins.klasmanlar || {}).forEach(([klasmanAd, kd]) => {
+      if (!kd.adet) return; // hiç çalışmadıysa dahil etme
+      if (!klasmanMap[klasmanAd]) klasmanMap[klasmanAd] = [];
+      klasmanMap[klasmanAd].push({ ins: ins.ins, hizPerf: kd.hizPerf || 0, adet: kd.adet || 0 });
+    });
+  });
+
+  const klasmanAdlari = Object.keys(klasmanMap).sort((a, b) => a.localeCompare(b, 'tr'));
+
+  const klasmanKartHtml = klasmanAdlari.map(klasmanAd => {
+    const liste = [...klasmanMap[klasmanAd]].sort((a, b) => b.hizPerf - a.hizPerf);
+    const lider = liste[0];
+    const digerSayisi = liste.length - 1;
+    const perfClass = getPerformanceClass(lider.hizPerf);
+    return `
+      <div style="background:#fff;border:1px solid var(--border2);border-radius:10px;padding:12px 14px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_escapeHtml(klasmanAd)}">${_escapeHtml(klasmanAd)}</div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+          <div style="font-weight:700;color:var(--navy);font-size:14px">🏆 ${_escapeHtml(_formatDisplayName(lider.ins))}</div>
+          <div class="${perfClass}" style="font-weight:700;font-family:'DM Mono',monospace;font-size:15px">${lider.hizPerf}%</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">
+          ${lider.adet.toLocaleString('tr-TR')} adet
+          ${digerSayisi > 0 ? ` · +${digerSayisi} ${t.ekip_analiz_other_members}` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // ── 3) En çok üretim yapan üye ─────────────────────────────────────────────
+  const enCokUretim = [...teamInspectors].sort((a, b) => (b.adet || 0) - (a.adet || 0))[0];
+
+  // ── Genel ekip özeti ─────────────────────────────────────────────────────
+  const toplamAdet = teamInspectors.reduce((s, i) => s + (i.adet || 0), 0);
+  const ortPerf = Math.round(teamInspectors.reduce((s, i) => s + (i.performans || 0), 0) / teamInspectors.length);
+
+  container.innerHTML = `
+    <!-- Üst özet kartları -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px">
+      <div class="summary-stat">
+        <div class="summary-stat-value">${teamInspectors.length}</div>
+        <div class="summary-stat-label">${t.team_manager_member_count}</div>
+      </div>
+      <div class="summary-stat" style="background:linear-gradient(135deg,var(--lgreen) 0%,#fff 100%);border-color:#B2DFDB">
+        <div class="summary-stat-value" style="color:${ortPerf>=95?'var(--green)':ortPerf>=85?'var(--blue)':ortPerf>=70?'var(--amber)':'var(--red)'}">${ortPerf}%</div>
+        <div class="summary-stat-label">${t.team_avg_perf}</div>
+      </div>
+      <div class="summary-stat" style="background:linear-gradient(135deg,var(--lamber) 0%,#fff 100%);border-color:#FFE082">
+        <div class="summary-stat-value" style="color:var(--amber)">${toplamAdet.toLocaleString('tr-TR')}</div>
+        <div class="summary-stat-label">${t.team_manager_total_qty}</div>
+      </div>
+      <div class="summary-stat" style="background:linear-gradient(135deg,var(--lblue3) 0%,#fff 100%);border-color:var(--lblue)">
+        <div class="summary-stat-value" style="font-size:18px;color:var(--blue)">🏅 ${_escapeHtml(_formatDisplayName(enCokUretim.ins))}</div>
+        <div class="summary-stat-label">${t.ekip_analiz_top_producer} · ${(enCokUretim.adet || 0).toLocaleString('tr-TR')}</div>
+      </div>
+    </div>
+
+    <!-- Genel sıralama tablosu -->
+    <div style="background:#fff;border:1px solid var(--border2);border-radius:12px;overflow:hidden;margin-bottom:20px">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border2);font-weight:700;color:var(--navy)">
+        🏆 ${t.ekip_analiz_general_ranking}
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#f8f9fa">
+            <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">#</th>
+            <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_name}</th>
+            <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_perf}</th>
+            <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_qty}</th>
+            <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_klasman_count}</th>
+          </tr>
+        </thead>
+        <tbody>${genelSiraHtml}</tbody>
+      </table>
+    </div>
+
+    <!-- Klasman bazında liderler -->
+    <div style="margin-bottom:8px">
+      <div class="section-label">
+        <span>🎯</span><span>${t.ekip_analiz_klasman_leaders}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+        ${klasmanKartHtml || `<div style="color:var(--muted);font-size:13px">${t.ekip_analiz_no_klasman_data}</div>`}
+      </div>
+    </div>
+  `;
 }
 
 // Admin görünümünde, her ekip yöneticisi için özet kart oluşturur:
