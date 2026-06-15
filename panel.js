@@ -6962,6 +6962,18 @@ async function pullKlasmanAnalizFromSheets() {
 let _usersCache = [];
 let _editingUsername = null; // null => yeni kullanıcı, string => düzenleniyor
 
+// Kullanıcı adını ("fatma.dogan", "ali_kirna" gibi) okunabilir bir görünen
+// ada çevirir: noktalar/alt çizgiler boşluğa dönüştürülür ve her kelimenin
+// ilk harfi büyütülür. "fatma.dogan" → "Fatma Dogan".
+function _formatDisplayName(username) {
+  if (!username) return username;
+  return String(username)
+    .split(/[._\s]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toLocaleUpperCase('tr-TR') + part.slice(1).toLocaleLowerCase('tr-TR'))
+    .join(' ');
+}
+
 function _escapeHtml(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -7242,11 +7254,11 @@ async function renderTeamManagersSection() {
       : 'var(--red)';
 
     return `
-      <div class="card" style="margin-bottom:0;overflow:hidden">
+      <div class="card team-manager-card" style="margin-bottom:0;overflow:hidden">
         <div class="card-header" style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);border-bottom:none;padding:10px 14px">
           <h2 style="color:#fff;gap:8px;font-size:12px">
             <span style="background:rgba(255,255,255,.12);border-radius:6px;padding:3px 6px;font-size:12px">🧑‍💼</span>
-            <span>${t.team_manager_prefix}: ${_escapeHtml(mgr.username)}</span>
+            <span>${t.team_manager_prefix}: ${_escapeHtml(_formatDisplayName(mgr.username))}</span>
           </h2>
         </div>
         <div class="card-body" style="padding:12px 14px">
