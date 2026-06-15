@@ -234,14 +234,17 @@ const translations = {
     nav_ekip_analiz:       'Ekibim Analizi',
     ekip_analiz_title:     '🧑‍🤝‍🧑 Ekibim Analizi',
     ekip_analiz_sub:       'Ekip üyelerinizin performansını klasman bazında karşılaştırın',
-    ekip_analiz_other_members:    'diğer üye',
-    ekip_analiz_top_producer:     'En Çok Insp. Adet',
+    ekip_analiz_top_producer:     'En Çok Üretim',
     ekip_analiz_general_ranking:  'Genel Performans Sıralaması',
     ekip_analiz_col_name:         'Inspector',
     ekip_analiz_col_perf:         'Performans',
     ekip_analiz_col_qty:          'Toplam Adet',
     ekip_analiz_col_klasman_count: 'Klasman Sayısı',
-    ekip_analiz_klasman_leaders:  'Klasman Bazında En İyi Performans',
+    ekip_analiz_dist_title:       'Performans Dağılımı',
+    ekip_analiz_gelisim_title:    'Gelişim Alanları (En Yavaş Klasmanlar)',
+    ekip_analiz_col_klasman:      'Klasman',
+    ekip_analiz_col_avg_perf:     'Ortalama Performans',
+    ekip_analiz_col_member_count: 'Çalışan Sayısı',
     ekip_analiz_no_klasman_data:  'Klasman verisi bulunamadı.',
     general_status_label:  'Genel Durum',
     display_not_started:   'Gösterim başlamadı',
@@ -645,14 +648,17 @@ const translations = {
     nav_ekip_analiz:       'My Team Analysis',
     ekip_analiz_title:     '🧑‍🤝‍🧑 My Team Analysis',
     ekip_analiz_sub:       'Compare your team members\' performance by classification',
-    ekip_analiz_other_members:    'other member(s)',
     ekip_analiz_top_producer:     'Top Producer',
     ekip_analiz_general_ranking:  'Overall Performance Ranking',
     ekip_analiz_col_name:         'Inspector',
     ekip_analiz_col_perf:         'Performance',
     ekip_analiz_col_qty:          'Total Quantity',
     ekip_analiz_col_klasman_count: 'Classification Count',
-    ekip_analiz_klasman_leaders:  'Top Performance by Classification',
+    ekip_analiz_dist_title:       'Performance Distribution',
+    ekip_analiz_gelisim_title:    'Improvement Areas (Slowest Classifications)',
+    ekip_analiz_col_klasman:      'Classification',
+    ekip_analiz_col_avg_perf:     'Average Performance',
+    ekip_analiz_col_member_count: 'Employee Count',
     ekip_analiz_no_klasman_data:  'No classification data found.',
     general_status_label:  'General Status',
     display_not_started:   'Display not started',
@@ -7285,40 +7291,71 @@ function renderEkipAnaliz() {
     `;
   }).join('');
 
-  // ── 2) Klasman bazında en iyi performans ──────────────────────────────────
-  // Her klasman için: o klasmanda en yüksek hizPerf'e sahip ekip üyesi.
-  const klasmanMap = {}; // { klasmanAdi: [{ins, hizPerf, adet}, ...] }
+  // ── 2) Performans Dağılımı: ekip üyelerini bantlara ayır ──────────────────
+  const bantlar = {
+    excellent: { key: 'excellent', label: t.perf_excellent, color: 'var(--green)', bg: 'var(--lgreen)', count: 0 },
+    good:      { key: 'good',      label: t.perf_good,      color: 'var(--blue)',  bg: 'var(--lblue3)', count: 0 },
+    average:   { key: 'average',   label: t.perf_average,   color: 'var(--amber)', bg: 'var(--lamber)', count: 0 },
+    poor:      { key: 'poor',      label: t.perf_poor,      color: 'var(--red)',   bg: 'var(--lred)',   count: 0 }
+  };
   teamInspectors.forEach(ins => {
-    Object.entries(ins.klasmanlar || {}).forEach(([klasmanAd, kd]) => {
-      if (!kd.adet) return; // hiç çalışmadıysa dahil etme
-      if (!klasmanMap[klasmanAd]) klasmanMap[klasmanAd] = [];
-      klasmanMap[klasmanAd].push({ ins: ins.ins, hizPerf: kd.hizPerf || 0, adet: kd.adet || 0 });
-    });
+    const p = ins.performans || 0;
+    if (p >= 95) bantlar.excellent.count++;
+    else if (p >= 85) bantlar.good.count++;
+    else if (p >= 70) bantlar.average.count++;
+    else bantlar.poor.count++;
   });
+  const maxBantSayisi = Math.max(1, ...Object.values(bantlar).map(b => b.count));
 
-  const klasmanAdlari = Object.keys(klasmanMap).sort((a, b) => a.localeCompare(b, 'tr'));
-
-  const klasmanKartHtml = klasmanAdlari.map(klasmanAd => {
-    const liste = [...klasmanMap[klasmanAd]].sort((a, b) => b.hizPerf - a.hizPerf);
-    const lider = liste[0];
-    const digerSayisi = liste.length - 1;
-    const perfClass = getPerformanceClass(lider.hizPerf);
+  const dagilimHtml = Object.values(bantlar).map(b => {
+    const yuzde = Math.round((b.count / teamInspectors.length) * 100);
+    const barYuzde = Math.round((b.count / maxBantSayisi) * 100);
     return `
-      <div style="background:#fff;border:1px solid var(--border2);border-radius:10px;padding:12px 14px">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_escapeHtml(klasmanAd)}">${_escapeHtml(klasmanAd)}</div>
-        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
-          <div style="font-weight:700;color:var(--navy);font-size:14px">🏆 ${_escapeHtml(_formatDisplayName(lider.ins))}</div>
-          <div class="${perfClass}" style="font-weight:700;font-family:'DM Mono',monospace;font-size:15px">${lider.hizPerf}%</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:90px;font-size:12px;font-weight:600;color:var(--navy);flex-shrink:0">${b.label}</div>
+        <div style="flex:1;background:var(--offwhite);border-radius:6px;height:22px;overflow:hidden">
+          <div style="height:100%;width:${barYuzde}%;background:${b.color};border-radius:6px;transition:width .3s"></div>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">
-          ${lider.adet.toLocaleString('tr-TR')} adet
-          ${digerSayisi > 0 ? ` · +${digerSayisi} ${t.ekip_analiz_other_members}` : ''}
-        </div>
+        <div style="width:70px;text-align:right;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">${b.count} (${yuzde}%)</div>
       </div>
     `;
   }).join('');
 
-  // ── 3) En çok üretim yapan üye ─────────────────────────────────────────────
+  // ── 3) Gelişim Alanları: ekibin en düşük performans gösterdiği klasmanlar ──
+  // Her klasman için, o klasmanda çalışan ekip üyelerinin ortalama hizPerf'i.
+  const klasmanMap = {}; // { klasmanAdi: { toplamPerf, toplamAdet, kisiSayisi } }
+  teamInspectors.forEach(ins => {
+    Object.entries(ins.klasmanlar || {}).forEach(([klasmanAd, kd]) => {
+      if (!kd.adet) return; // hiç çalışmadıysa dahil etme
+      if (!klasmanMap[klasmanAd]) klasmanMap[klasmanAd] = { toplamPerf: 0, toplamAdet: 0, kisiSayisi: 0 };
+      klasmanMap[klasmanAd].toplamPerf  += kd.hizPerf || 0;
+      klasmanMap[klasmanAd].toplamAdet  += kd.adet || 0;
+      klasmanMap[klasmanAd].kisiSayisi  += 1;
+    });
+  });
+
+  const klasmanOrtalamalari = Object.entries(klasmanMap).map(([ad, v]) => ({
+    ad,
+    ortalamaPerf: Math.round(v.toplamPerf / v.kisiSayisi),
+    toplamAdet: v.toplamAdet,
+    kisiSayisi: v.kisiSayisi
+  })).sort((a, b) => a.ortalamaPerf - b.ortalamaPerf);
+
+  const gelisimAlanlari = klasmanOrtalamalari.slice(0, 5);
+
+  const gelisimHtml = gelisimAlanlari.map(k => {
+    const perfClass = getPerformanceClass(k.ortalamaPerf);
+    return `
+      <tr>
+        <td style="padding:10px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(k.ad)}</td>
+        <td style="padding:10px 12px;text-align:center"><span class="${perfClass}" style="font-weight:700;font-family:'DM Mono',monospace">${k.ortalamaPerf}%</span></td>
+        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${k.toplamAdet.toLocaleString('tr-TR')}</td>
+        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${k.kisiSayisi}</td>
+      </tr>
+    `;
+  }).join('');
+
+  // ── 4) En çok üretim yapan üye ─────────────────────────────────────────────
   const enCokUretim = [...teamInspectors].sort((a, b) => (b.adet || 0) - (a.adet || 0))[0];
 
   // ── Genel ekip özeti ─────────────────────────────────────────────────────
@@ -7365,14 +7402,32 @@ function renderEkipAnaliz() {
       </table>
     </div>
 
-    <!-- Klasman bazında liderler -->
-    <div style="margin-bottom:8px">
-      <div class="section-label">
-        <span>🎯</span><span>${t.ekip_analiz_klasman_leaders}</span>
+    <!-- Performans Dağılımı -->
+    <div style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:20px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:12px">📊 ${t.ekip_analiz_dist_title}</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${dagilimHtml}
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
-        ${klasmanKartHtml || `<div style="color:var(--muted);font-size:13px">${t.ekip_analiz_no_klasman_data}</div>`}
+    </div>
+
+    <!-- Gelişim Alanları: en yavaş klasmanlar -->
+    <div style="background:#fff;border:1px solid var(--border2);border-radius:12px;overflow:hidden;margin-bottom:8px">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border2);font-weight:700;color:var(--navy)">
+        🛠️ ${t.ekip_analiz_gelisim_title}
       </div>
+      ${gelisimAlanlari.length ? `
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#f8f9fa">
+              <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_klasman}</th>
+              <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_avg_perf}</th>
+              <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_qty}</th>
+              <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${t.ekip_analiz_col_member_count}</th>
+            </tr>
+          </thead>
+          <tbody>${gelisimHtml}</tbody>
+        </table>
+      ` : `<div style="padding:14px 16px;color:var(--muted);font-size:13px">${t.ekip_analiz_no_klasman_data}</div>`}
     </div>
   `;
 }
