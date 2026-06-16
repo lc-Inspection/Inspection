@@ -112,6 +112,11 @@
       <span class="nav-icon">👥</span>
       <span data-i18n="nav_user_mgmt">Kullanıcı Yönetimi</span>
     </div>
+    <div class="nav-item" id="nav-kayip-zaman-admin" onclick="showPage('kayip-zaman-admin', this)" style="display:none">
+      <span class="nav-icon">⏸️</span>
+      <span>Kayıp Zaman Analizi</span>
+      <span class="nav-count" id="nav-kayip-count" style="background:#E53935">!</span>
+    </div>
 
     <div class="sb-label" data-i18n="nav_analysis">Analiz</div>
     <div class="nav-item" onclick="showPage('klasman-analiz')">
@@ -125,6 +130,10 @@
     <div class="nav-item" id="nav-ekip-analiz" onclick="showPage('ekip-analiz')" style="display:none">
       <span class="nav-icon">🧑‍🤝‍🧑</span>
       <span data-i18n="nav_ekip_analiz">Ekibim Analizi</span>
+    </div>
+    <div class="nav-item" id="nav-kayip-zaman-ekip" onclick="showPage('kayip-zaman-ekip')" style="display:none">
+      <span class="nav-icon">⏸️</span>
+      <span>Kayıp Zaman Girişi</span>
     </div>
 
     <div class="sb-label" data-i18n="nav_display">Görüntüleme</div>
@@ -917,7 +926,162 @@
       </div>
     </div>
 
+    <!-- ══════════ KAYIP ZAMAN GİRİŞİ (Ekip Yöneticisi) ══════════ -->
+    <div id="page-kayip-zaman-ekip" class="page">
+      <div class="ph">
+        <div class="ph-left">
+          <h1>⏸️ Kayıp Zaman Girişi</h1>
+          <p>Çalışma saatlerini etkileyen kayıp süreleri girin — performans otomatik düzeltilir</p>
+        </div>
+        <div class="ph-buttons">
+          <button class="btn" onclick="loadKayipZamanEkip()">🔄 Yenile</button>
+        </div>
+      </div>
+
+      <!-- Giriş Formu -->
+      <div class="card" style="margin-bottom:16px;overflow:hidden">
+        <div class="card-header" style="background:linear-gradient(135deg,#B71C1C 0%,#D32F2F 100%);border-bottom:none;padding:14px 16px">
+          <h2 style="color:#fff;gap:8px">
+            <span style="background:rgba(255,255,255,.15);border-radius:7px;padding:4px 7px;font-size:13px">➕</span>
+            Yeni Kayıp Zaman Ekle
+          </h2>
+        </div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px">
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Inspector</label>
+              <select id="kz-inspector" style="width:100%">
+                <option value="">— Inspector seçin —</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Tarih</label>
+              <input type="date" id="kz-tarih" style="width:100%" />
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Gün</label>
+              <input type="text" id="kz-gun" placeholder="Otomatik" readonly style="width:100%;background:var(--offwhite);color:var(--muted)" />
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Başlangıç Saati</label>
+              <input type="time" id="kz-baslangic" style="width:100%" />
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Bitiş Saati</label>
+              <input type="time" id="kz-bitis" style="width:100%" />
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Sebep</label>
+              <select id="kz-sebep" style="width:100%">
+                <option value="Sistemsel Hata">⚙️ Sistemsel Hata</option>
+                <option value="Ürün Olmaması">📦 Ürün Olmaması</option>
+                <option value="Elektrik Kesintisi">⚡ Elektrik Kesintisi</option>
+                <option value="Makine Arızası">🔧 Makine Arızası</option>
+                <option value="Diğer">📝 Diğer</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Açıklama (isteğe bağlı)</label>
+            <input type="text" id="kz-aciklama" placeholder="Ek not..." style="width:100%" />
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="btn btn-primary" onclick="saveKayipZaman()" id="kz-save-btn">
+              💾 Kayıp Zamanı Kaydet
+            </button>
+            <span id="kz-save-msg" style="font-size:12px;color:var(--green);display:none">✅ Kaydedildi!</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ekibin Düzeltilmiş Performansı -->
+      <div class="card" style="margin-bottom:16px;overflow:hidden">
+        <div class="card-header" style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);border-bottom:none;padding:14px 16px">
+          <h2 style="color:#fff;gap:8px">
+            <span style="background:rgba(255,255,255,.12);border-radius:7px;padding:4px 7px;font-size:13px">📊</span>
+            Düzeltilmiş Performans (Kayıp Zamanlar Dahil)
+          </h2>
+        </div>
+        <div class="card-body" id="kz-duzeltilmis-container">
+          <div class="empty" style="padding:30px">
+            <div class="empty-icon">📊</div>
+            <h3>Veri Bekleniyor</h3>
+            <p>Performans verisi ve kayıp zaman girişi gerekli</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Girilen Kayıp Zamanlar -->
+      <div class="card" style="overflow:hidden">
+        <div class="card-header" style="padding:14px 16px;border-bottom:1px solid var(--border2)">
+          <h2>📋 Girilen Kayıp Zamanlar</h2>
+          <span id="kz-ekip-count" style="font-size:10px;color:var(--muted);background:var(--offwhite);padding:3px 9px;border-radius:99px"></span>
+        </div>
+        <div class="card-body">
+          <div id="kz-ekip-liste" style="overflow-x:auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ KAYIP ZAMAN ANALİZİ (Admin) ══════════ -->
+    <div id="page-kayip-zaman-admin" class="page">
+      <div class="ph">
+        <div class="ph-left">
+          <h1>⏸️ Kayıp Zaman Analizi</h1>
+          <p>Tüm ekiplerin kayıp zaman kayıtları ve düzeltilmiş performanslar</p>
+        </div>
+        <div class="ph-buttons">
+          <button class="btn" onclick="loadKayipZamanAdmin()">🔄 Yenile</button>
+          <button class="btn" onclick="showKayipZamanSebepPopup()" style="background:var(--lamber);color:var(--amber);border-color:var(--amber)">
+            ⚠️ Sebep Özeti
+          </button>
+          <button class="btn btn-danger" onclick="clearAllKayipZaman()" id="kz-clear-btn" style="background:#FFEBEE;color:#C62828;border-color:#EF9A9A">
+            🗑️ Tüm Veriyi Sil
+          </button>
+        </div>
+      </div>
+
+      <!-- Özet Kartlar -->
+      <div id="kz-admin-ozet" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px"></div>
+
+      <!-- Ekip Bazında Düzeltilmiş Performans -->
+      <div class="card" style="margin-bottom:16px;overflow:hidden">
+        <div class="card-header" style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);border-bottom:none;padding:14px 16px">
+          <h2 style="color:#fff;gap:8px">
+            <span style="background:rgba(255,255,255,.12);border-radius:7px;padding:4px 7px;font-size:13px">👥</span>
+            Inspector Bazlı Performans Karşılaştırması
+          </h2>
+        </div>
+        <div class="card-body">
+          <div id="kz-admin-perf-table" style="overflow-x:auto"></div>
+        </div>
+      </div>
+
+      <!-- Tüm Kayıt Listesi -->
+      <div class="card" style="overflow:hidden">
+        <div class="card-header" style="padding:14px 16px;border-bottom:1px solid var(--border2)">
+          <h2>📋 Tüm Kayıp Zaman Kayıtları</h2>
+          <span id="kz-admin-count" style="font-size:10px;color:var(--muted);background:var(--offwhite);padding:3px 9px;border-radius:99px"></span>
+        </div>
+        <div class="card-body">
+          <div id="kz-admin-liste" style="overflow-x:auto"></div>
+        </div>
+      </div>
+    </div>
+
   </main>
+</div>
+
+<!-- Sebep Özeti Popup -->
+<div class="modal-overlay" id="kz-sebep-popup" onclick="if(event.target===this)document.getElementById('kz-sebep-popup').style.display='none'">
+  <div class="modal-box" style="max-width:480px;">
+    <div class="modal-title">⚠️ Kayıp Zaman — Sebep Özeti</div>
+    <div class="modal-sub">Sebep bazında toplam bekleme süreleri</div>
+    <div id="kz-sebep-popup-content" style="margin:16px 0"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('kz-sebep-popup').style.display='none'">Kapat</button>
+    </div>
+  </div>
 </div>
 
 <!-- Kullanıcı Ekle/Düzenle Modal -->
