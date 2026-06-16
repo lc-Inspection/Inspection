@@ -7610,34 +7610,43 @@ async function toggleDigerEkipler(e) {
   if (isOpen) { popup.style.display = 'none'; return; }
 
   const t = translations[currentLang] || translations.tr;
+  const liste = document.getElementById('diger-ekipler-liste');
+
+  // Popup'ı hemen aç, yükleniyorsa göster
+  liste.innerHTML = `<div style="padding:10px 14px;font-size:12px;color:var(--muted)">⏳ Yükleniyor...</div>`;
+  popup.style.display = '';
+
+  // Cache boşsa bekleyerek yükle
+  if (!_usersCache.length) await _silentLoadUsersCache();
+
   const myUsername = currentUser?.username || '';
   const managers = _usersCache.filter(u => u.username !== myUsername && (u.team || []).length > 0);
 
-  const liste = document.getElementById('diger-ekipler-liste');
   if (!managers.length) {
     liste.innerHTML = `<div style="padding:10px 14px;font-size:12px;color:var(--muted)">${t.other_teams_empty}</div>`;
-  } else {
-    liste.innerHTML = managers.map(mgr => {
-      const members = getInspectorsForTeam(mgr.team);
-      const avgPerf = members.length
-        ? Math.round(members.reduce((s, i) => s + (i.performans || 0), 0) / members.length)
-        : null;
-      const perfColor = avgPerf === null ? 'var(--muted)'
-        : avgPerf >= 95 ? 'var(--green)'
-        : avgPerf >= 85 ? 'var(--blue)'
-        : avgPerf >= 70 ? 'var(--amber)'
-        : 'var(--red)';
-      const perfStr = avgPerf !== null ? `<span style="font-weight:700;color:${perfColor};font-family:'DM Mono',monospace">${avgPerf}%</span>` : `<span style="color:var(--muted);font-size:11px">—</span>`;
-      return `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border2)">
-          <span style="font-size:13px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(mgr.username))}</span>
-          ${perfStr}
-        </div>
-      `;
-    }).join('');
+    return;
   }
 
-  popup.style.display = '';
+  liste.innerHTML = managers.map(mgr => {
+    const members = getInspectorsForTeam(mgr.team);
+    const avgPerf = members.length
+      ? Math.round(members.reduce((s, i) => s + (i.performans || 0), 0) / members.length)
+      : null;
+    const perfColor = avgPerf === null ? 'var(--muted)'
+      : avgPerf >= 95 ? 'var(--green)'
+      : avgPerf >= 85 ? 'var(--blue)'
+      : avgPerf >= 70 ? 'var(--amber)'
+      : 'var(--red)';
+    const perfStr = avgPerf !== null
+      ? `<span style="font-weight:700;color:${perfColor};font-family:'DM Mono',monospace">${avgPerf}%</span>`
+      : `<span style="color:var(--muted);font-size:11px">—</span>`;
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border2)">
+        <span style="font-size:13px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(mgr.username))}</span>
+        ${perfStr}
+      </div>
+    `;
+  }).join('');
 }
 
 // ── Ekibimi Düzenle Modalı ───────────────────────────────────────────────────
