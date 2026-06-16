@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyb9X7ELySEmJ1AtcBP0swAZZUvFQkKLXPWSWvyqn-jwJ7rNcVCbx5_q2q2d-Z3RHU/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzxbc3RErPdjhC2pN0b1hHxHJoDMZtW2KxyOWSnoUK8Iv946W8mr0gkhYuVdouzvoAv/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -7835,11 +7835,10 @@ async function saveKayipZaman() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Kaydediliyor...'; }
 
   try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'setKayipZaman', token, record }),
-      mode: 'no-cors'
+    await jsonpFetch(url, {
+      action: 'setKayipZaman',
+      token,
+      record: encodeURIComponent(JSON.stringify(record))
     });
     // Optimistic update
     kayipZamanData.push(record);
@@ -8250,12 +8249,7 @@ async function clearAllKayipZaman() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Siliniyor...'; }
 
   try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'clearKayipZaman', token }),
-      mode: 'no-cors'
-    });
+    await jsonpFetch(url, { action: 'clearKayipZaman', token });
     kayipZamanData = [];
     renderKayipZamanAdminOzet();
     renderKayipZamanAdminPerfTable();
