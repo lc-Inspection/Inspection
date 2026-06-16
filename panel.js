@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbx1E8AZ_JvIdhtF5dMR_pGUvZ_ZpxoIIhHkpMqJsCaXK_NRKes61BtjtW4-0ZSEc1Pk/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzROxGCikYjVW25N0PtCU5uHz_uNXBbrRKmeRZ-AdSUkQRWbWMPw4TAdUlNao3No6hl/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -8304,17 +8304,14 @@ async function clearAllKayipZaman() {
   }
 }
 
-// ─── Ekip Dashboard Grid (yan yana kutular) ───
+// ─── Ekip Dashboard Grid ───
+let _kzGridOpen = {};
+
 function renderKayipZamanEkipGrid() {
   const grid = document.getElementById('kz-ekip-grid');
   if (!grid) return;
+  if (!kayipZamanData.length) { grid.innerHTML = ''; return; }
 
-  if (!kayipZamanData.length) {
-    grid.innerHTML = '';
-    return;
-  }
-
-  // Ekip yöneticisi bazında grupla
   const ekipler = {};
   kayipZamanData.forEach(r => {
     const ey = r.ekipYoneticisi || 'Bilinmiyor';
@@ -8322,87 +8319,91 @@ function renderKayipZamanEkipGrid() {
     ekipler[ey].push(r);
   });
 
-  const perfClass = (p) => p >= 95 ? '#2E7D32' : p >= 85 ? '#1565C0' : p >= 70 ? '#E65100' : '#C62828';
-  const perfBg    = (p) => p >= 95 ? '#E8F5E9' : p >= 85 ? '#E3F2FD' : p >= 70 ? '#FFF3E0' : '#FFEBEE';
+  const perfColor = p => p >= 95 ? '#2E7D32' : p >= 85 ? '#1565C0' : p >= 70 ? '#E65100' : '#C62828';
 
   grid.innerHTML = Object.entries(ekipler)
     .sort(([a],[b]) => a.localeCompare(b,'tr'))
-    .map(([ekipYon, kayitlar]) => {
+    .map(([ey, kayitlar], idx) => {
+      const id = 'kzg_' + idx;
+      const isOpen = _kzGridOpen[ey] !== false;
       const toplamDk = kayitlar.reduce((s,r)=>s+(r.sureDk||0),0);
 
-      // Inspector bazında
+      // Sebep ozeti
+      const sebepMap = {};
+      kayitlar.forEach(r => { const s=r.sebep||'Diger'; sebepMap[s]=(sebepMap[s]||0)+(r.sureDk||0); });
+      const sebepRows = Object.entries(sebepMap).sort((a,b)=>b[1]-a[1])
+        .map(([s,dk]) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0">
+            <span style="font-size:12px;color:#444">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}</span>
+            <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</span>
+          </div>`).join('');
+
+      // Inspector ozeti
       const inspMap = {};
       kayitlar.forEach(r => {
-        const k = (r.inspector||'').toLowerCase();
-        if (!inspMap[k]) inspMap[k] = { isim: r.inspector, dk: 0, sebepler: {} };
-        inspMap[k].dk += r.sureDk || 0;
-        const s = r.sebep || 'Diger';
-        inspMap[k].sebepler[s] = (inspMap[k].sebepler[s]||0) + (r.sureDk||0);
+        const k=(r.inspector||'').toLowerCase();
+        if(!inspMap[k]) inspMap[k]={isim:r.inspector,dk:0};
+        inspMap[k].dk+=r.sureDk||0;
       });
 
-      // Sebep özeti
-      const sebepMap = {};
-      kayitlar.forEach(r => {
-        const s = r.sebep || 'Diger';
-        sebepMap[s] = (sebepMap[s]||0) + (r.sureDk||0);
-      });
-      const sebepList = Object.entries(sebepMap)
-        .sort((a,b)=>b[1]-a[1])
-        .map(([s,dk]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0">
-          <span style="font-size:12px;color:#333">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}</span>
-          <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</span>
-        </div>`).join('');
-
-      // Inspector listesi
-      const inspList = Object.values(inspMap)
-        .sort((a,b)=>b.dk-a.dk)
-        .map(({ isim, dk }) => {
-          const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
-          const orijPerf = perfObj ? getOrijinalHamPerf(perfObj) : null;
-          const duzPerf  = perfObj ? getDuzeltilmisPerformans(perfObj) : null;
-          const fark = (orijPerf!==null && duzPerf!==null) ? duzPerf - orijPerf : null;
-
-          const perfStr = orijPerf !== null
-            ? `<div style="display:flex;align-items:center;gap:6px">
-                <span style="font-family:'DM Mono',monospace;font-size:12px;color:#999">${orijPerf}%</span>
-                <span style="color:#ccc;font-size:10px">→</span>
-                <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${perfClass(duzPerf)}">${duzPerf}%</span>
-                ${fark!==null ? `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:${fark>0?'#E8F5E9':'#FFEBEE'};color:${fark>0?'#2E7D32':'#C62828'}">${fark>0?'+':''}${fark}%</span>` : ''}
-              </div>`
-            : `<span style="font-size:11px;color:#bbb">—</span>`;
-
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5">
-            <div style="font-size:13px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(isim))}</div>
-            <div style="display:flex;align-items:center;gap:10px">
-              ${perfStr}
-              <span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace">${(dk/60).toFixed(1)}s</span>
+      const inspRows = Object.values(inspMap).sort((a,b)=>b.dk-a.dk).map(({isim,dk})=>{
+        const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
+        const oP = perfObj ? getOrijinalHamPerf(perfObj) : null;
+        const dP = perfObj ? getDuzeltilmisPerformans(perfObj) : null;
+        const fark = oP!==null&&dP!==null ? dP-oP : null;
+        const farkHtml = fark!==null
+          ? `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:${fark>0?'#E8F5E9':'#FFEBEE'};color:${fark>0?'#2E7D32':'#C62828'}">${fark>0?'+':''}${fark}%</span>`
+          : '';
+        const perfHtml = oP!==null
+          ? `<span style="font-size:12px;color:#aaa;font-family:'DM Mono',monospace">${oP}%</span>
+             <span style="color:#ddd;font-size:11px">→</span>
+             <span style="font-size:14px;font-weight:700;color:${perfColor(dP)};font-family:'DM Mono',monospace">${dP}%</span>
+             ${farkHtml}`
+          : '';
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5">
+            <span style="font-size:13px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(isim))}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              ${perfHtml}
+              <span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace">${(dk/60).toFixed(1)}s</span>
             </div>
           </div>`;
-        }).join('');
+      }).join('');
 
+      const arrow = isOpen ? '▲' : '▼';
       return `
-        <div style="background:#fff;border:1px solid var(--border2);border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.07)">
-          <!-- Header -->
-          <div style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);padding:14px 16px">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-              <div style="color:#fff;font-weight:700;font-size:14px">👤 ${_escapeHtml(ekipYon)}</div>
-              <div style="background:#C62828;color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace">⏸ ${(toplamDk/60).toFixed(1)}s</div>
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)">
+          <div onclick="toggleKzGrid('${ey.replace(/'/g,"\\'")}')" style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);padding:14px 16px;cursor:pointer;user-select:none">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="color:#fff;font-weight:700;font-size:14px">👤 ${_escapeHtml(ey)}</div>
+                <div style="color:rgba(255,255,255,.6);font-size:11px;margin-top:2px">${Object.keys(inspMap).length} inspector &middot; ${kayitlar.length} kayıt</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="background:#C62828;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;font-weight:700;font-family:'DM Mono',monospace">⏸ ${(toplamDk/60).toFixed(1)}s</span>
+                <span style="color:#fff;font-size:14px">${arrow}</span>
+              </div>
             </div>
-            <div style="color:rgba(255,255,255,.6);font-size:11px">${Object.keys(inspMap).length} inspector · ${kayitlar.length} kayıt</div>
           </div>
-          <!-- Sebepler -->
-          <div style="padding:12px 16px;background:#f8f9fa;border-bottom:1px solid var(--border2)">
-            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">KAYIP NEDENLERİ</div>
-            ${sebepList}
-          </div>
-          <!-- Inspectorler -->
-          <div style="padding:12px 16px">
-            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">INSPECTOR PERFORMANS</div>
-            ${inspList}
+          <div id="${id}_body" style="display:${isOpen?'block':'none'}">
+            <div style="padding:12px 16px;background:#fafafa;border-bottom:1px solid var(--border2)">
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">KAYIP NEDENLERİ</div>
+              ${sebepRows}
+            </div>
+            <div style="padding:12px 16px">
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">INSPECTOR PERFORMANS</div>
+              ${inspRows}
+            </div>
           </div>
         </div>`;
     }).join('');
 }
+
+function toggleKzGrid(ey) {
+  _kzGridOpen[ey] = _kzGridOpen[ey] === false ? true : false;
+  renderKayipZamanEkipGrid();
+}
+
 
 // ─── Excel Export ───
 function exportKayipZamanExcel() {
