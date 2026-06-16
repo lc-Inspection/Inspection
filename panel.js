@@ -214,6 +214,9 @@ const translations = {
     // Ekip Yönetimi (Dashboard)
     my_team_title:         '👥 Ekibim',
     manage_team:           'Ekibi Düzenle',
+    other_teams_btn:       'Diğer Ekipler',
+    other_teams_title:     'Ekip Performansları',
+    other_teams_empty:     'Başka ekip yöneticisi bulunamadı.',
     team_member_count:     'Ekip Üyesi',
     team_avg_perf:         'Ekip Ort. Performans',
     team_total_product:    'Ekip Toplam Ürün',
@@ -626,6 +629,9 @@ const translations = {
     // Team Management (Dashboard)
     my_team_title:         '👥 My Team',
     manage_team:           'Manage Team',
+    other_teams_btn:       'Other Teams',
+    other_teams_title:     'Team Performances',
+    other_teams_empty:     'No other team managers found.',
     team_member_count:     'Team Members',
     team_avg_perf:         'Team Avg. Performance',
     team_total_product:    'Team Total Quantity',
@@ -6157,6 +6163,13 @@ document.addEventListener('click', function(e) {
       }
     }
   }
+
+  // Diğer ekipler popup'ını dışarı tıklayınca kapat
+  const popup = document.getElementById('diger-ekipler-popup');
+  const btn   = document.getElementById('btn-diger-ekipler');
+  if (popup && popup.style.display !== 'none' && !popup.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) {
+    popup.style.display = 'none';
+  }
 });
 
 // ────────────────────────────
@@ -7583,6 +7596,51 @@ async function _pushTeamToSheets() {
   } catch(err) {
     console.warn('Ekip güncelleme hatası:', err.message);
   }
+}
+
+// ── Diğer Ekipler Popup ──────────────────────────────────────────────────────
+async function toggleDigerEkipler(e) {
+  e.stopPropagation();
+  const popup = document.getElementById('diger-ekipler-popup');
+  if (!popup) return;
+  const isOpen = popup.style.display !== 'none';
+  if (isOpen) { popup.style.display = 'none'; return; }
+
+  // _usersCache boşsa sessizce yükle
+  if (!_usersCache.length) await _silentLoadUsersCache();
+
+  const t = translations[currentLang] || translations.tr;
+  const hedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
+  const myUsername = currentUser?.username || '';
+
+  // Kendisi hariç, ekibi olan diğer yöneticiler
+  const managers = _usersCache.filter(u => u.username !== myUsername && (u.team || []).length > 0);
+
+  const liste = document.getElementById('diger-ekipler-liste');
+  if (!managers.length) {
+    liste.innerHTML = `<div style="padding:10px 14px;font-size:12px;color:var(--muted)">${t.other_teams_empty}</div>`;
+  } else {
+    liste.innerHTML = managers.map(mgr => {
+      const members = getInspectorsForTeam(mgr.team);
+      const avgPerf = members.length
+        ? Math.round(members.reduce((s, i) => s + (i.performans || 0), 0) / members.length)
+        : null;
+      const perfColor = avgPerf === null ? 'var(--muted)'
+        : avgPerf >= 95 ? 'var(--green)'
+        : avgPerf >= 85 ? 'var(--blue)'
+        : avgPerf >= 70 ? 'var(--amber)'
+        : 'var(--red)';
+      const perfStr = avgPerf !== null ? `<span style="font-weight:700;color:${perfColor};font-family:'DM Mono',monospace">${avgPerf}%</span>` : `<span style="color:var(--muted);font-size:11px">—</span>`;
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border2)">
+          <span style="font-size:13px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(mgr.username))}</span>
+          ${perfStr}
+        </div>
+      `;
+    }).join('');
+  }
+
+  popup.style.display = '';
 }
 
 // ── Ekibimi Düzenle Modalı ───────────────────────────────────────────────────
