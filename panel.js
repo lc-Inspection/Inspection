@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyrKR73-of_FWDo7eKRGrK2BttaTMEWETVJ_m8NbVcAYx1HYSaVaIvlso9bQhRlv_jl/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyuMsVkxUSpGnDVewk6foyl0a2OSHz_Dnm0lMyDnL1g2KaTWhK8lxRCUo7uFZ0MNXZ1/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -8157,98 +8157,77 @@ function renderKayipZamanDetayliTablo() {
     return;
   }
 
-  // Tarih filtresi
-  let filtered = kayipZamanData;
+  // Tarih + dropdown filtresi
+  let filtered = [...kayipZamanData];
   if (_kzStartDate) filtered = filtered.filter(r => formatTarihKisa(r.tarih) >= _kzStartDate);
   if (_kzEndDate)   filtered = filtered.filter(r => formatTarihKisa(r.tarih) <= _kzEndDate);
+  const fEkip  = document.getElementById('kz-admin-filter-ekip')?.value  || '';
+  const fInsp  = document.getElementById('kz-admin-filter-inspector')?.value || '';
+  const fSebep = document.getElementById('kz-admin-filter-sebep')?.value || '';
+  if (fEkip)  filtered = filtered.filter(r => r.ekipYoneticisi === fEkip);
+  if (fInsp)  filtered = filtered.filter(r => r.inspector === fInsp);
+  if (fSebep) filtered = filtered.filter(r => r.sebep === fSebep);
 
-  // Sebep toplamları (top 4)
+  // Sebep toplamları (top 4 kutu)
   const sebepMap = {};
   filtered.forEach(r => { const s=r.sebep||'Diğer'; sebepMap[s]=(sebepMap[s]||0)+(r.sureDk||0); });
   const topSebepler = Object.entries(sebepMap).sort((a,b)=>b[1]-a[1]).slice(0,4);
   const sebepKartlar = topSebepler.map(([s,dk]) => `
-    <div style="background:#fff;border:1px solid var(--border2);border-radius:10px;padding:14px 16px;flex:1;min-width:140px">
+    <div style="background:#fff;border:1px solid var(--border2);border-radius:10px;padding:14px 16px;flex:1;min-width:130px">
       <div style="font-size:20px;margin-bottom:6px">${SEBEP_IKONLAR[s]||'📝'}</div>
       <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</div>
       <div style="font-size:11px;color:var(--muted);margin-top:3px;font-weight:600">${_escapeHtml(s)}</div>
     </div>`).join('');
 
-  // Ekip bazında gruplu tablo
-  const ekipler = {};
+  // Inspector bazında grupla (ekip yöneticisi başlığı olmadan)
+  const inspMap = {};
   filtered.forEach(r => {
-    const ey = r.ekipYoneticisi || 'Bilinmiyor';
-    if (!ekipler[ey]) ekipler[ey] = [];
-    ekipler[ey].push(r);
+    const k = (r.inspector||'').toLowerCase();
+    if (!inspMap[k]) inspMap[k] = { isim: r.inspector, ekip: r.ekipYoneticisi||'', dk: 0, kayitlar: [] };
+    inspMap[k].dk += r.sureDk||0;
+    inspMap[k].kayitlar.push(r);
   });
 
-  const ekipHtml = Object.entries(ekipler).sort(([a],[b])=>a.localeCompare(b,'tr')).map(([ey, kayitlar]) => {
-    const toplamDk = kayitlar.reduce((s,r)=>s+(r.sureDk||0),0);
-
-    // Sebep rozet
-    const sm = {};
-    kayitlar.forEach(r=>{ const s=r.sebep||'Diğer'; sm[s]=(sm[s]||0)+(r.sureDk||0); });
-    const rozet = Object.entries(sm).sort((a,b)=>b[1]-a[1])
-      .map(([s,dk])=>`<span style="background:#f0f4ff;color:var(--blue2);border:1px solid var(--lblue);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;margin:2px;display:inline-flex;gap:4px;align-items:center">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)} <b style="color:#C62828">${(dk/60).toFixed(1)}s</b></span>`)
-      .join('');
-
-    // Inspector satırları
-    const inspMap = {};
-    kayitlar.forEach(r=>{
-      const k=(r.inspector||'').toLowerCase();
-      if(!inspMap[k]) inspMap[k]={isim:r.inspector,dk:0,kayitlar:[]};
-      inspMap[k].dk+=r.sureDk||0;
-      inspMap[k].kayitlar.push(r);
-    });
-
-    const inspRows = Object.values(inspMap).map(({isim,dk,kayitlar:ks})=>{
+  const inspRows = Object.values(inspMap)
+    .sort((a,b) => b.dk - a.dk)
+    .map(({isim, ekip, dk, kayitlar: ks}) => {
       const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
       const perf = perfObj ? getOrijinalHamPerf(perfObj) : null;
-      const perfHtml = perf!==null
+      const perfHtml = perf !== null
         ? `<span class="${getPerformanceClass(perf)}" style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700">${perf}%</span>
            <span style="display:inline-flex;align-items:center;gap:4px;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;margin-left:8px">⏸ ${(dk/60).toFixed(1)}s <span style="font-weight:400;color:#999;font-size:10px">değ.dışı</span></span>`
         : '<span style="color:var(--muted);font-size:12px">—</span>';
 
       const detaylar = ks.map(r=>`
-        <tr style="background:#fafafa">
+        <tr style="background:#fafafa;border-bottom:1px solid #f0f0f0">
           <td style="padding:5px 14px 5px 30px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">${formatTarihKisa(r.tarih)} ${r.gun?'('+r.gun+')':''}</td>
+          <td style="padding:5px 14px;font-size:11px;color:var(--muted);font-size:11px">${_escapeHtml(r.ekipYoneticisi||'')}</td>
           <td style="padding:5px 14px;font-size:11px;font-family:'DM Mono',monospace">${(r.baslangic||'').substring(0,5)} – ${(r.bitis||'').substring(0,5)}</td>
           <td style="padding:5px 14px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
           <td style="padding:5px 14px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:5px;padding:1px 7px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
           <td style="padding:5px 14px;font-size:11px;color:var(--muted)">${_escapeHtml(r.aciklama||'')}</td>
         </tr>`).join('');
 
-      return `<tr style="border-bottom:1px solid var(--border2)">
+      return `
+        <tr style="border-bottom:1px solid var(--border2)">
           <td style="padding:11px 14px;font-weight:700;color:var(--navy)">${_escapeHtml(_formatDisplayName(isim))}</td>
           <td style="padding:11px 14px">${perfHtml}</td>
           <td style="padding:11px 14px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:7px;padding:4px 10px;font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${(dk/60).toFixed(1)}s</span></td>
         </tr>${detaylar}`;
     }).join('');
 
-    return `
-      <div style="margin-bottom:16px;border:1px solid var(--border2);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
-        <div style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="background:rgba(255,255,255,.15);border-radius:7px;padding:4px 10px;color:#fff;font-size:12px;font-weight:700">👤 ${_escapeHtml(ey)}</span>
-            <span style="color:rgba(255,255,255,.6);font-size:12px">${Object.keys(inspMap).length} inspector</span>
-          </div>
-          <span style="background:#C62828;color:#fff;border-radius:7px;padding:4px 10px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace">⏸ ${(toplamDk/60).toFixed(1)} saat kayıp</span>
-        </div>
-        <div style="padding:10px 16px;background:#f8f9fa;border-bottom:1px solid var(--border2);display:flex;flex-wrap:wrap;gap:4px;align-items:center">
-          <span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:4px">Sebepler:</span>${rozet}
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="background:#f0f4ff;border-bottom:2px solid var(--border2)">
-            <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Inspector</th>
-            <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Performans & Kayıp Notu</th>
-            <th style="padding:10px 14px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px;width:110px">Toplam Kayıp</th>
-          </tr></thead>
-          <tbody>${inspRows}</tbody>
-        </table>
-      </div>`;
-  }).join('');
+  const tableHtml = inspRows
+    ? `<table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:#f0f4ff;border-bottom:2px solid var(--border2)">
+          <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Inspector</th>
+          <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Performans & Kayıp Notu</th>
+          <th style="padding:10px 14px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px;width:110px">Toplam Kayıp</th>
+        </tr></thead>
+        <tbody>${inspRows}</tbody>
+      </table>`
+    : '<div style="padding:20px;text-align:center;color:var(--muted)">Seçilen aralıkta kayıt yok</div>';
 
   container.innerHTML = `
-    <!-- Tarih Aralığı Filtresi -->
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
       <span style="font-size:12px;font-weight:600;color:var(--muted)">📅 Tarih Aralığı:</span>
       <input type="date" id="kz-date-start" value="${_kzStartDate}" onchange="_kzStartDate=this.value;renderKayipZamanDetayliTablo()"
@@ -8258,10 +8237,8 @@ function renderKayipZamanDetayliTablo() {
         style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2)">
       ${(_kzStartDate||_kzEndDate)?`<button onclick="_kzStartDate='';_kzEndDate='';renderKayipZamanDetayliTablo()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);background:#fff;cursor:pointer;color:var(--muted)">✕ Temizle</button>`:''}
     </div>
-    <!-- Sebep Özet Kutular -->
     ${topSebepler.length ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">${sebepKartlar}</div>` : ''}
-    <!-- Ekip Tabloları -->
-    ${ekipHtml || '<div style="padding:20px;text-align:center;color:var(--muted)">Seçilen tarih aralığında kayıt yok</div>'}`;
+    ${tableHtml}`;
 }
 
 // ─── Tüm kayıt flat listesi (filtreli + sayfalı) ───
