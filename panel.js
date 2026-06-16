@@ -910,6 +910,7 @@ let aramaStr = '';
 let excelRows = [];
 let excelCols = [];
 let performansData = [];
+let kayipZamanData = []; // { id, inspector, tarih, gun, baslangic, bitis, sebep, aciklama, ekipYoneticisi, sureDk }
 
 // Dashboard
 let filteredInspectors = [];
@@ -936,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzzG03IqdhP-0igDsPNGP443FMA_hnhCWl78hHBO8hWqAl_VUz6uAwA2uXuxQYQcXSg/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycby5CkmVd7nxtUEqToRinG8r-xAsojqJJ3dK3SLScmvZ-FxNWY-Jg0dqra5BNJ2HXLJq1g/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -1354,6 +1355,19 @@ function applyUserPermissions() {
   if (navEkipAnaliz) {
     const hasTeam = showTeamUi && (currentUser.team || []).length > 0;
     navEkipAnaliz.style.display = hasTeam ? '' : 'none';
+  }
+
+  // Kayip Zaman Girisi sekmesi: yalnizca ekip yoneticilerine
+  const navKayipEkip = document.getElementById('nav-kayip-zaman-ekip');
+  if (navKayipEkip) {
+    const hasTeam = showTeamUi && (currentUser.team || []).length > 0;
+    navKayipEkip.style.display = hasTeam ? '' : 'none';
+  }
+
+  // Kayip Zaman Analizi sekmesi: yalnizca admin'e
+  const navKayipAdmin = document.getElementById('nav-kayip-zaman-admin');
+  if (navKayipAdmin) {
+    navKayipAdmin.style.display = (!currentUser || currentUser.isAdmin) ? '' : 'none';
   }
 
   // "Temizle" butonu sadece admin tarafından görülebilir
@@ -3309,6 +3323,10 @@ function showPage(id, navEl){
     loadAndRenderUsers();
   } else if(id === 'ekip-analiz') {
     renderEkipAnaliz();
+  } else if(id === 'kayip-zaman-ekip') {
+    loadKayipZamanEkip();
+  } else if(id === 'kayip-zaman-admin') {
+    loadKayipZamanAdmin();
   }
 }
 
@@ -4811,7 +4829,6 @@ function renderPerfTabloFromData(page) {
       <div style="padding:0 16px 10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
         ${[
           ['📦','Adet',(row.adet||0).toLocaleString('tr-TR')],
-
           ['📋','Kayıt',row.kayit||0],
           ['⏱','Standart',fmtSure(row.standartSure)],
           ['🕐','Mesai',fmtSure(row.mesaiSure) + (row.toplamMesaistiSaniye > 0 ? ` 🌙+${Math.round(row.toplamMesaistiSaniye/60)}dk` : '')]
@@ -7724,4 +7741,526 @@ async function saveTeamFromModal() {
   renderTeamSection();
   await _pushTeamToSheets();
   showSuccessMessage('✅ Ekibiniz güncellendi');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// KAYIP ZAMAN SİSTEMİ
+// ══════════════════════════════════════════════════════════════════
+
+// ─── Yardımcı: iki saat stringini karşılaştırıp dakika farkı döner ───
+function saatFarkiDk(baslangic, bitis) {
+  if (!baslangic || !bitis) return 0;
+  const [bh, bm] = baslangic.split(':').map(Number);
+  const [eh, em] = bitis.split(':').map(Number);
+  return Math.max(0, (eh * 60 + em) - (bh * 60 + bm));
+}
+
+// ─── Tarihten gün adı ───
+function tarihtenGun(tarihStr) {
+  if (!tarihStr) return '';
+  const gunler = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
+  const d = new Date(tarihStr);
+  return isNaN(d) ? '' : gunler[d.getDay()];
+}
+
+// ─── Tarih input değişince gün alanını güncelle ───
+document.addEventListener('DOMContentLoaded', () => {
+  const tarihInput = document.getElementById('kz-tarih');
+  if (tarihInput) {
+    tarihInput.addEventListener('change', () => {
+      const gunEl = document.getElementById('kz-gun');
+      if (gunEl) gunEl.value = tarihtenGun(tarihInput.value);
+    });
+    // Varsayılan bugün
+    const today = new Date().toISOString().split('T')[0];
+    tarihInput.value = today;
+    const gunEl = document.getElementById('kz-gun');
+    if (gunEl) gunEl.value = tarihtenGun(today);
+  }
+});
+
+// ─── Inspector dropdown'ı doldur (ekip yöneticisi için) ───
+function fillKayipZamanInspectorDropdown() {
+  const sel = document.getElementById('kz-inspector');
+  if (!sel) return;
+  const teamInspectors = getTeamInspectors();
+  sel.innerHTML = '<option value="">— Inspector seçin —</option>';
+  teamInspectors.forEach(ins => {
+    const opt = document.createElement('option');
+    opt.value = ins.ins;
+    opt.textContent = _formatDisplayName(ins.ins);
+    sel.appendChild(opt);
+  });
+}
+
+// ─── Kayıp Zaman Kaydet (Sheets'e) ───
+async function saveKayipZaman() {
+  const inspector = document.getElementById('kz-inspector')?.value?.trim();
+  const tarih     = document.getElementById('kz-tarih')?.value;
+  const gun       = document.getElementById('kz-gun')?.value;
+  const baslangic = document.getElementById('kz-baslangic')?.value;
+  const bitis     = document.getElementById('kz-bitis')?.value;
+  const sebep     = document.getElementById('kz-sebep')?.value;
+  const aciklama  = document.getElementById('kz-aciklama')?.value?.trim() || '';
+
+  if (!inspector) { alert('Lütfen bir inspector seçin.'); return; }
+  if (!tarih)     { alert('Lütfen tarih girin.'); return; }
+  if (!baslangic || !bitis) { alert('Lütfen başlangıç ve bitiş saati girin.'); return; }
+
+  const sureDk = saatFarkiDk(baslangic, bitis);
+  if (sureDk <= 0) { alert('Bitiş saati başlangıçtan sonra olmalı.'); return; }
+
+  const url = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url) { alert('Sheets bağlantısı yapılandırılmamış.'); return; }
+
+  const record = {
+    id: Date.now().toString(),
+    inspector,
+    tarih,
+    gun: gun || tarihtenGun(tarih),
+    baslangic,
+    bitis,
+    sebep,
+    aciklama,
+    ekipYoneticisi: currentUser?.username || '',
+    sureDk,
+    savedAt: new Date().toISOString()
+  };
+
+  const btn = document.getElementById('kz-save-btn');
+  const msg = document.getElementById('kz-save-msg');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Kaydediliyor...'; }
+
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'setKayipZaman', token, record }),
+      mode: 'no-cors'
+    });
+    // Optimistic update
+    kayipZamanData.push(record);
+    if (msg) { msg.style.display = ''; setTimeout(() => { msg.style.display = 'none'; }, 3000); }
+    // Formu temizle
+    document.getElementById('kz-aciklama').value = '';
+    document.getElementById('kz-baslangic').value = '';
+    document.getElementById('kz-bitis').value = '';
+    renderKayipZamanEkipListe();
+    renderDuzeltilmisPerformansEkip();
+  } catch(e) {
+    alert('Hata: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Kayıp Zamanı Kaydet'; }
+  }
+}
+
+// ─── Ekip Yöneticisi: Sayfayı Yükle ───
+async function loadKayipZamanEkip() {
+  fillKayipZamanInspectorDropdown();
+  await fetchKayipZamanData();
+  renderKayipZamanEkipListe();
+  renderDuzeltilmisPerformansEkip();
+}
+
+// ─── Sheets'ten kayıp zaman verilerini çek ───
+async function fetchKayipZamanData() {
+  const url = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url) return;
+  try {
+    const data = await jsonpFetch(url, { action: 'getKayipZaman', token });
+    if (data?.status === 'ok' && Array.isArray(data.kayitlar)) {
+      kayipZamanData = data.kayitlar;
+    }
+  } catch(e) {
+    console.warn('Kayıp zaman verisi çekilemedi:', e);
+  }
+}
+
+// ─── Düzeltilmiş Performansı Hesapla ───
+// Bir inspector için toplam kayıp dakikayı döner
+function getKayipDakikaForInspector(inspectorName) {
+  return kayipZamanData
+    .filter(r => r.inspector === inspectorName)
+    .reduce((sum, r) => sum + (r.sureDk || 0), 0);
+}
+
+// Düzeltilmiş mesai saatini hesapla: orijinal mesai - kayıp zaman
+function getDuzeltilmisPerformans(inspector) {
+  const kayipDk = getKayipDakikaForInspector(inspector.ins);
+  const orijinalMesaiDk = (inspector.mesaiSaat || 0) * 60; // saat → dakika
+  const duzeltilmisMesaiDk = Math.max(1, orijinalMesaiDk - kayipDk);
+  const duzeltilmisMesaiSaat = duzeltilmisMesaiDk / 60;
+  // Performans = (Standart Süre / Mesai) * 100
+  const standartSure = inspector.standartSure || inspector.toplamSure || 0;
+  if (!standartSure || !duzeltilmisMesaiSaat) return inspector.performans || 0;
+  return Math.round((standartSure / duzeltilmisMesaiSaat) * 100);
+}
+
+// ─── Ekip sayfası: düzeltilmiş performans tablosu ───
+function renderDuzeltilmisPerformansEkip() {
+  const container = document.getElementById('kz-duzeltilmis-container');
+  if (!container) return;
+  const teamInspectors = getTeamInspectors();
+  if (!teamInspectors.length || !performansData.length) {
+    container.innerHTML = `<div class="empty" style="padding:30px"><div class="empty-icon">📊</div><h3>Veri Bekleniyor</h3><p>Performans verisi gerekli</p></div>`;
+    return;
+  }
+
+  const rows = teamInspectors.map(ins => {
+    const kayipDk = getKayipDakikaForInspector(ins.ins);
+    const orijPerf = ins.performans || 0;
+    const duzPerf = getDuzeltilmisPerformans(ins);
+    const fark = duzPerf - orijPerf;
+    const farkStr = fark > 0 ? `<span style="color:var(--green);font-weight:700">+${fark}%</span>` : fark < 0 ? `<span style="color:var(--red)">${fark}%</span>` : `<span style="color:var(--muted)">—</span>`;
+    const kayipSaat = (kayipDk / 60).toFixed(1);
+    const duzPerfClass = getPerformanceClass(duzPerf);
+    return `
+      <tr style="border-bottom:1px solid var(--border2)">
+        <td style="padding:10px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(ins.ins))}</td>
+        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${orijPerf}%</td>
+        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:#C62828">${kayipDk > 0 ? kayipSaat + ' s' : '—'}</td>
+        <td style="padding:10px 12px;text-align:center"><span class="${duzPerfClass}" style="font-weight:700;font-family:'DM Mono',monospace">${duzPerf}%</span></td>
+        <td style="padding:10px 12px;text-align:center">${farkStr}</td>
+      </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#f8f9fa;border-bottom:2px solid var(--border2)">
+            <th style="padding:10px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Inspector</th>
+            <th style="padding:10px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Önceki Performans</th>
+            <th style="padding:10px 12px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px">⏸ Kayıp Süre</th>
+            <th style="padding:10px 12px;text-align:center;font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.4px">✅ Düzeltilmiş</th>
+            <th style="padding:10px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Fark</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ─── Ekip sayfası: kayıp zaman listesi ───
+function renderKayipZamanEkipListe() {
+  const container = document.getElementById('kz-ekip-liste');
+  const countEl   = document.getElementById('kz-ekip-count');
+  if (!container) return;
+
+  const username = currentUser?.username || '';
+  const myRecords = kayipZamanData.filter(r => r.ekipYoneticisi === username);
+  if (countEl) countEl.textContent = myRecords.length + ' kayıt';
+
+  if (!myRecords.length) {
+    container.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Henüz kayıp zaman kaydı yok</div>`;
+    return;
+  }
+
+  const rows = [...myRecords].reverse().map(r => `
+    <tr style="border-bottom:1px solid var(--border2)">
+      <td style="padding:9px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
+      <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${r.tarih}</td>
+      <td style="padding:9px 12px;color:var(--muted)">${r.gun || ''}</td>
+      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic} – ${r.bitis}</td>
+      <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
+      <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${_escapeHtml(r.sebep)}</span></td>
+      <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama || '')}</td>
+    </tr>`).join('');
+
+  container.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#f8f9fa;border-bottom:2px solid var(--border2)">
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Inspector</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Tarih</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Gün</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Saat Aralığı</th>
+          <th style="padding:9px 12px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px">Süre</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Sebep</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Açıklama</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ─── Admin: Sayfayı Yükle ───
+async function loadKayipZamanAdmin() {
+  await fetchKayipZamanData();
+  renderKayipZamanAdminOzet();
+  renderKayipZamanAdminPerfTable();
+  renderKayipZamanAdminListe();
+  updateKayipNavBadge();
+}
+
+function updateKayipNavBadge() {
+  const badge = document.getElementById('nav-kayip-count');
+  if (badge) badge.textContent = kayipZamanData.length || '';
+}
+
+// ─── Admin: Özet kartlar ───
+function renderKayipZamanAdminOzet() {
+  const el = document.getElementById('kz-admin-ozet');
+  if (!el) return;
+  const toplamKayit = kayipZamanData.length;
+  const toplamSureDk = kayipZamanData.reduce((s, r) => s + (r.sureDk || 0), 0);
+  const inspectorSayisi = new Set(kayipZamanData.map(r => r.inspector)).size;
+  const ekipSayisi = new Set(kayipZamanData.map(r => r.ekipYoneticisi)).size;
+  el.innerHTML = `
+    <div class="summary-stat" style="border-color:#EF9A9A;background:linear-gradient(135deg,#FFEBEE 0%,#fff 100%)">
+      <div class="summary-stat-value" style="color:#C62828">${toplamKayit}</div>
+      <div class="summary-stat-label">Toplam Kayıt</div>
+    </div>
+    <div class="summary-stat" style="border-color:#FFCC80;background:linear-gradient(135deg,#FFF3E0 0%,#fff 100%)">
+      <div class="summary-stat-value" style="color:var(--amber)">${(toplamSureDk/60).toFixed(1)}s</div>
+      <div class="summary-stat-label">Toplam Kayıp Süre</div>
+    </div>
+    <div class="summary-stat" style="border-color:var(--lblue);background:linear-gradient(135deg,var(--lblue3) 0%,#fff 100%)">
+      <div class="summary-stat-value" style="color:var(--blue2)">${inspectorSayisi}</div>
+      <div class="summary-stat-label">Etkilenen Inspector</div>
+    </div>
+    <div class="summary-stat">
+      <div class="summary-stat-value">${ekipSayisi}</div>
+      <div class="summary-stat-label">Ekip Yöneticisi</div>
+    </div>`;
+}
+
+// ─── Admin: Inspector bazında önce/sonra performans tablosu ───
+function renderKayipZamanAdminPerfTable() {
+  const el = document.getElementById('kz-admin-perf-table');
+  if (!el) return;
+  if (!performansData.length) {
+    el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Performans verisi yüklü değil — Sheets'ten çekin</div>`;
+    return;
+  }
+
+  // Kayıp zaman kaydı olan inspector'leri filtrele
+  const affectedInspectors = performansData.filter(ins =>
+    getKayipDakikaForInspector(ins.ins) > 0
+  );
+
+  if (!affectedInspectors.length) {
+    el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Kayıp zaman girilmiş inspector yok</div>`;
+    return;
+  }
+
+  const rows = affectedInspectors.map(ins => {
+    const kayipDk = getKayipDakikaForInspector(ins.ins);
+    const orijPerf = ins.performans || 0;
+    const duzPerf  = getDuzeltilmisPerformans(ins);
+    const fark = duzPerf - orijPerf;
+    const ekipYon = kayipZamanData.find(r => r.inspector === ins.ins)?.ekipYoneticisi || '—';
+    const duzPerfClass = getPerformanceClass(duzPerf);
+    const farkRender = fark > 0
+      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#E8F5E9;color:#2E7D32;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700">↑ +${fark}%</span>`
+      : fark < 0
+      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#FFEBEE;color:#C62828;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700">↓ ${fark}%</span>`
+      : `<span style="color:var(--muted)">—</span>`;
+    return `
+      <tr style="border-bottom:1px solid var(--border2)">
+        <td style="padding:11px 14px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(ins.ins))}</td>
+        <td style="padding:11px 14px;font-size:11px;color:var(--muted)">${_escapeHtml(ekipYon)}</td>
+        <td style="padding:11px 14px;text-align:center">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+            <span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--muted)">${orijPerf}%</span>
+            <span style="font-size:10px;color:var(--muted2)">Önceki</span>
+          </div>
+        </td>
+        <td style="padding:11px 14px;text-align:center">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+            <span class="${duzPerfClass}" style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700">${duzPerf}%</span>
+            <span style="font-size:10px;color:var(--muted2)">Düzeltilmiş</span>
+          </div>
+        </td>
+        <td style="padding:11px 14px;text-align:center">${farkRender}</td>
+        <td style="padding:11px 14px;text-align:center">
+          <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:3px 9px;font-size:12px;font-weight:600;font-family:'DM Mono',monospace">${(kayipDk/60).toFixed(1)}s</span>
+        </td>
+        <td style="padding:11px 14px;text-align:center">
+          <button onclick="showKayipZamanPopupForInspector('${_escapeHtml(ins.ins)}')" style="background:var(--lblue3);color:var(--blue2);border:1px solid var(--lblue);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">
+            ⚠️ Detay
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#f8f9fa;border-bottom:2px solid var(--border2)">
+          <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Inspector</th>
+          <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Ekip Yöneticisi</th>
+          <th style="padding:10px 14px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Önceki Perf.</th>
+          <th style="padding:10px 14px;text-align:center;font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.4px">Düzeltilmiş Perf.</th>
+          <th style="padding:10px 14px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Fark</th>
+          <th style="padding:10px 14px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px">Kayıp Süre</th>
+          <th style="padding:10px 14px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Detay</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ─── Admin: tüm kayıt listesi ───
+function renderKayipZamanAdminListe() {
+  const el = document.getElementById('kz-admin-liste');
+  const countEl = document.getElementById('kz-admin-count');
+  if (!el) return;
+  if (countEl) countEl.textContent = kayipZamanData.length + ' kayıt';
+  if (!kayipZamanData.length) {
+    el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Kayıt bulunamadı</div>`;
+    return;
+  }
+  const rows = [...kayipZamanData].reverse().map(r => `
+    <tr style="border-bottom:1px solid var(--border2)">
+      <td style="padding:9px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
+      <td style="padding:9px 12px;font-size:11px;color:var(--muted)">${_escapeHtml(r.ekipYoneticisi || '')}</td>
+      <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${r.tarih}</td>
+      <td style="padding:9px 12px;color:var(--muted)">${r.gun || ''}</td>
+      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic} – ${r.bitis}</td>
+      <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
+      <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${_escapeHtml(r.sebep)}</span></td>
+      <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama || '')}</td>
+    </tr>`).join('');
+
+  el.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#f8f9fa;border-bottom:2px solid var(--border2)">
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Inspector</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Ekip Yön.</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Tarih</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Gün</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Saat Aralığı</th>
+          <th style="padding:9px 12px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px">Süre</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Sebep</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Açıklama</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ─── Admin: Sebep bazında popup ───
+function showKayipZamanSebepPopup() {
+  const popup = document.getElementById('kz-sebep-popup');
+  const content = document.getElementById('kz-sebep-popup-content');
+  if (!popup || !content) return;
+
+  // Sebep bazında gruplama
+  const sebepMap = {};
+  kayipZamanData.forEach(r => {
+    const s = r.sebep || 'Diğer';
+    if (!sebepMap[s]) sebepMap[s] = 0;
+    sebepMap[s] += r.sureDk || 0;
+  });
+
+  const sebepler = Object.entries(sebepMap).sort((a, b) => b[1] - a[1]);
+  const toplamDk = Object.values(sebepMap).reduce((s, v) => s + v, 0);
+
+  const sebepIkonlar = {
+    'Sistemsel Hata': '⚙️',
+    'Ürün Olmaması': '📦',
+    'Elektrik Kesintisi': '⚡',
+    'Makine Arızası': '🔧',
+    'Diğer': '📝'
+  };
+
+  if (!sebepler.length) {
+    content.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted)">Kayıt bulunamadı</div>`;
+  } else {
+    const maxVal = sebepler[0][1];
+    content.innerHTML = sebepler.map(([sebep, dk]) => {
+      const saat = (dk / 60).toFixed(1);
+      const yuzde = Math.round((dk / toplamDk) * 100);
+      const barW = Math.round((dk / maxVal) * 100);
+      const ikon = sebepIkonlar[sebep] || '📝';
+      return `
+        <div style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <div style="font-size:13px;font-weight:600;color:var(--navy);display:flex;align-items:center;gap:6px">
+              <span style="font-size:16px">${ikon}</span>
+              ${_escapeHtml(sebep)}
+            </div>
+            <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:#C62828">${saat}s <span style="font-size:11px;color:var(--muted);font-weight:400">(${yuzde}%)</span></div>
+          </div>
+          <div style="background:var(--offwhite);border-radius:6px;height:10px;overflow:hidden">
+            <div style="height:100%;width:${barW}%;background:linear-gradient(90deg,#E53935,#FF7043);border-radius:6px;transition:width .4s"></div>
+          </div>
+        </div>`;
+    }).join('') + `
+      <div style="border-top:1px solid var(--border2);padding-top:12px;margin-top:4px;display:flex;justify-content:space-between;font-size:13px">
+        <span style="color:var(--muted)">Toplam</span>
+        <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--navy)">${(toplamDk/60).toFixed(1)} Saat</span>
+      </div>`;
+  }
+
+  popup.style.display = 'flex';
+}
+
+// ─── Inspector bazında popup (admin'den) ───
+function showKayipZamanPopupForInspector(inspectorName) {
+  const popup = document.getElementById('kz-sebep-popup');
+  const content = document.getElementById('kz-sebep-popup-content');
+  if (!popup || !content) return;
+
+  const records = kayipZamanData.filter(r => r.inspector === inspectorName);
+  const sebepMap = {};
+  records.forEach(r => {
+    const s = r.sebep || 'Diğer';
+    if (!sebepMap[s]) sebepMap[s] = 0;
+    sebepMap[s] += r.sureDk || 0;
+  });
+
+  const toplamDk = records.reduce((s, r) => s + (r.sureDk || 0), 0);
+  const sebepler = Object.entries(sebepMap).sort((a, b) => b[1] - a[1]);
+
+  const popup_title = popup.querySelector('.modal-title');
+  if (popup_title) popup_title.textContent = `⚠️ ${_formatDisplayName(inspectorName)} — Kayıp Süre Detayı`;
+
+  content.innerHTML = `
+    <div style="margin-bottom:14px;padding:10px 14px;background:#FFEBEE;border-radius:8px;border:1px solid #EF9A9A">
+      <div style="font-size:11px;color:var(--muted)">Toplam Kayıp Süre</div>
+      <div style="font-size:22px;font-weight:700;color:#C62828;font-family:'DM Mono',monospace">${(toplamDk/60).toFixed(1)} Saat</div>
+    </div>
+    ${sebepler.map(([sebep, dk]) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border2)">
+        <span style="font-size:13px;color:var(--navy)">${_escapeHtml(sebep)}</span>
+        <span style="font-family:'DM Mono',monospace;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</span>
+      </div>`).join('')}`;
+
+  popup.style.display = 'flex';
+}
+
+// ─── Admin: Tüm Kayıp Zaman Verisini Sil ───
+async function clearAllKayipZaman() {
+  if (!confirm('⚠️ Tüm kayıp zaman verileri silinecek!\n\nBu işlem geri alınamaz. Devam etmek istiyor musunuz?')) return;
+
+  const url = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url) { alert('Sheets bağlantısı yok.'); return; }
+
+  const btn = document.getElementById('kz-clear-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Siliniyor...'; }
+
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clearKayipZaman', token }),
+      mode: 'no-cors'
+    });
+    kayipZamanData = [];
+    renderKayipZamanAdminOzet();
+    renderKayipZamanAdminPerfTable();
+    renderKayipZamanAdminListe();
+    updateKayipNavBadge();
+    showSuccessMessage('✅ Kayıp zaman verileri silindi!');
+  } catch(e) {
+    alert('Hata: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🗑️ Tüm Veriyi Sil'; }
+  }
 }
