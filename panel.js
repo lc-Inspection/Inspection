@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw564OUAv3fFFlOvd1j3qfZX8e6YfB7bPer_Tt1pbvZkA6MoCRHvxVKlyXHnOz0xtTn/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwg-I2DK2eHJ-8BwdosmUAYtePIMvuS-Bz1cHosF44Wy19aTZOOWsDTFr4TvQDIwKk/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -7882,8 +7882,9 @@ async function fetchKayipZamanData() {
 // ─── Düzeltilmiş Performansı Hesapla ───
 // Bir inspector için toplam kayıp dakikayı döner
 function getKayipDakikaForInspector(inspectorName) {
+  const nameNorm = String(inspectorName || '').toLowerCase().trim();
   return kayipZamanData
-    .filter(r => r.inspector === inspectorName)
+    .filter(r => String(r.inspector || '').toLowerCase().trim() === nameNorm)
     .reduce((sum, r) => sum + (r.sureDk || 0), 0);
 }
 
