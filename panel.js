@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycby8bujUiOYzIttjJL8cpTSGMglrNnOxR1XgcUMrM_CFcLZOtjosOAXeafR-ucWPwNlt/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbx1E8AZ_JvIdhtF5dMR_pGUvZ_ZpxoIIhHkpMqJsCaXK_NRKes61BtjtW4-0ZSEc1Pk/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -7891,16 +7891,42 @@ function getKayipDakikaForInspector(inspectorName) {
 // Düzeltilmiş mesai saatini hesapla: orijinal mesai - kayıp zaman
 function getDuzeltilmisPerformans(inspector) {
   const kayipDk = getKayipDakikaForInspector(inspector.ins);
-  if (kayipDk <= 0) return inspector.performans || 0;
-  // mesaiSure saniye cinsinden; kayip dakikayi saniyeye cevir
-  const orijinalMesaiSn = inspector.mesaiSure || 0;
-  if (!orijinalMesaiSn) return inspector.performans || 0;
-  const kayipSn = kayipDk * 60;
-  const duzeltilmisMesaiSn = Math.max(60, orijinalMesaiSn - kayipSn);
-  // standartSure de saniye cinsinden
-  const standartSure = inspector.standartSure || 0;
-  if (!standartSure) return inspector.performans || 0;
-  return Math.round((standartSure / duzeltilmisMesaiSn) * 100);
+  if (kayipDk <= 0) return getDispPerf(inspector);
+  const mesaiSn    = inspector.mesaiSure    || 0;
+  const standartSn = inspector.standartSure || 0;
+  if (!mesaiSn || !standartSn) return getDispPerf(inspector);
+  const kayipSn    = kayipDk * 60;
+  const netMesaiSn = Math.max(60, mesaiSn - kayipSn);
+  // standartSure / netMesai * 100, sonra hedef verimi uygula
+  const hamPerf = (standartSn / netMesaiSn) * 100;
+  const hedef   = inspector.hedefVerimlilik || 100;
+  return Math.round(hamPerf * (100 / hedef));
+}
+
+// Orijinal ham performans (kayipsiz) - karsilastirma icin
+function getOrijinalHamPerf(inspector) {
+  const mesaiSn    = inspector.mesaiSure    || 0;
+  const standartSn = inspector.standartSure || 0;
+  if (!mesaiSn || !standartSn) return getDispPerf(inspector);
+  const hedef = inspector.hedefVerimlilik || 100;
+  return Math.round((standartSn / mesaiSn) * 100 * (100 / hedef));
+}
+
+
+// Tarih string'ini kisa formata donustur
+function formatTarihKisa(tarih) {
+  if (!tarih) return '';
+  const s = String(tarih);
+  // YYYY-MM-DD formati zaten kisa
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // ISO veya uzun format -> Date nesnesine cevir
+  try {
+    const d = new Date(s);
+    if (!isNaN(d)) {
+      return d.toLocaleDateString('tr-TR', {day:'2-digit',month:'2-digit',year:'numeric'});
+    }
+  } catch(e) {}
+  return s.substring(0, 10);
 }
 
 function renderDuzeltilmisPerformansEkip() {
@@ -7914,7 +7940,7 @@ function renderDuzeltilmisPerformansEkip() {
 
   const rows = teamInspectors.map(ins => {
     const kayipDk = getKayipDakikaForInspector(ins.ins);
-    const orijPerf = getDispPerf(ins);
+    const orijPerf = getOrijinalHamPerf(ins);
     const duzPerf = getDuzeltilmisPerformans(ins);
     const fark = duzPerf - orijPerf;
     const farkStr = fark > 0 ? `<span style="color:var(--green);font-weight:700">+${fark}%</span>` : fark < 0 ? `<span style="color:var(--red)">${fark}%</span>` : `<span style="color:var(--muted)">—</span>`;
@@ -7967,7 +7993,7 @@ function renderKayipZamanEkipListe() {
       <td style="padding:9px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
       <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${r.tarih}</td>
       <td style="padding:9px 12px;color:var(--muted)">${r.gun || ''}</td>
-      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic} – ${r.bitis}</td>
+      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic ? r.baslangic.substring(0,5) : ''} – ${r.bitis ? r.bitis.substring(0,5) : ''}</td>
       <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
       <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${_escapeHtml(r.sebep)}</span></td>
       <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama || '')}</td>
@@ -8014,6 +8040,7 @@ const SEBEP_IKONLAR = {
 // ─── Tüm admin sayfasını tek fonksiyondan render et ───
 function renderKayipZamanAdminAll() {
   renderKayipZamanAdminOzet();
+  renderKayipZamanEkipGrid();
   renderKayipZamanEkipGruplari();
 }
 
@@ -8094,7 +8121,7 @@ function renderKayipZamanEkipGruplari() {
     const inspRows = Object.values(inspMap).map(({ isim, kayitlar: ks }) => {
       const insToplamDk = ks.reduce((s,r)=>s+(r.sureDk||0),0);
       const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
-      const orijPerf = perfObj ? getDispPerf(perfObj) : null;
+      const orijPerf = perfObj ? getOrijinalHamPerf(perfObj) : null;
       const duzPerf  = perfObj ? getDuzeltilmisPerformans(perfObj) : null;
       const fark     = (orijPerf!==null && duzPerf!==null) ? duzPerf - orijPerf : null;
 
@@ -8116,8 +8143,8 @@ function renderKayipZamanEkipGruplari() {
       // Inspector'a ait kayıtlar detay
       const detayRows = ks.map(r=>`
         <tr style="background:#fafafa;border-bottom:1px solid #f0f0f0">
-          <td style="padding:6px 12px 6px 28px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${r.tarih} ${r.gun?'('+r.gun+')':''}</td>
-          <td style="padding:6px 12px;font-family:'DM Mono',monospace;font-size:11px">${r.baslangic} – ${r.bitis}</td>
+          <td style="padding:6px 12px 6px 28px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${formatTarihKisa(r.tarih)} ${r.gun?'('+r.gun+')':''}</td>
+          <td style="padding:6px 12px;font-family:'DM Mono',monospace;font-size:11px">${r.baslangic ? r.baslangic.substring(0,5) : ''} – ${r.bitis ? r.bitis.substring(0,5) : ''}</td>
           <td style="padding:6px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
           <td style="padding:6px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:5px;padding:2px 7px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
           <td style="padding:6px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama||'')}</td>
@@ -8187,7 +8214,7 @@ function renderKayipZamanAdminListe() {
       <td style="padding:9px 12px;font-size:11px;color:var(--muted)">${_escapeHtml(r.ekipYoneticisi||'')}</td>
       <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${r.tarih}</td>
       <td style="padding:9px 12px;color:var(--muted)">${r.gun||''}</td>
-      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic} – ${r.bitis}</td>
+      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic ? r.baslangic.substring(0,5) : ''} – ${r.bitis ? r.bitis.substring(0,5) : ''}</td>
       <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
       <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
       <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama||'')}</td>
@@ -8275,4 +8302,147 @@ async function clearAllKayipZaman() {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🗑️ Tüm Veriyi Sil'; }
   }
+}
+
+// ─── Ekip Dashboard Grid (yan yana kutular) ───
+function renderKayipZamanEkipGrid() {
+  const grid = document.getElementById('kz-ekip-grid');
+  if (!grid) return;
+
+  if (!kayipZamanData.length) {
+    grid.innerHTML = '';
+    return;
+  }
+
+  // Ekip yöneticisi bazında grupla
+  const ekipler = {};
+  kayipZamanData.forEach(r => {
+    const ey = r.ekipYoneticisi || 'Bilinmiyor';
+    if (!ekipler[ey]) ekipler[ey] = [];
+    ekipler[ey].push(r);
+  });
+
+  const perfClass = (p) => p >= 95 ? '#2E7D32' : p >= 85 ? '#1565C0' : p >= 70 ? '#E65100' : '#C62828';
+  const perfBg    = (p) => p >= 95 ? '#E8F5E9' : p >= 85 ? '#E3F2FD' : p >= 70 ? '#FFF3E0' : '#FFEBEE';
+
+  grid.innerHTML = Object.entries(ekipler)
+    .sort(([a],[b]) => a.localeCompare(b,'tr'))
+    .map(([ekipYon, kayitlar]) => {
+      const toplamDk = kayitlar.reduce((s,r)=>s+(r.sureDk||0),0);
+
+      // Inspector bazında
+      const inspMap = {};
+      kayitlar.forEach(r => {
+        const k = (r.inspector||'').toLowerCase();
+        if (!inspMap[k]) inspMap[k] = { isim: r.inspector, dk: 0, sebepler: {} };
+        inspMap[k].dk += r.sureDk || 0;
+        const s = r.sebep || 'Diger';
+        inspMap[k].sebepler[s] = (inspMap[k].sebepler[s]||0) + (r.sureDk||0);
+      });
+
+      // Sebep özeti
+      const sebepMap = {};
+      kayitlar.forEach(r => {
+        const s = r.sebep || 'Diger';
+        sebepMap[s] = (sebepMap[s]||0) + (r.sureDk||0);
+      });
+      const sebepList = Object.entries(sebepMap)
+        .sort((a,b)=>b[1]-a[1])
+        .map(([s,dk]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0">
+          <span style="font-size:12px;color:#333">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</span>
+        </div>`).join('');
+
+      // Inspector listesi
+      const inspList = Object.values(inspMap)
+        .sort((a,b)=>b.dk-a.dk)
+        .map(({ isim, dk }) => {
+          const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
+          const orijPerf = perfObj ? getOrijinalHamPerf(perfObj) : null;
+          const duzPerf  = perfObj ? getDuzeltilmisPerformans(perfObj) : null;
+          const fark = (orijPerf!==null && duzPerf!==null) ? duzPerf - orijPerf : null;
+
+          const perfStr = orijPerf !== null
+            ? `<div style="display:flex;align-items:center;gap:6px">
+                <span style="font-family:'DM Mono',monospace;font-size:12px;color:#999">${orijPerf}%</span>
+                <span style="color:#ccc;font-size:10px">→</span>
+                <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${perfClass(duzPerf)}">${duzPerf}%</span>
+                ${fark!==null ? `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:${fark>0?'#E8F5E9':'#FFEBEE'};color:${fark>0?'#2E7D32':'#C62828'}">${fark>0?'+':''}${fark}%</span>` : ''}
+              </div>`
+            : `<span style="font-size:11px;color:#bbb">—</span>`;
+
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5">
+            <div style="font-size:13px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(isim))}</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              ${perfStr}
+              <span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace">${(dk/60).toFixed(1)}s</span>
+            </div>
+          </div>`;
+        }).join('');
+
+      return `
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.07)">
+          <!-- Header -->
+          <div style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);padding:14px 16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <div style="color:#fff;font-weight:700;font-size:14px">👤 ${_escapeHtml(ekipYon)}</div>
+              <div style="background:#C62828;color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace">⏸ ${(toplamDk/60).toFixed(1)}s</div>
+            </div>
+            <div style="color:rgba(255,255,255,.6);font-size:11px">${Object.keys(inspMap).length} inspector · ${kayitlar.length} kayıt</div>
+          </div>
+          <!-- Sebepler -->
+          <div style="padding:12px 16px;background:#f8f9fa;border-bottom:1px solid var(--border2)">
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">KAYIP NEDENLERİ</div>
+            ${sebepList}
+          </div>
+          <!-- Inspectorler -->
+          <div style="padding:12px 16px">
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">INSPECTOR PERFORMANS</div>
+            ${inspList}
+          </div>
+        </div>`;
+    }).join('');
+}
+
+// ─── Excel Export ───
+function exportKayipZamanExcel() {
+  if (!kayipZamanData.length) { alert('Dışa aktarılacak veri yok.'); return; }
+
+  const BOM = '\uFEFF';
+  const headers = ['Ekip Yöneticisi','Inspector','Tarih','Gün','Başlangıç','Bitiş','Süre (dk)','Sebep','Açıklama','Önceki Perf%','Düzeltilmiş Perf%','Fark'];
+
+  const rows = kayipZamanData.map(r => {
+    const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(r.inspector||'').toLowerCase());
+    const orijPerf = perfObj ? getOrijinalHamPerf(perfObj) : '';
+    const duzPerf  = perfObj ? getDuzeltilmisPerformans(perfObj) : '';
+    const fark     = (orijPerf !== '' && duzPerf !== '') ? duzPerf - orijPerf : '';
+    return [
+      r.ekipYoneticisi||'',
+      _formatDisplayName(r.inspector||''),
+      formatTarihKisa(r.tarih),
+      r.gun||'',
+      r.baslangic||'',
+      r.bitis||'',
+      r.sureDk||0,
+      r.sebep||'',
+      r.aciklama||'',
+      orijPerf,
+      duzPerf,
+      fark !== '' ? (fark > 0 ? '+'+fark : fark) : ''
+    ];
+  });
+
+  const csv = BOM + [headers, ...rows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `KayipZaman_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
