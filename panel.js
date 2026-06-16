@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwg-I2DK2eHJ-8BwdosmUAYtePIMvuS-Bz1cHosF44Wy19aTZOOWsDTFr4TvQDIwKk/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycby8bujUiOYzIttjJL8cpTSGMglrNnOxR1XgcUMrM_CFcLZOtjosOAXeafR-ucWPwNlt/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -7993,9 +7993,7 @@ function renderKayipZamanEkipListe() {
 // ─── Admin: Sayfayı Yükle ───
 async function loadKayipZamanAdmin() {
   await fetchKayipZamanData();
-  renderKayipZamanAdminOzet();
-  renderKayipZamanAdminPerfTable();
-  renderKayipZamanAdminListe();
+  renderKayipZamanAdminAll();
   updateKayipNavBadge();
 }
 
@@ -8004,25 +8002,40 @@ function updateKayipNavBadge() {
   if (badge) badge.textContent = kayipZamanData.length || '';
 }
 
-// ─── Admin: Özet kartlar ───
+// ─── SEBEP İKONLARI ───
+const SEBEP_IKONLAR = {
+  'Sistemsel Hata':    '⚙️',
+  'Ürün Olmaması':     '📦',
+  'Elektrik Kesintisi':'⚡',
+  'Makine Arızası':    '🔧',
+  'Diğer':             '📝'
+};
+
+// ─── Tüm admin sayfasını tek fonksiyondan render et ───
+function renderKayipZamanAdminAll() {
+  renderKayipZamanAdminOzet();
+  renderKayipZamanEkipGruplari();
+}
+
+// ─── Özet Kartlar ───
 function renderKayipZamanAdminOzet() {
   const el = document.getElementById('kz-admin-ozet');
   if (!el) return;
-  const toplamKayit = kayipZamanData.length;
-  const toplamSureDk = kayipZamanData.reduce((s, r) => s + (r.sureDk || 0), 0);
-  const inspectorSayisi = new Set(kayipZamanData.map(r => r.inspector)).size;
-  const ekipSayisi = new Set(kayipZamanData.map(r => r.ekipYoneticisi)).size;
+  const toplamKayit   = kayipZamanData.length;
+  const toplamDk      = kayipZamanData.reduce((s,r)=>s+(r.sureDk||0),0);
+  const inspSayisi    = new Set(kayipZamanData.map(r=>r.inspector)).size;
+  const ekipSayisi    = new Set(kayipZamanData.map(r=>r.ekipYoneticisi)).size;
   el.innerHTML = `
     <div class="summary-stat" style="border-color:#EF9A9A;background:linear-gradient(135deg,#FFEBEE 0%,#fff 100%)">
       <div class="summary-stat-value" style="color:#C62828">${toplamKayit}</div>
       <div class="summary-stat-label">Toplam Kayıt</div>
     </div>
     <div class="summary-stat" style="border-color:#FFCC80;background:linear-gradient(135deg,#FFF3E0 0%,#fff 100%)">
-      <div class="summary-stat-value" style="color:var(--amber)">${(toplamSureDk/60).toFixed(1)}s</div>
+      <div class="summary-stat-value" style="color:var(--amber)">${(toplamDk/60).toFixed(1)}s</div>
       <div class="summary-stat-label">Toplam Kayıp Süre</div>
     </div>
     <div class="summary-stat" style="border-color:var(--lblue);background:linear-gradient(135deg,var(--lblue3) 0%,#fff 100%)">
-      <div class="summary-stat-value" style="color:var(--blue2)">${inspectorSayisi}</div>
+      <div class="summary-stat-value" style="color:var(--blue2)">${inspSayisi}</div>
       <div class="summary-stat-label">Etkilenen Inspector</div>
     </div>
     <div class="summary-stat">
@@ -8031,83 +8044,134 @@ function renderKayipZamanAdminOzet() {
     </div>`;
 }
 
-// ─── Admin: Inspector bazında önce/sonra performans tablosu ───
-function renderKayipZamanAdminPerfTable() {
-  const el = document.getElementById('kz-admin-perf-table');
-  if (!el) return;
-  if (!performansData.length) {
-    el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Performans verisi yüklü değil — Sheets'ten çekin</div>`;
+// ─── Ekip bazında gruplu panel ───
+function renderKayipZamanEkipGruplari() {
+  const container = document.getElementById('kz-admin-perf-table');
+  if (!container) return;
+
+  if (!kayipZamanData.length) {
+    container.innerHTML = `<div style="padding:30px;text-align:center;color:var(--muted)">Henüz kayıp zaman kaydı yok</div>`;
+    // Tüm kayıtlar tablosunu da temizle
+    const liste = document.getElementById('kz-admin-liste');
+    if (liste) liste.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted)">Kayıt bulunamadı</div>`;
+    const cnt = document.getElementById('kz-admin-count');
+    if (cnt) cnt.textContent = '0 kayıt';
     return;
   }
 
-  // Kayıp zaman kaydı olan inspector'leri filtrele
-  const affectedInspectors = performansData.filter(ins =>
-    getKayipDakikaForInspector(ins.ins) > 0
-  );
+  // Ekip yöneticisi bazında grupla
+  const ekipler = {};
+  kayipZamanData.forEach(r => {
+    const ey = r.ekipYoneticisi || 'Bilinmiyor';
+    if (!ekipler[ey]) ekipler[ey] = [];
+    ekipler[ey].push(r);
+  });
 
-  if (!affectedInspectors.length) {
-    el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Kayıp zaman girilmiş inspector yok</div>`;
-    return;
-  }
+  let html = '';
+  Object.entries(ekipler).sort(([a],[b])=>a.localeCompare(b,'tr')).forEach(([ekipYon, kayitlar]) => {
+    const toplamEkipDk = kayitlar.reduce((s,r)=>s+(r.sureDk||0),0);
 
-  const rows = affectedInspectors.map(ins => {
-    const kayipDk = getKayipDakikaForInspector(ins.ins);
-    const orijPerf = getDispPerf(ins);
-    const duzPerf  = getDuzeltilmisPerformans(ins);
-    const fark = duzPerf - orijPerf;
-    const ekipYon = kayipZamanData.find(r => r.inspector === ins.ins)?.ekipYoneticisi || '—';
-    const duzPerfClass = getPerformanceClass(duzPerf);
-    const farkRender = fark > 0
-      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#E8F5E9;color:#2E7D32;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700">↑ +${fark}%</span>`
-      : fark < 0
-      ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#FFEBEE;color:#C62828;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700">↓ ${fark}%</span>`
-      : `<span style="color:var(--muted)">—</span>`;
-    return `
-      <tr style="border-bottom:1px solid var(--border2)">
-        <td style="padding:11px 14px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(ins.ins))}</td>
-        <td style="padding:11px 14px;font-size:11px;color:var(--muted)">${_escapeHtml(ekipYon)}</td>
-        <td style="padding:11px 14px;text-align:center">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-            <span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--muted)">${orijPerf}%</span>
-            <span style="font-size:10px;color:var(--muted2)">Önceki</span>
-          </div>
-        </td>
-        <td style="padding:11px 14px;text-align:center">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-            <span class="${duzPerfClass}" style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700">${duzPerf}%</span>
-            <span style="font-size:10px;color:var(--muted2)">Düzeltilmiş</span>
-          </div>
-        </td>
-        <td style="padding:11px 14px;text-align:center">${farkRender}</td>
-        <td style="padding:11px 14px;text-align:center">
-          <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:3px 9px;font-size:12px;font-weight:600;font-family:'DM Mono',monospace">${(kayipDk/60).toFixed(1)}s</span>
-        </td>
-        <td style="padding:11px 14px;text-align:center">
-          <button onclick="showKayipZamanPopupForInspector('${_escapeHtml(ins.ins)}')" style="background:var(--lblue3);color:var(--blue2);border:1px solid var(--lblue);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">
-            ⚠️ Detay
-          </button>
-        </td>
-      </tr>`;
-  }).join('');
+    // Inspector bazında grupla (bu ekip içinde)
+    const inspMap = {};
+    kayitlar.forEach(r => {
+      const k = (r.inspector||'').toLowerCase();
+      if (!inspMap[k]) inspMap[k] = { isim: r.inspector, kayitlar: [] };
+      inspMap[k].kayitlar.push(r);
+    });
 
-  el.innerHTML = `
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead>
-        <tr style="background:#f8f9fa;border-bottom:2px solid var(--border2)">
-          <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Inspector</th>
-          <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Ekip Yöneticisi</th>
-          <th style="padding:10px 14px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Önceki Perf.</th>
-          <th style="padding:10px 14px;text-align:center;font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.4px">Düzeltilmiş Perf.</th>
-          <th style="padding:10px 14px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Fark</th>
-          <th style="padding:10px 14px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px">Kayıp Süre</th>
-          <th style="padding:10px 14px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Detay</th>
+    // Sebep bazında toplam (bu ekip)
+    const sebepMap = {};
+    kayitlar.forEach(r => {
+      const s = r.sebep || 'Diğer';
+      sebepMap[s] = (sebepMap[s]||0) + (r.sureDk||0);
+    });
+    const sebepBadges = Object.entries(sebepMap)
+      .sort((a,b)=>b[1]-a[1])
+      .map(([s,dk])=>`<span style="display:inline-flex;align-items:center;gap:4px;background:#f0f4ff;color:var(--blue2);border:1px solid var(--lblue);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;margin:2px">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)} <span style="color:#C62828;font-family:'DM Mono',monospace">${(dk/60).toFixed(1)}s</span></span>`)
+      .join('');
+
+    // Inspector satırları
+    const inspRows = Object.values(inspMap).map(({ isim, kayitlar: ks }) => {
+      const insToplamDk = ks.reduce((s,r)=>s+(r.sureDk||0),0);
+      const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
+      const orijPerf = perfObj ? getDispPerf(perfObj) : null;
+      const duzPerf  = perfObj ? getDuzeltilmisPerformans(perfObj) : null;
+      const fark     = (orijPerf!==null && duzPerf!==null) ? duzPerf - orijPerf : null;
+
+      const perfCell = orijPerf !== null
+        ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="text-align:center">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Önceki</div>
+              <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--muted)">${orijPerf}%</div>
+            </div>
+            <div style="font-size:18px;color:var(--muted)">→</div>
+            <div style="text-align:center">
+              <div style="font-size:11px;color:var(--green);margin-bottom:2px">Düzeltilmiş</div>
+              <div class="${getPerformanceClass(duzPerf)}" style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700">${duzPerf}%</div>
+            </div>
+            ${fark!==null ? `<span style="padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;background:${fark>0?'#E8F5E9':'#FFEBEE'};color:${fark>0?'#2E7D32':'#C62828'}">${fark>0?'+':''}${fark}%</span>` : ''}
+          </div>`
+        : `<span style="color:var(--muted);font-size:12px">Performans verisi yok</span>`;
+
+      // Inspector'a ait kayıtlar detay
+      const detayRows = ks.map(r=>`
+        <tr style="background:#fafafa;border-bottom:1px solid #f0f0f0">
+          <td style="padding:6px 12px 6px 28px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${r.tarih} ${r.gun?'('+r.gun+')':''}</td>
+          <td style="padding:6px 12px;font-family:'DM Mono',monospace;font-size:11px">${r.baslangic} – ${r.bitis}</td>
+          <td style="padding:6px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
+          <td style="padding:6px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:5px;padding:2px 7px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
+          <td style="padding:6px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama||'')}</td>
+        </tr>`).join('');
+
+      return `
+        <tr style="border-bottom:1px solid var(--border2)">
+          <td style="padding:12px 14px;font-weight:700;color:var(--navy)">${_escapeHtml(_formatDisplayName(isim))}</td>
+          <td style="padding:12px 14px">${perfCell}</td>
+          <td style="padding:12px 14px;text-align:center">
+            <span style="background:#FFEBEE;color:#C62828;border-radius:7px;padding:4px 10px;font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${(insToplamDk/60).toFixed(1)}s</span>
+          </td>
         </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+        ${detayRows}`;
+    }).join('');
+
+    html += `
+      <div style="margin-bottom:20px;border:1px solid var(--border2);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+        <!-- Ekip Header -->
+        <div style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="background:rgba(255,255,255,.15);border-radius:7px;padding:4px 10px;color:#fff;font-size:12px;font-weight:700">👤 ${_escapeHtml(ekipYon)}</span>
+            <span style="color:rgba(255,255,255,.7);font-size:12px">${Object.keys(inspMap).length} inspector</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="background:#C62828;color:#fff;border-radius:7px;padding:4px 10px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace">⏸ ${(toplamEkipDk/60).toFixed(1)} saat kayıp</span>
+          </div>
+        </div>
+        <!-- Sebep Rozetleri -->
+        <div style="padding:10px 16px;background:#f8f9fa;border-bottom:1px solid var(--border2);display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+          <span style="font-size:11px;color:var(--muted);font-weight:600;margin-right:4px">Sebepler:</span>
+          ${sebepBadges}
+        </div>
+        <!-- Inspector tablosu -->
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#f0f4ff;border-bottom:2px solid var(--border2)">
+              <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;width:22%">Inspector</th>
+              <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Performans (Önceki → Düzeltilmiş)</th>
+              <th style="padding:10px 14px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px;width:120px">Toplam Kayıp</th>
+            </tr>
+          </thead>
+          <tbody>${inspRows}</tbody>
+        </table>
+      </div>`;
+  });
+
+  container.innerHTML = html;
+
+  // Tüm kayıtlar listesini de güncelle
+  renderKayipZamanAdminListe();
 }
 
-// ─── Admin: tüm kayıt listesi ───
+// ─── Tüm kayıt flat listesi ───
 function renderKayipZamanAdminListe() {
   const el = document.getElementById('kz-admin-liste');
   const countEl = document.getElementById('kz-admin-count');
@@ -8117,18 +8181,17 @@ function renderKayipZamanAdminListe() {
     el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Kayıt bulunamadı</div>`;
     return;
   }
-  const rows = [...kayipZamanData].reverse().map(r => `
+  const rows = [...kayipZamanData].reverse().map(r=>`
     <tr style="border-bottom:1px solid var(--border2)">
       <td style="padding:9px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
-      <td style="padding:9px 12px;font-size:11px;color:var(--muted)">${_escapeHtml(r.ekipYoneticisi || '')}</td>
+      <td style="padding:9px 12px;font-size:11px;color:var(--muted)">${_escapeHtml(r.ekipYoneticisi||'')}</td>
       <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${r.tarih}</td>
-      <td style="padding:9px 12px;color:var(--muted)">${r.gun || ''}</td>
+      <td style="padding:9px 12px;color:var(--muted)">${r.gun||''}</td>
       <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic} – ${r.bitis}</td>
       <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
-      <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${_escapeHtml(r.sebep)}</span></td>
-      <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama || '')}</td>
+      <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
+      <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama||'')}</td>
     </tr>`).join('');
-
   el.innerHTML = `
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
@@ -8147,51 +8210,41 @@ function renderKayipZamanAdminListe() {
     </table>`;
 }
 
-// ─── Admin: Sebep bazında popup ───
+// ─── Sebep özeti popup ───
 function showKayipZamanSebepPopup() {
   const popup = document.getElementById('kz-sebep-popup');
   const content = document.getElementById('kz-sebep-popup-content');
   if (!popup || !content) return;
 
-  // Sebep bazında gruplama
+  const popup_title = popup.querySelector('.modal-title');
+  if (popup_title) popup_title.textContent = '⚠️ Kayıp Zaman — Sebep Özeti';
+
   const sebepMap = {};
   kayipZamanData.forEach(r => {
     const s = r.sebep || 'Diğer';
-    if (!sebepMap[s]) sebepMap[s] = 0;
-    sebepMap[s] += r.sureDk || 0;
+    sebepMap[s] = (sebepMap[s]||0) + (r.sureDk||0);
   });
-
-  const sebepler = Object.entries(sebepMap).sort((a, b) => b[1] - a[1]);
-  const toplamDk = Object.values(sebepMap).reduce((s, v) => s + v, 0);
-
-  const sebepIkonlar = {
-    'Sistemsel Hata': '⚙️',
-    'Ürün Olmaması': '📦',
-    'Elektrik Kesintisi': '⚡',
-    'Makine Arızası': '🔧',
-    'Diğer': '📝'
-  };
+  const sebepler = Object.entries(sebepMap).sort((a,b)=>b[1]-a[1]);
+  const toplamDk = Object.values(sebepMap).reduce((s,v)=>s+v,0);
+  const maxVal = sebepler[0]?.[1] || 1;
 
   if (!sebepler.length) {
     content.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted)">Kayıt bulunamadı</div>`;
   } else {
-    const maxVal = sebepler[0][1];
     content.innerHTML = sebepler.map(([sebep, dk]) => {
-      const saat = (dk / 60).toFixed(1);
-      const yuzde = Math.round((dk / toplamDk) * 100);
-      const barW = Math.round((dk / maxVal) * 100);
-      const ikon = sebepIkonlar[sebep] || '📝';
+      const saat = (dk/60).toFixed(1);
+      const yuzde = Math.round((dk/toplamDk)*100);
+      const barW = Math.round((dk/maxVal)*100);
       return `
         <div style="margin-bottom:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
             <div style="font-size:13px;font-weight:600;color:var(--navy);display:flex;align-items:center;gap:6px">
-              <span style="font-size:16px">${ikon}</span>
-              ${_escapeHtml(sebep)}
+              <span style="font-size:16px">${SEBEP_IKONLAR[sebep]||'📝'}</span>${_escapeHtml(sebep)}
             </div>
             <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:#C62828">${saat}s <span style="font-size:11px;color:var(--muted);font-weight:400">(${yuzde}%)</span></div>
           </div>
           <div style="background:var(--offwhite);border-radius:6px;height:10px;overflow:hidden">
-            <div style="height:100%;width:${barW}%;background:linear-gradient(90deg,#E53935,#FF7043);border-radius:6px;transition:width .4s"></div>
+            <div style="height:100%;width:${barW}%;background:linear-gradient(90deg,#E53935,#FF7043);border-radius:6px"></div>
           </div>
         </div>`;
     }).join('') + `
@@ -8200,61 +8253,21 @@ function showKayipZamanSebepPopup() {
         <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--navy)">${(toplamDk/60).toFixed(1)} Saat</span>
       </div>`;
   }
-
   popup.style.display = 'flex';
 }
 
-// ─── Inspector bazında popup (admin'den) ───
-function showKayipZamanPopupForInspector(inspectorName) {
-  const popup = document.getElementById('kz-sebep-popup');
-  const content = document.getElementById('kz-sebep-popup-content');
-  if (!popup || !content) return;
-
-  const records = kayipZamanData.filter(r => r.inspector === inspectorName);
-  const sebepMap = {};
-  records.forEach(r => {
-    const s = r.sebep || 'Diğer';
-    if (!sebepMap[s]) sebepMap[s] = 0;
-    sebepMap[s] += r.sureDk || 0;
-  });
-
-  const toplamDk = records.reduce((s, r) => s + (r.sureDk || 0), 0);
-  const sebepler = Object.entries(sebepMap).sort((a, b) => b[1] - a[1]);
-
-  const popup_title = popup.querySelector('.modal-title');
-  if (popup_title) popup_title.textContent = `⚠️ ${_formatDisplayName(inspectorName)} — Kayıp Süre Detayı`;
-
-  content.innerHTML = `
-    <div style="margin-bottom:14px;padding:10px 14px;background:#FFEBEE;border-radius:8px;border:1px solid #EF9A9A">
-      <div style="font-size:11px;color:var(--muted)">Toplam Kayıp Süre</div>
-      <div style="font-size:22px;font-weight:700;color:#C62828;font-family:'DM Mono',monospace">${(toplamDk/60).toFixed(1)} Saat</div>
-    </div>
-    ${sebepler.map(([sebep, dk]) => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border2)">
-        <span style="font-size:13px;color:var(--navy)">${_escapeHtml(sebep)}</span>
-        <span style="font-family:'DM Mono',monospace;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</span>
-      </div>`).join('')}`;
-
-  popup.style.display = 'flex';
-}
-
-// ─── Admin: Tüm Kayıp Zaman Verisini Sil ───
+// ─── Tüm veriyi sil ───
 async function clearAllKayipZaman() {
   if (!confirm('⚠️ Tüm kayıp zaman verileri silinecek!\n\nBu işlem geri alınamaz. Devam etmek istiyor musunuz?')) return;
-
   const url = appConfig.sheetsWebAppUrl;
   const token = appConfig.sheetsApiToken;
   if (!url) { alert('Sheets bağlantısı yok.'); return; }
-
   const btn = document.getElementById('kz-clear-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Siliniyor...'; }
-
   try {
     await jsonpFetch(url, { action: 'clearKayipZaman', token });
     kayipZamanData = [];
-    renderKayipZamanAdminOzet();
-    renderKayipZamanAdminPerfTable();
-    renderKayipZamanAdminListe();
+    renderKayipZamanAdminAll();
     updateKayipNavBadge();
     showSuccessMessage('✅ Kayıp zaman verileri silindi!');
   } catch(e) {
