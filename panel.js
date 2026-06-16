@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzROxGCikYjVW25N0PtCU5uHz_uNXBbrRKmeRZ-AdSUkQRWbWMPw4TAdUlNao3No6hl/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwPY8ONDLpAqdeKPPEOUqegmJXS403ynJOgohncXkTE2kNffytvk3B4Z1GzXHtT3vSf/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -7890,17 +7890,10 @@ function getKayipDakikaForInspector(inspectorName) {
 
 // Düzeltilmiş mesai saatini hesapla: orijinal mesai - kayıp zaman
 function getDuzeltilmisPerformans(inspector) {
-  const kayipDk = getKayipDakikaForInspector(inspector.ins);
-  if (kayipDk <= 0) return getDispPerf(inspector);
-  const mesaiSn    = inspector.mesaiSure    || 0;
-  const standartSn = inspector.standartSure || 0;
-  if (!mesaiSn || !standartSn) return getDispPerf(inspector);
-  const kayipSn    = kayipDk * 60;
-  const netMesaiSn = Math.max(60, mesaiSn - kayipSn);
-  // standartSure / netMesai * 100, sonra hedef verimi uygula
-  const hamPerf = (standartSn / netMesaiSn) * 100;
-  const hedef   = inspector.hedefVerimlilik || 100;
-  return Math.round(hamPerf * (100 / hedef));
+  // Yaklasim 1 - Notral Tut:
+  // Kayip zaman performansi ne arttirir ne dusurur.
+  // Performans aynen kalir, kayip sure sadece belgelenir.
+  return getOrijinalHamPerf(inspector);
 }
 
 // Orijinal ham performans (kayipsiz) - karsilastirma icin
@@ -7939,22 +7932,21 @@ function renderDuzeltilmisPerformansEkip() {
   }
 
   const rows = teamInspectors.map(ins => {
-    const kayipDk = getKayipDakikaForInspector(ins.ins);
-    const orijPerf = getOrijinalHamPerf(ins);
-    const duzPerf = getDuzeltilmisPerformans(ins);
-    const fark = duzPerf - orijPerf;
-    const farkStr = fark > 0 ? `<span style="color:var(--green);font-weight:700">+${fark}%</span>` : fark < 0 ? `<span style="color:var(--red)">${fark}%</span>` : `<span style="color:var(--muted)">—</span>`;
+    const kayipDk   = getKayipDakikaForInspector(ins.ins);
+    const perf      = getOrijinalHamPerf(ins);
+    const perfClass = getPerformanceClass(perf);
     const kayipSaat = (kayipDk / 60).toFixed(1);
-    const duzPerfClass = getPerformanceClass(duzPerf);
+    const kayipNotu = kayipDk > 0
+      ? `<span style="display:inline-flex;align-items:center;gap:5px;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600">&#9208; ${kayipSaat}s &nbsp;<span style="font-weight:400;color:#999;font-size:10px">de&#287;erlendirme d&#305;&#351;&#305;</span></span>`
+      : `<span style="color:var(--muted);font-size:12px">&mdash;</span>`;
     return `
       <tr style="border-bottom:1px solid var(--border2)">
         <td style="padding:10px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(ins.ins))}</td>
-        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${orijPerf}%</td>
-        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:#C62828">${kayipDk > 0 ? kayipSaat + ' s' : '—'}</td>
-        <td style="padding:10px 12px;text-align:center"><span class="${duzPerfClass}" style="font-weight:700;font-family:'DM Mono',monospace">${duzPerf}%</span></td>
-        <td style="padding:10px 12px;text-align:center">${farkStr}</td>
+        <td style="padding:10px 12px;text-align:center"><span class="${perfClass}" style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700">${perf}%</span></td>
+        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:#C62828;font-weight:600">${kayipDk > 0 ? kayipSaat + ' s' : '&mdash;'}</td>
+        <td style="padding:10px 12px;text-align:center">${kayipNotu}</td>
       </tr>`;
-  }).join('');
+    }).join('');
 
   container.innerHTML = `
     <div style="overflow-x:auto">
@@ -7962,10 +7954,9 @@ function renderDuzeltilmisPerformansEkip() {
         <thead>
           <tr style="background:#f8f9fa;border-bottom:2px solid var(--border2)">
             <th style="padding:10px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Inspector</th>
-            <th style="padding:10px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Önceki Performans</th>
+            <th style="padding:10px 12px;text-align:center;font-size:10px;color:var(--blue2);text-transform:uppercase;letter-spacing:.4px">Performans</th>
             <th style="padding:10px 12px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px">⏸ Kayıp Süre</th>
-            <th style="padding:10px 12px;text-align:center;font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.4px">✅ Düzeltilmiş</th>
-            <th style="padding:10px 12px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Fark</th>
+            <th style="padding:10px 12px;text-align:center;font-size:10px;color:#E65100;text-transform:uppercase;letter-spacing:.4px">Değerlendirme Notu</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -7973,30 +7964,67 @@ function renderDuzeltilmisPerformansEkip() {
     </div>`;
 }
 
-// ─── Ekip sayfası: kayıp zaman listesi ───
+// ─── Ekip sayfası: kayıp zaman listesi (filtreli + sayfalı) ───
+let _kzEkipPage = 1;
+const KZ_PAGE_SIZE = 20;
+
 function renderKayipZamanEkipListe() {
-  const container = document.getElementById('kz-ekip-liste');
-  const countEl   = document.getElementById('kz-ekip-count');
+  const container  = document.getElementById('kz-ekip-liste');
+  const countEl    = document.getElementById('kz-ekip-count');
+  const pagEl      = document.getElementById('kz-ekip-pagination');
+  const toplamEl   = document.getElementById('kz-ekip-toplam');
   if (!container) return;
 
   const username = currentUser?.username || '';
-  const myRecords = kayipZamanData.filter(r => r.ekipYoneticisi === username);
-  if (countEl) countEl.textContent = myRecords.length + ' kayıt';
+  let records = kayipZamanData.filter(r => r.ekipYoneticisi === username);
 
-  if (!myRecords.length) {
-    container.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Henüz kayıp zaman kaydı yok</div>`;
+  // Inspector dropdown'u doldur
+  const inspSel = document.getElementById('kz-filter-inspector');
+  if (inspSel && inspSel.options.length <= 1) {
+    const insps = [...new Set(records.map(r => r.inspector))].sort();
+    insps.forEach(ins => {
+      const opt = document.createElement('option');
+      opt.value = ins;
+      opt.textContent = _formatDisplayName(ins);
+      inspSel.appendChild(opt);
+    });
+  }
+
+  // Filtrele
+  const filterIns  = document.getElementById('kz-filter-inspector')?.value || '';
+  const filterSebep = document.getElementById('kz-filter-sebep')?.value || '';
+  if (filterIns)   records = records.filter(r => r.inspector === filterIns);
+  if (filterSebep) records = records.filter(r => r.sebep === filterSebep);
+
+  // Sırala: en yeni üste
+  records = [...records].reverse();
+
+  const total = records.length;
+  const totalPages = Math.max(1, Math.ceil(total / KZ_PAGE_SIZE));
+  if (_kzEkipPage > totalPages) _kzEkipPage = 1;
+
+  const pageRecords = records.slice((_kzEkipPage-1)*KZ_PAGE_SIZE, _kzEkipPage*KZ_PAGE_SIZE);
+  const toplamDk = records.reduce((s,r)=>s+(r.sureDk||0),0);
+
+  if (countEl) countEl.textContent = total + ' kayıt';
+
+  if (!records.length) {
+    container.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Kayıt bulunamadı</div>`;
+    if (pagEl) pagEl.innerHTML = '';
+    if (toplamEl) toplamEl.innerHTML = '';
     return;
   }
 
-  const rows = [...myRecords].reverse().map(r => `
+  // Tablo
+  const rows = pageRecords.map(r => `
     <tr style="border-bottom:1px solid var(--border2)">
       <td style="padding:9px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
-      <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${r.tarih}</td>
-      <td style="padding:9px 12px;color:var(--muted)">${r.gun || ''}</td>
-      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic ? r.baslangic.substring(0,5) : ''} – ${r.bitis ? r.bitis.substring(0,5) : ''}</td>
+      <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${formatTarihKisa(r.tarih)}</td>
+      <td style="padding:9px 12px;color:var(--muted)">${r.gun||''}</td>
+      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic?r.baslangic.substring(0,5):''} – ${r.bitis?r.bitis.substring(0,5):''}</td>
       <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
-      <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${_escapeHtml(r.sebep)}</span></td>
-      <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama || '')}</td>
+      <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
+      <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama||'')}</td>
     </tr>`).join('');
 
   container.innerHTML = `
@@ -8014,6 +8042,32 @@ function renderKayipZamanEkipListe() {
       </thead>
       <tbody>${rows}</tbody>
     </table>`;
+
+  // Sayfalama
+  if (pagEl) {
+    const btnStyle = (active) => `style="padding:5px 11px;border-radius:6px;border:1px solid var(--border2);background:${active?'var(--navy)':'#fff'};color:${active?'#fff':'var(--navy)'};font-size:12px;cursor:pointer;font-weight:600"`;
+    let pags = '';
+    for (let i=1; i<=totalPages; i++) {
+      pags += `<button ${btnStyle(i===_kzEkipPage)} onclick="_kzEkipPage=${i};renderKayipZamanEkipListe()">${i}</button>`;
+    }
+    pagEl.innerHTML = `
+      <div style="font-size:12px;color:var(--muted)">${(_kzEkipPage-1)*KZ_PAGE_SIZE+1}–${Math.min(_kzEkipPage*KZ_PAGE_SIZE,total)} / ${total} kayıt</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${pags}</div>`;
+  }
+
+  // Toplam
+  if (toplamEl) {
+    const sebepOzet = {};
+    records.forEach(r => { const s=r.sebep||'Diğer'; sebepOzet[s]=(sebepOzet[s]||0)+(r.sureDk||0); });
+    const sebepStr = Object.entries(sebepOzet).sort((a,b)=>b[1]-a[1])
+      .map(([s,dk])=>`<span style="background:var(--lblue3);color:var(--blue2);border-radius:5px;padding:2px 8px;font-size:11px;margin-right:4px">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}: <b>${(dk/60).toFixed(1)}s</b></span>`)
+      .join('');
+    toplamEl.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-weight:600;color:var(--muted);margin-right:4px">Toplam:</span>${sebepStr}</div>
+        <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:4px 12px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700">⏸ ${(toplamDk/60).toFixed(1)} saat</span>
+      </div>`;
+  }
 }
 
 // ─── Admin: Sayfayı Yükle ───
@@ -8125,31 +8179,13 @@ function renderKayipZamanEkipGruplari() {
       const duzPerf  = perfObj ? getDuzeltilmisPerformans(perfObj) : null;
       const fark     = (orijPerf!==null && duzPerf!==null) ? duzPerf - orijPerf : null;
 
+      // Yaklasim 1: performans degismez
       const perfCell = orijPerf !== null
         ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <div style="text-align:center">
-              <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Önceki</div>
-              <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--muted)">${orijPerf}%</div>
-            </div>
-            <div style="font-size:18px;color:var(--muted)">→</div>
-            <div style="text-align:center">
-              <div style="font-size:11px;color:var(--green);margin-bottom:2px">Düzeltilmiş</div>
-              <div class="${getPerformanceClass(duzPerf)}" style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700">${duzPerf}%</div>
-            </div>
-            ${fark!==null ? `<span style="padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;background:${fark>0?'#E8F5E9':'#FFEBEE'};color:${fark>0?'#2E7D32':'#C62828'}">${fark>0?'+':''}${fark}%</span>` : ''}
+            <span class="${getPerformanceClass(orijPerf)}" style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700">${orijPerf}%</span>
+            ${insToplamDk > 0 ? `<span style="display:inline-flex;align-items:center;gap:5px;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600">&#9208; ${(insToplamDk/60).toFixed(1)}s <span style="font-weight:400;color:#999;font-size:10px">de&#287;erlendirme d&#305;&#351;&#305;</span></span>` : ''}
           </div>`
-        : `<span style="color:var(--muted);font-size:12px">Performans verisi yok</span>`;
-
-      // Inspector'a ait kayıtlar detay
-      const detayRows = ks.map(r=>`
-        <tr style="background:#fafafa;border-bottom:1px solid #f0f0f0">
-          <td style="padding:6px 12px 6px 28px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${formatTarihKisa(r.tarih)} ${r.gun?'('+r.gun+')':''}</td>
-          <td style="padding:6px 12px;font-family:'DM Mono',monospace;font-size:11px">${r.baslangic ? r.baslangic.substring(0,5) : ''} – ${r.bitis ? r.bitis.substring(0,5) : ''}</td>
-          <td style="padding:6px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
-          <td style="padding:6px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:5px;padding:2px 7px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
-          <td style="padding:6px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama||'')}</td>
-        </tr>`).join('');
-
+        : `<span style="color:var(--muted);font-size:12px">Performans verisi yok</span>`
       return `
         <tr style="border-bottom:1px solid var(--border2)">
           <td style="padding:12px 14px;font-weight:700;color:var(--navy)">${_escapeHtml(_formatDisplayName(isim))}</td>
@@ -8200,25 +8236,38 @@ function renderKayipZamanEkipGruplari() {
 
 // ─── Tüm kayıt flat listesi ───
 function renderKayipZamanAdminListe() {
-  const el = document.getElementById('kz-admin-liste');
+  const el      = document.getElementById('kz-admin-liste');
   const countEl = document.getElementById('kz-admin-count');
+  const pagEl   = document.getElementById('kz-admin-pagination');
   if (!el) return;
-  if (countEl) countEl.textContent = kayipZamanData.length + ' kayıt';
-  if (!kayipZamanData.length) {
+
+  const total = kayipZamanData.length;
+  if (countEl) countEl.textContent = total + ' kayıt';
+
+  if (!total) {
     el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Kayıt bulunamadı</div>`;
+    if (pagEl) pagEl.innerHTML = '';
     return;
   }
-  const rows = [...kayipZamanData].reverse().map(r=>`
+
+  const records = [...kayipZamanData].reverse();
+  const totalPages = Math.max(1, Math.ceil(total / KZ_PAGE_SIZE));
+  if (!window._kzAdminPage || window._kzAdminPage > totalPages) window._kzAdminPage = 1;
+  const page = window._kzAdminPage;
+  const pageRecs = records.slice((page-1)*KZ_PAGE_SIZE, page*KZ_PAGE_SIZE);
+
+  const rows = pageRecs.map(r=>`
     <tr style="border-bottom:1px solid var(--border2)">
       <td style="padding:9px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
       <td style="padding:9px 12px;font-size:11px;color:var(--muted)">${_escapeHtml(r.ekipYoneticisi||'')}</td>
-      <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${r.tarih}</td>
+      <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${formatTarihKisa(r.tarih)}</td>
       <td style="padding:9px 12px;color:var(--muted)">${r.gun||''}</td>
-      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic ? r.baslangic.substring(0,5) : ''} – ${r.bitis ? r.bitis.substring(0,5) : ''}</td>
+      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${(r.baslangic||'').substring(0,5)} – ${(r.bitis||'').substring(0,5)}</td>
       <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
       <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
       <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama||'')}</td>
     </tr>`).join('');
+
   el.innerHTML = `
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
@@ -8235,16 +8284,16 @@ function renderKayipZamanAdminListe() {
       </thead>
       <tbody>${rows}</tbody>
     </table>`;
+
+  if (pagEl && totalPages > 1) {
+    const btnS = (a) => `style="padding:5px 11px;border-radius:6px;border:1px solid var(--border2);background:${a?'var(--navy)':'#fff'};color:${a?'#fff':'var(--navy)'};font-size:12px;cursor:pointer;font-weight:600"`;
+    let btns = '';
+    for (let i=1;i<=totalPages;i++) btns += `<button ${btnS(i===page)} onclick="window._kzAdminPage=${i};renderKayipZamanAdminListe()">${i}</button>`;
+    pagEl.innerHTML = `
+      <div style="font-size:12px;color:var(--muted)">${(page-1)*KZ_PAGE_SIZE+1}–${Math.min(page*KZ_PAGE_SIZE,total)} / ${total}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${btns}</div>`;
+  } else if (pagEl) pagEl.innerHTML = '';
 }
-
-// ─── Sebep özeti popup ───
-function showKayipZamanSebepPopup() {
-  const popup = document.getElementById('kz-sebep-popup');
-  const content = document.getElementById('kz-sebep-popup-content');
-  if (!popup || !content) return;
-
-  const popup_title = popup.querySelector('.modal-title');
-  if (popup_title) popup_title.textContent = '⚠️ Kayıp Zaman — Sebep Özeti';
 
   const sebepMap = {};
   kayipZamanData.forEach(r => {
@@ -8332,11 +8381,12 @@ function renderKayipZamanEkipGrid() {
       const sebepMap = {};
       kayitlar.forEach(r => { const s=r.sebep||'Diger'; sebepMap[s]=(sebepMap[s]||0)+(r.sureDk||0); });
       const sebepRows = Object.entries(sebepMap).sort((a,b)=>b[1]-a[1])
-        .map(([s,dk]) => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0">
+        .map(([s,dk]) =>
+          `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0">
             <span style="font-size:12px;color:#444">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}</span>
             <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</span>
-          </div>`).join('');
+          </div>`
+        ).join('');
 
       // Inspector ozeti
       const inspMap = {};
@@ -8348,29 +8398,20 @@ function renderKayipZamanEkipGrid() {
 
       const inspRows = Object.values(inspMap).sort((a,b)=>b.dk-a.dk).map(({isim,dk})=>{
         const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
-        const oP = perfObj ? getOrijinalHamPerf(perfObj) : null;
-        const dP = perfObj ? getDuzeltilmisPerformans(perfObj) : null;
-        const fark = oP!==null&&dP!==null ? dP-oP : null;
-        const farkHtml = fark!==null
-          ? `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:${fark>0?'#E8F5E9':'#FFEBEE'};color:${fark>0?'#2E7D32':'#C62828'}">${fark>0?'+':''}${fark}%</span>`
+        const perf = perfObj ? getOrijinalHamPerf(perfObj) : null;
+        const perfSpan = perf !== null
+          ? `<span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${perfColor(perf)}">${perf}%</span>`
           : '';
-        const perfHtml = oP!==null
-          ? `<span style="font-size:12px;color:#aaa;font-family:'DM Mono',monospace">${oP}%</span>
-             <span style="color:#ddd;font-size:11px">→</span>
-             <span style="font-size:14px;font-weight:700;color:${perfColor(dP)};font-family:'DM Mono',monospace">${dP}%</span>
-             ${farkHtml}`
-          : '';
-        return `
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5">
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5">
             <span style="font-size:13px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(isim))}</span>
             <div style="display:flex;align-items:center;gap:8px">
-              ${perfHtml}
-              <span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace">${(dk/60).toFixed(1)}s</span>
+              ${perfSpan}
+              <span style="background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace">⏸ ${(dk/60).toFixed(1)}s</span>
             </div>
           </div>`;
       }).join('');
 
-      const arrow = isOpen ? '▲' : '▼';
+      const eyId = ey.replace(/[^a-z0-9]/gi,'_');
       return `
         <div style="background:#fff;border:1px solid var(--border2);border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)">
           <div onclick="toggleKzGrid('${ey.replace(/'/g,"\\'")}')" style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);padding:14px 16px;cursor:pointer;user-select:none">
@@ -8381,7 +8422,7 @@ function renderKayipZamanEkipGrid() {
               </div>
               <div style="display:flex;align-items:center;gap:8px">
                 <span style="background:#C62828;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;font-weight:700;font-family:'DM Mono',monospace">⏸ ${(toplamDk/60).toFixed(1)}s</span>
-                <span style="color:#fff;font-size:14px">${arrow}</span>
+                <span style="color:#fff;font-size:14px">${isOpen?'▲':'▼'}</span>
               </div>
             </div>
           </div>
@@ -8403,6 +8444,8 @@ function toggleKzGrid(ey) {
   _kzGridOpen[ey] = _kzGridOpen[ey] === false ? true : false;
   renderKayipZamanEkipGrid();
 }
+
+
 
 
 // ─── Excel Export ───
