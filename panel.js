@@ -8295,6 +8295,15 @@ function renderKayipZamanAdminListe() {
   } else if (pagEl) pagEl.innerHTML = '';
 }
 
+// ─── Sebep özeti popup ───
+function showKayipZamanSebepPopup() {
+  const popup = document.getElementById('kz-sebep-popup');
+  const content = document.getElementById('kz-sebep-popup-content');
+  if (!popup || !content) return;
+
+  const popup_title = popup.querySelector('.modal-title');
+  if (popup_title) popup_title.textContent = '\u26a0\ufe0f Kay\u0131p Zaman \u2014 Sebep Özeti';
+
   const sebepMap = {};
   kayipZamanData.forEach(r => {
     const s = r.sebep || 'Diğer';
