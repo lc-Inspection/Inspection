@@ -3426,9 +3426,6 @@ function onHedefChange() {
 // DASHBOARD
 // ────────────────────────────
 function renderDashboard() {
-  // _usersCache'i arka planda önceden yükle (butona basınca hazır olsun)
-  if (!_usersCache.length) _silentLoadUsersCache();
-
   if (!performansData.length) {
     const _t0 = translations[currentLang]||translations.tr;
     document.getElementById('inspector-grid').innerHTML = `
@@ -5489,6 +5486,9 @@ function performansHesapla(){
   
   updateSidebar();
   renderDashboard();
+
+  // _usersCache'i arka planda önceden yükle — "Diğer Ekipler" butonu anında açılsın
+  if (!_usersCache.length) _silentLoadUsersCache();
   
   showFileStatus(`✅ ${liste.length}` + (translations[currentLang]||translations.tr).analysis_done, 'var(--green)');
 }
