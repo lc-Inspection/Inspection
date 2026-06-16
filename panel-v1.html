@@ -182,9 +182,20 @@
             <span style="background:rgba(255,255,255,.12);border-radius:7px;padding:4px 7px;font-size:13px">👥</span>
             <span data-i18n="my_team_title">Ekibim</span>
           </h2>
-          <button class="btn btn-sm btn-primary" onclick="openTeamModal()">
-            ✏️ <span data-i18n="manage_team">Ekibi Düzenle</span>
-          </button>
+          <div style="display:flex;align-items:center;gap:8px;position:relative">
+            <button class="btn btn-sm" onclick="toggleDigerEkipler(event)" id="btn-diger-ekipler"
+              style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);backdrop-filter:blur(4px)">
+              📊 <span data-i18n="other_teams_btn">Diğer Ekipler</span>
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="openTeamModal()">
+              ✏️ <span data-i18n="manage_team">Ekibi Düzenle</span>
+            </button>
+            <!-- Diğer ekipler popup -->
+            <div id="diger-ekipler-popup" style="display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:999;background:#fff;border:1px solid var(--border2);border-radius:10px;box-shadow:var(--shadow2);min-width:240px;overflow:hidden">
+              <div style="padding:10px 14px;background:var(--navy);color:#fff;font-size:12px;font-weight:700">📊 <span data-i18n="other_teams_title">Ekip Performansları</span></div>
+              <div id="diger-ekipler-liste" style="padding:6px 0;max-height:300px;overflow-y:auto"></div>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <div class="team-summary-stats">
