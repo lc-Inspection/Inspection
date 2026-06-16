@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzbYyFsVNtjsIdLdS5kI_Sl_szB-FSdoIDi90SgUokAptwSQyrJQ773nkvyKwpMXFgm/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycby5CkmVd7nxtUEqToRinG8r-xAsojqJJ3dK3SLScmvZ-FxNWY-Jg0dqra5BNJ2HXLJq1g/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -3288,9 +3288,11 @@ function showPage(id, navEl){
   // her zaman admin'e özel olan klasmanlar/kullanıcılar sayfalarına erişimi engelle.
   let blocked = false;
   if (currentUser && !currentUser.isAdmin) {
-    if (id === 'klasmanlar' || id === 'kullanicilar') {
+    if (id === 'klasmanlar' || id === 'kullanicilar' || id === 'kayip-zaman-admin') {
       blocked = true;
     } else if (id === 'ekip-analiz') {
+      blocked = !(currentUser.team || []).length;
+    } else if (id === 'kayip-zaman-ekip') {
       blocked = !(currentUser.team || []).length;
     } else if (id !== 'dashboard' && !(currentUser.tabs || []).includes(id)) {
       blocked = true;
