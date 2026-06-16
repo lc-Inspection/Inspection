@@ -4810,7 +4810,8 @@ function renderPerfTabloFromData(page) {
       <!-- Stats: 2×2 grid -->
       <div style="padding:0 16px 10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
         ${[
-          ['📦','Adet',(row.adet||0).toFixed(0)],
+          ['📦','Adet',(row.adet||0).toLocaleString('tr-TR')],
+
           ['📋','Kayıt',row.kayit||0],
           ['⏱','Standart',fmtSure(row.standartSure)],
           ['🕐','Mesai',fmtSure(row.mesaiSure) + (row.toplamMesaistiSaniye > 0 ? ` 🌙+${Math.round(row.toplamMesaistiSaniye/60)}dk` : '')]
