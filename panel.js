@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyxFuowbVBPIjS1MOUz3i4YMPGtAS1PBt2Fmgm75CebLqNGkC0NMiJBPI7gOZFfd7bd/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyb9X7ELySEmJ1AtcBP0swAZZUvFQkKLXPWSWvyqn-jwJ7rNcVCbx5_q2q2d-Z3RHU/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -7891,16 +7891,18 @@ function getKayipDakikaForInspector(inspectorName) {
 // Düzeltilmiş mesai saatini hesapla: orijinal mesai - kayıp zaman
 function getDuzeltilmisPerformans(inspector) {
   const kayipDk = getKayipDakikaForInspector(inspector.ins);
-  const orijinalMesaiDk = (inspector.mesaiSaat || 0) * 60; // saat → dakika
-  const duzeltilmisMesaiDk = Math.max(1, orijinalMesaiDk - kayipDk);
-  const duzeltilmisMesaiSaat = duzeltilmisMesaiDk / 60;
-  // Performans = (Standart Süre / Mesai) * 100
-  const standartSure = inspector.standartSure || inspector.toplamSure || 0;
-  if (!standartSure || !duzeltilmisMesaiSaat) return inspector.performans || 0;
-  return Math.round((standartSure / duzeltilmisMesaiSaat) * 100);
+  if (kayipDk <= 0) return inspector.performans || 0;
+  // mesaiSure saniye cinsinden; kayip dakikayi saniyeye cevir
+  const orijinalMesaiSn = inspector.mesaiSure || 0;
+  if (!orijinalMesaiSn) return inspector.performans || 0;
+  const kayipSn = kayipDk * 60;
+  const duzeltilmisMesaiSn = Math.max(60, orijinalMesaiSn - kayipSn);
+  // standartSure de saniye cinsinden
+  const standartSure = inspector.standartSure || 0;
+  if (!standartSure) return inspector.performans || 0;
+  return Math.round((standartSure / duzeltilmisMesaiSn) * 100);
 }
 
-// ─── Ekip sayfası: düzeltilmiş performans tablosu ───
 function renderDuzeltilmisPerformansEkip() {
   const container = document.getElementById('kz-duzeltilmis-container');
   if (!container) return;
@@ -7912,7 +7914,7 @@ function renderDuzeltilmisPerformansEkip() {
 
   const rows = teamInspectors.map(ins => {
     const kayipDk = getKayipDakikaForInspector(ins.ins);
-    const orijPerf = ins.performans || 0;
+    const orijPerf = getDispPerf(ins);
     const duzPerf = getDuzeltilmisPerformans(ins);
     const fark = duzPerf - orijPerf;
     const farkStr = fark > 0 ? `<span style="color:var(--green);font-weight:700">+${fark}%</span>` : fark < 0 ? `<span style="color:var(--red)">${fark}%</span>` : `<span style="color:var(--muted)">—</span>`;
@@ -8050,7 +8052,7 @@ function renderKayipZamanAdminPerfTable() {
 
   const rows = affectedInspectors.map(ins => {
     const kayipDk = getKayipDakikaForInspector(ins.ins);
-    const orijPerf = ins.performans || 0;
+    const orijPerf = getDispPerf(ins);
     const duzPerf  = getDuzeltilmisPerformans(ins);
     const fark = duzPerf - orijPerf;
     const ekipYon = kayipZamanData.find(r => r.inspector === ins.ins)?.ekipYoneticisi || '—';
