@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyuMsVkxUSpGnDVewk6foyl0a2OSHz_Dnm0lMyDnL1g2KaTWhK8lxRCUo7uFZ0MNXZ1/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw1GZ7ioB8Yg7srXEUMB7LMuORotIVneiZHlGcaHiGLUdK8eZwpav_9ilndp-wki2lk/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -3610,6 +3610,14 @@ function renderInspectorCards() {
     const ini = inspector.ins.split(' ').map(w => w[0] || '').slice(0, 2).join('').toUpperCase();
     const klasmanCount = Object.keys(inspector.klasmanlar).length;
 
+    // Kayip zaman rozeti - performans degismez, sadece not
+    const kayipDkCard = getKayipDakikaForInspector(inspector.ins);
+    const kayipRozetHtml = kayipDkCard > 0
+      ? `<div style="display:inline-flex;align-items:center;gap:3px;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;margin-top:4px;line-height:1.4">
+           &#9208; ${(kayipDkCard/60).toFixed(1)}s de&#287;erlendirme d&#305;&#351;&#305;
+         </div>`
+      : '';
+
     const performansAciklama = (() => {
       if (performansVal === null || performansVal === undefined) {
         return (translations[currentLang]||translations.tr).no_overtime_data;
@@ -3653,6 +3661,7 @@ function renderInspectorCards() {
             <div class="avatar">${ini}</div>
             <div>
               <div class="inspector-name">${inspector.ins}</div>
+              ${kayipRozetHtml}
               <div style="font-size:10px;color:var(--muted2);margin-top:2px">
                 ${inspector.gunSayisi || 0} ${(translations[currentLang]||translations.tr).days_suffix} ${(translations[currentLang]||translations.tr).working} · ${gunDetayi}
               </div>
