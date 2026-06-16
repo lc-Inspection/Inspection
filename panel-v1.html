@@ -994,31 +994,45 @@
         </div>
       </div>
 
-      <!-- Ekibin Düzeltilmiş Performansı -->
+      <!-- Ekip Performans Özeti (Nötr - Kayıp Belgelendi) -->
       <div class="card" style="margin-bottom:16px;overflow:hidden">
-        <div class="card-header" style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);border-bottom:none;padding:14px 16px">
-          <h2 style="color:#fff;gap:8px">
-            <span style="background:rgba(255,255,255,.12);border-radius:7px;padding:4px 7px;font-size:13px">📊</span>
-            Düzeltilmiş Performans (Kayıp Zamanlar Dahil)
-          </h2>
+        <div class="card-header" style="padding:14px 16px;border-bottom:1px solid var(--border2)">
+          <h2>📊 Ekip Performans Özeti</h2>
         </div>
         <div class="card-body" id="kz-duzeltilmis-container">
           <div class="empty" style="padding:30px">
             <div class="empty-icon">📊</div>
             <h3>Veri Bekleniyor</h3>
-            <p>Performans verisi ve kayıp zaman girişi gerekli</p>
+            <p>Performans verisi gerekli</p>
           </div>
         </div>
       </div>
 
       <!-- Girilen Kayıp Zamanlar -->
       <div class="card" style="overflow:hidden">
-        <div class="card-header" style="padding:14px 16px;border-bottom:1px solid var(--border2)">
+        <div class="card-header" style="padding:14px 16px;border-bottom:1px solid var(--border2);flex-wrap:wrap;gap:8px">
           <h2>📋 Girilen Kayıp Zamanlar</h2>
-          <span id="kz-ekip-count" style="font-size:10px;color:var(--muted);background:var(--offwhite);padding:3px 9px;border-radius:99px"></span>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <select id="kz-filter-inspector" onchange="renderKayipZamanEkipListe()" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border2)">
+              <option value="">Tüm Inspectorler</option>
+            </select>
+            <select id="kz-filter-sebep" onchange="renderKayipZamanEkipListe()" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border2)">
+              <option value="">Tüm Sebepler</option>
+              <option value="Sistemsel Hata">⚙️ Sistemsel Hata</option>
+              <option value="Ürün Olmaması">📦 Ürün Olmaması</option>
+              <option value="Elektrik Kesintisi">⚡ Elektrik Kesintisi</option>
+              <option value="Makine Arızası">🔧 Makine Arızası</option>
+              <option value="Diğer">📝 Diğer</option>
+            </select>
+            <span id="kz-ekip-count" style="font-size:10px;color:var(--muted);background:var(--offwhite);padding:3px 9px;border-radius:99px"></span>
+          </div>
         </div>
         <div class="card-body">
           <div id="kz-ekip-liste" style="overflow-x:auto"></div>
+          <!-- Sayfalama -->
+          <div id="kz-ekip-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 4px;flex-wrap:wrap;gap:8px"></div>
+          <!-- Toplam -->
+          <div id="kz-ekip-toplam" style="padding:10px 0 0;border-top:1px solid var(--border2);font-size:12px;color:var(--muted)"></div>
         </div>
       </div>
     </div>
@@ -1065,6 +1079,7 @@
         </div>
         <div class="card-body">
           <div id="kz-admin-liste" style="overflow-x:auto"></div>
+          <div id="kz-admin-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 4px;flex-wrap:wrap;gap:8px"></div>
         </div>
       </div>
     </div>
