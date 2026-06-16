@@ -3426,6 +3426,9 @@ function onHedefChange() {
 // DASHBOARD
 // ────────────────────────────
 function renderDashboard() {
+  // _usersCache'i arka planda önceden yükle (butona basınca hazır olsun)
+  if (!_usersCache.length) _silentLoadUsersCache();
+
   if (!performansData.length) {
     const _t0 = translations[currentLang]||translations.tr;
     document.getElementById('inspector-grid').innerHTML = `
@@ -7606,14 +7609,8 @@ async function toggleDigerEkipler(e) {
   const isOpen = popup.style.display !== 'none';
   if (isOpen) { popup.style.display = 'none'; return; }
 
-  // _usersCache boşsa sessizce yükle
-  if (!_usersCache.length) await _silentLoadUsersCache();
-
   const t = translations[currentLang] || translations.tr;
-  const hedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
   const myUsername = currentUser?.username || '';
-
-  // Kendisi hariç, ekibi olan diğer yöneticiler
   const managers = _usersCache.filter(u => u.username !== myUsername && (u.team || []).length > 0);
 
   const liste = document.getElementById('diger-ekipler-liste');
