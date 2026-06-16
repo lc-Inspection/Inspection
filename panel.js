@@ -8073,6 +8073,12 @@ function renderKayipZamanEkipListe() {
 // ─── Admin: Sayfayı Yükle ───
 async function loadKayipZamanAdmin() {
   await fetchKayipZamanData();
+  // Dropdown'lari sifirla ki yeni veriyle yeniden dolsun
+  ['kz-admin-filter-ekip','kz-admin-filter-inspector'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { while(el.options.length > 1) el.remove(1); }
+  });
+  window._kzAdminPage = 1;
   renderKayipZamanAdminAll();
   updateKayipNavBadge();
 }
@@ -8239,23 +8245,47 @@ function renderKayipZamanAdminListe() {
   const el      = document.getElementById('kz-admin-liste');
   const countEl = document.getElementById('kz-admin-count');
   const pagEl   = document.getElementById('kz-admin-pagination');
+  const toplamEl= document.getElementById('kz-admin-toplam');
   if (!el) return;
 
-  const total = kayipZamanData.length;
+  // Dropdown'ları doldur (ilk seferinde)
+  const ekipSel  = document.getElementById('kz-admin-filter-ekip');
+  const inspSel  = document.getElementById('kz-admin-filter-inspector');
+  if (ekipSel && ekipSel.options.length <= 1) {
+    const ekipler = [...new Set(kayipZamanData.map(r=>r.ekipYoneticisi||''))].sort();
+    ekipler.forEach(e => { const o=document.createElement('option'); o.value=e; o.textContent=e; ekipSel.appendChild(o); });
+  }
+  if (inspSel && inspSel.options.length <= 1) {
+    const insps = [...new Set(kayipZamanData.map(r=>r.inspector||''))].sort();
+    insps.forEach(i => { const o=document.createElement('option'); o.value=i; o.textContent=_formatDisplayName(i); inspSel.appendChild(o); });
+  }
+
+  // Filtrele
+  const fEkip  = ekipSel?.value  || '';
+  const fInsp  = inspSel?.value  || '';
+  const fSebep = document.getElementById('kz-admin-filter-sebep')?.value || '';
+
+  let records = [...kayipZamanData].reverse();
+  if (fEkip)  records = records.filter(r => r.ekipYoneticisi === fEkip);
+  if (fInsp)  records = records.filter(r => r.inspector === fInsp);
+  if (fSebep) records = records.filter(r => r.sebep === fSebep);
+
+  const total = records.length;
   if (countEl) countEl.textContent = total + ' kayıt';
 
   if (!total) {
     el.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Kayıt bulunamadı</div>`;
     if (pagEl) pagEl.innerHTML = '';
+    if (toplamEl) toplamEl.innerHTML = '';
     return;
   }
 
-  const records = [...kayipZamanData].reverse();
   const totalPages = Math.max(1, Math.ceil(total / KZ_PAGE_SIZE));
   if (!window._kzAdminPage || window._kzAdminPage > totalPages) window._kzAdminPage = 1;
   const page = window._kzAdminPage;
   const pageRecs = records.slice((page-1)*KZ_PAGE_SIZE, page*KZ_PAGE_SIZE);
 
+  // Tablo
   const rows = pageRecs.map(r=>`
     <tr style="border-bottom:1px solid var(--border2)">
       <td style="padding:9px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
@@ -8285,17 +8315,39 @@ function renderKayipZamanAdminListe() {
       <tbody>${rows}</tbody>
     </table>`;
 
-  if (pagEl && totalPages > 1) {
-    const btnS = (a) => `style="padding:5px 11px;border-radius:6px;border:1px solid var(--border2);background:${a?'var(--navy)':'#fff'};color:${a?'#fff':'var(--navy)'};font-size:12px;cursor:pointer;font-weight:600"`;
-    let btns = '';
-    for (let i=1;i<=totalPages;i++) btns += `<button ${btnS(i===page)} onclick="window._kzAdminPage=${i};renderKayipZamanAdminListe()">${i}</button>`;
-    pagEl.innerHTML = `
-      <div style="font-size:12px;color:var(--muted)">${(page-1)*KZ_PAGE_SIZE+1}–${Math.min(page*KZ_PAGE_SIZE,total)} / ${total}</div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap">${btns}</div>`;
-  } else if (pagEl) pagEl.innerHTML = '';
+  // Sayfalama
+  if (pagEl) {
+    if (totalPages > 1) {
+      const btnS = a => `style="padding:5px 11px;border-radius:6px;border:1px solid var(--border2);background:${a?'var(--navy)':'#fff'};color:${a?'#fff':'var(--navy)'};font-size:12px;cursor:pointer;font-weight:600"`;
+      let btns = '';
+      for (let i=1;i<=totalPages;i++) btns += `<button ${btnS(i===page)} onclick="window._kzAdminPage=${i};renderKayipZamanAdminListe()">${i}</button>`;
+      pagEl.innerHTML = `
+        <div style="font-size:12px;color:var(--muted)">${(page-1)*KZ_PAGE_SIZE+1}–${Math.min(page*KZ_PAGE_SIZE,total)} / ${total} kayıt</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">${btns}</div>`;
+    } else {
+      pagEl.innerHTML = '';
+    }
+  }
+
+  // Toplam (filtrelenmiş)
+  if (toplamEl) {
+    const sebepOzet = {};
+    records.forEach(r => { const s=r.sebep||'Diğer'; sebepOzet[s]=(sebepOzet[s]||0)+(r.sureDk||0); });
+    const toplamDk = records.reduce((s,r)=>s+(r.sureDk||0),0);
+    const sebepBadges = Object.entries(sebepOzet).sort((a,b)=>b[1]-a[1])
+      .map(([s,dk])=>`<span style="background:var(--lblue3);color:var(--blue2);border-radius:5px;padding:2px 9px;font-size:11px;margin-right:4px">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}: <b>${(dk/60).toFixed(1)}s</b></span>`)
+      .join('');
+    toplamEl.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border2)">
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+          <span style="font-weight:600;color:var(--muted);font-size:12px;margin-right:4px">Toplam:</span>
+          ${sebepBadges}
+        </div>
+        <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:4px 12px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700">⏸ ${(toplamDk/60).toFixed(1)} saat</span>
+      </div>`;
+  }
 }
 
-// ─── Sebep özeti popup ───
 function showKayipZamanSebepPopup() {
   const popup = document.getElementById('kz-sebep-popup');
   const content = document.getElementById('kz-sebep-popup-content');
