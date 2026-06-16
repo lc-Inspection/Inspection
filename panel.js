@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbx6u7OZ3S8ODFcoIxRcplDusBpPkbNJVKSdp4A0w5vFwuABQBcXXjWE2ANKOFxK-aB8/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyrKR73-of_FWDo7eKRGrK2BttaTMEWETVJ_m8NbVcAYx1HYSaVaIvlso9bQhRlv_jl/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -8111,14 +8111,11 @@ function renderKayipZamanAdminAll() {
   renderKayipZamanAdminOzet();
   renderKayipZamanEkipGrid();
   renderKayipZamanDetayliTablo();
-  renderKayipZamanAdminListe();
 }
 
 // Filtre degisince hem detayli tablo hem liste yenilenir
 function onKzAdminFilterChange() {
-  window._kzAdminPage = 1;
   renderKayipZamanDetayliTablo();
-  renderKayipZamanAdminListe();
 }
 
 // ─── Özet Kartlar ───
@@ -8527,31 +8524,41 @@ function toggleKzGrid(ey) {
 
 
 
-// ─── Excel Export ───
+// ─── Excel Export (filtreli) ───
 function exportKayipZamanExcel() {
-  if (!kayipZamanData.length) { alert('Dışa aktarılacak veri yok.'); return; }
+  // Aktif filtreleri uygula
+  let records = [...kayipZamanData];
+  const fEkip  = document.getElementById('kz-admin-filter-ekip')?.value  || '';
+  const fInsp  = document.getElementById('kz-admin-filter-inspector')?.value || '';
+  const fSebep = document.getElementById('kz-admin-filter-sebep')?.value || '';
+  if (_kzStartDate) records = records.filter(r => formatTarihKisa(r.tarih) >= _kzStartDate);
+  if (_kzEndDate)   records = records.filter(r => formatTarihKisa(r.tarih) <= _kzEndDate);
+  if (fEkip)  records = records.filter(r => r.ekipYoneticisi === fEkip);
+  if (fInsp)  records = records.filter(r => r.inspector === fInsp);
+  if (fSebep) records = records.filter(r => r.sebep === fSebep);
+
+  if (!records.length) { alert('Dışa aktarılacak veri yok.'); return; }
 
   const BOM = '\uFEFF';
-  const headers = ['Ekip Yöneticisi','Inspector','Tarih','Gün','Başlangıç','Bitiş','Süre (dk)','Sebep','Açıklama','Önceki Perf%','Düzeltilmiş Perf%','Fark'];
+  const headers = ['Ekip Yöneticisi','Inspector','Tarih','Gün','Başlangıç','Bitiş','Süre (dk)','Süre (saat)','Sebep','Açıklama','Performans%','Kayıp Notu'];
 
-  const rows = kayipZamanData.map(r => {
+  const rows = records.map(r => {
     const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(r.inspector||'').toLowerCase());
-    const orijPerf = perfObj ? getOrijinalHamPerf(perfObj) : '';
-    const duzPerf  = perfObj ? getDuzeltilmisPerformans(perfObj) : '';
-    const fark     = (orijPerf !== '' && duzPerf !== '') ? duzPerf - orijPerf : '';
+    const perf = perfObj ? getOrijinalHamPerf(perfObj) : '';
+    const kayipNotu = r.sureDk > 0 ? `${(r.sureDk/60).toFixed(1)}s değerlendirme dışı` : '';
     return [
       r.ekipYoneticisi||'',
       _formatDisplayName(r.inspector||''),
       formatTarihKisa(r.tarih),
       r.gun||'',
-      r.baslangic||'',
-      r.bitis||'',
+      (r.baslangic||'').substring(0,5),
+      (r.bitis||'').substring(0,5),
       r.sureDk||0,
+      (r.sureDk/60).toFixed(2),
       r.sebep||'',
       r.aciklama||'',
-      orijPerf,
-      duzPerf,
-      fark !== '' ? (fark > 0 ? '+'+fark : fark) : ''
+      perf !== '' ? perf+'%' : '',
+      kayipNotu
     ];
   });
 
@@ -8562,10 +8569,12 @@ function exportKayipZamanExcel() {
   const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `KayipZaman_${new Date().toISOString().split('T')[0]}.csv`;
+  const tarihStr = new Date().toISOString().split('T')[0];
+  a.href = url;
+  a.download = `KayipZaman_${tarihStr}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
