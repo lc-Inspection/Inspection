@@ -3141,6 +3141,19 @@ function hesaplaInspectorFiiliSure(kayitlar) {
   return toplam > 0 ? toplam : null;
 }
 
+// Bir kaydin "bitis" zamanina gore normal mesai mi (08:00-16:45) yoksa
+// overtime mi (16:45-20:00) oldugunu belirler. Kayit, bitis saatine gore siniflandirilir.
+// Standart sure tum kayit icin tek bir dilime (normal veya overtime) atanir - bolunmez,
+// cunku is genelde tek oturumda tamamlanir.
+function kayitNormalMi(bitisDate) {
+  if (!bitisDate) return true; // bilinmiyorsa normal say
+  const saat = bitisDate.getHours();
+  const dakika = bitisDate.getMinutes();
+  const toplamDk = saat * 60 + dakika;
+  const sinirDk = 16 * 60 + 45; // 16:45
+  return toplamDk <= sinirDk;
+}
+
 function hesaplaGunlukMesaiSuresi(kayitListesi) {
   if (!kayitListesi || kayitListesi.length === 0) return null;
 
@@ -3160,18 +3173,18 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
 
   const gunSayisi = Object.keys(gunBitisSaatleri).length;
   let toplamMesaiSaniye = 0;
-  let toplamMesaistiSaniye = 0; // 16:30 sonrası toplam overtime
+  let toplamMesaistiSaniye = 0; // 16:45 sonrası toplam overtime
   const gunlukOvertimeDetay = {}; // key: gunStr → overtime saniye
 
   Object.entries(gunBitisSaatleri).forEach(([gunStr, enGecBitis]) => {
     // O günün 08:00 ve sınır saatlerini oluştur
     const gunBase = new Date(gunStr);
     const baslangic = new Date(gunBase); baslangic.setHours(8, 0, 0, 0);
-    const normalBitis = new Date(gunBase); normalBitis.setHours(16, 30, 0, 0);  // Normal mesai sonu
+    const normalBitis = new Date(gunBase); normalBitis.setHours(16, 45, 0, 0);  // Normal mesai sonu (16:45'e kadar kapama normal sayilir)
     const mesaiBitis  = new Date(gunBase); mesaiBitis.setHours(20, 0, 0, 0);   // Mesai sonu üst sınır
 
     let gercekBitis;
-    let overtimeSn = 0; // Bu gün için mesai üstü (16:30 sonrası) saniye
+    let overtimeSn = 0; // Bu gün için mesai üstü (16:45 sonrası) saniye
 
     if (!enGecBitis) {
       // Bitiş tarihi yoksa normal mesai varsay
@@ -3179,14 +3192,14 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
     } else if (enGecBitis >= mesaiBitis) {
       // 20:00 veya sonrası → 20:00'de kes (gece sayılmaz)
       gercekBitis = mesaiBitis;
-      // Overtime = 20:00 - 16:30 = 3.5 saat - öğle sonrası çay (15:00-15:15 normalBitis'ten sonra sayılmaz)
+      // Overtime = 20:00 - 16:45 = 3.25 saat - öğle sonrası çay (15:00-15:15 normalBitis'ten sonra sayılmaz)
       overtimeSn = (mesaiBitis - normalBitis) / 1000; // 3.5 saat = 12600 sn
     } else if (enGecBitis > normalBitis) {
-      // 16:30 ile 20:00 arasında → mesai kaldı, gerçek bitiş saati
+      // 16:45 ile 20:00 arasında → mesai kaldı, gerçek bitiş saati
       gercekBitis = enGecBitis;
       overtimeSn = (enGecBitis - normalBitis) / 1000;
     } else {
-      // 16:30 veya öncesi → normal gün, overtime yok
+      // 16:45 veya öncesi → normal gün, overtime yok
       gercekBitis = normalBitis;
     }
 
@@ -3216,7 +3229,7 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
   return {
     gunSayisi,
     toplamMesaiSaniye,
-    toplamMesaistiSaniye,   // 16:30 sonrası toplam overtime saniye
+    toplamMesaistiSaniye,   // 16:45 sonrası toplam overtime saniye
     gunlukOvertimeDetay,    // gün bazında overtime dakika
     gunlukDetay: Object.keys(gunBitisSaatleri).sort()
   };
@@ -3712,6 +3725,13 @@ function renderInspectorCards() {
           <div style="font-size:10px;color:var(--muted2);margin-bottom:4px;text-align:center">
             ${performansAciklama}
           </div>
+          ${inspector.overtimePerformans !== null && inspector.overtimePerformans !== undefined
+            ? `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(230,81,0,.08);border-radius:7px">
+                <span style="font-size:11px;color:#E65100">⏱ Overtime:</span>
+                <span style="font-size:13px;font-weight:700;color:#E65100">${inspector.overtimePerformans}%</span>
+                <span style="font-size:9px;color:var(--muted2)">(${Math.round((inspector.overtimeMesaiSure||0)/60)}dk ek mesaide)</span>
+              </div>`
+            : ''}
           <div style="text-align:center">
             <span style="font-size:11px;color:var(--muted2)">📊 </span>
             <span style="font-size:12px;font-weight:600;color:var(--navy)">${klasmanCount} ${(translations[currentLang]||translations.tr).klasman_word}</span>
@@ -5293,7 +5313,14 @@ function performansHesapla(){
     if (kayitFiiliSure && kayitFiiliSure > 0) {
       kl.toplamKayitFiiliSure += kayitFiiliSure;
     }
-    kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '' });
+    // Normal mesai / overtime ayrımı - bitiş saatine göre (16:45 sınırı)
+    const kayitNormalSayilir = kayitNormalMi(parsedBitis);
+    if (kayitNormalSayilir) {
+      kl.toplamStandartSureNormal = (kl.toplamStandartSureNormal||0) + standartSure;
+    } else {
+      kl.toplamStandartSureOvertime = (kl.toplamStandartSureOvertime||0) + standartSure;
+    }
+    kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '' });
 
     inspectorMap[ins].toplamAdet += adet;
   });
@@ -5324,11 +5351,15 @@ function performansHesapla(){
     let toplamStandartSure = 0;   
     let toplamAdet = 0;
     let toplamKayitFiiliSure = 0; 
+    let toplamStandartSureNormal = 0;   // Sadece normal mesai (08:00-16:45) icindeki standart sure
+    let toplamStandartSureOvertime = 0; // Sadece overtime (16:45-20:00) icindeki standart sure
 
     Object.entries(inspectorData.klasmanlar).forEach(([klasman, kl]) => {
       toplamStandartSure += kl.toplamStandartSure;
       toplamAdet += kl.toplamAdet;
       toplamKayitFiiliSure += (kl.toplamKayitFiiliSure || 0);
+      toplamStandartSureNormal   += (kl.toplamStandartSureNormal || 0);
+      toplamStandartSureOvertime += (kl.toplamStandartSureOvertime || 0);
 
       // Klasman bazında hızPerf: bu klasmanın standart süresi / tüm inspector standart süresi × genel performans
       // (Genel performans henüz hesaplanmadığından burada geçici saklarız, aşağıda düzeltiriz)
@@ -5371,6 +5402,12 @@ function performansHesapla(){
       });
     }
 
+    // Overtime performansi: sadece 16:45 sonrasi calisilan sure ve o surede tamamlanan standart sure
+    const overtimeMesaiSn = mesaiHesap ? (mesaiHesap.toplamMesaistiSaniye || 0) : 0;
+    const overtimePerformans = (overtimeMesaiSn > 0 && toplamStandartSureOvertime > 0)
+      ? Math.round((toplamStandartSureOvertime / overtimeMesaiSn) * 100)
+      : null;
+
     map[ins] = {
       ins: ins,
       adet: toplamAdet,
@@ -5384,6 +5421,11 @@ function performansHesapla(){
       genelHizPerf: performans,           // Mesai bazlı performans
       genelPerformans: performans,        // Aynı değer
       genelHacimPerf: null,
+      // Overtime ayrimi
+      standartSureNormal: toplamStandartSureNormal,
+      standartSureOvertime: toplamStandartSureOvertime,
+      overtimeMesaiSure: overtimeMesaiSn,
+      overtimePerformans: overtimePerformans,
       // Verimlilik düzeltmeli performans
       verimlilikPerf: performans !== null ? Math.round(performans * (100 / verimlilikHedef)) : null,
       hedefVerimlilik: verimlilikHedef,
