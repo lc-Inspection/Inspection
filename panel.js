@@ -8179,18 +8179,28 @@ function renderKayipZamanDetayliTablo() {
   if (fInsp)  filtered = filtered.filter(r => r.inspector === fInsp);
   if (fSebep) filtered = filtered.filter(r => r.sebep === fSebep);
 
-  // Sebep ozet kutular (top 4)
+  // Sebep ozet kutular (top 4) - etkilenen inspector sayisi dahil
   const sebepMap = {};
-  filtered.forEach(r => { const s=r.sebep||'Diğer'; sebepMap[s]=(sebepMap[s]||0)+(r.sureDk||0); });
+  const sebepInspSet = {};
+  filtered.forEach(r => {
+    const s = r.sebep || 'Diğer';
+    sebepMap[s] = (sebepMap[s]||0) + (r.sureDk||0);
+    if (!sebepInspSet[s]) sebepInspSet[s] = new Set();
+    sebepInspSet[s].add((r.inspector||'').toLowerCase());
+  });
   const topSebepler = Object.entries(sebepMap).sort((a,b)=>b[1]-a[1]).slice(0,4);
-  const sebepKartlar = topSebepler.map(([s,dk]) => `
+  const sebepKartlar = topSebepler.map(([s,dk]) => {
+    const inspCount = sebepInspSet[s] ? sebepInspSet[s].size : 0;
+    return `
     <div style="background:#fff;border:1px solid var(--border2);border-radius:10px;padding:12px 14px;flex:1;min-width:120px;display:flex;align-items:center;gap:10px">
       <span style="font-size:22px">${SEBEP_IKONLAR[s]||'📝'}</span>
       <div>
         <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</div>
         <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:1px">${_escapeHtml(s)}</div>
+        <div style="font-size:10px;color:var(--blue2);font-weight:600;margin-top:2px">👥 ${inspCount} inspector</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   // Inspector bazinda grupla
   const inspMap = {};
