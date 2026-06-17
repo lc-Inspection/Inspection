@@ -8157,6 +8157,8 @@ function renderKayipZamanAdminOzet() {
 // ─── Detaylı Inspector Tablosu: sebep özet kutular + tarih aralığı ───
 let _kzStartDate = '', _kzEndDate = '';
 
+let _kzDetayAcik = {}; // hangi inspector satiri acik
+
 function renderKayipZamanDetayliTablo() {
   const container = document.getElementById('kz-admin-perf-table');
   if (!container) return;
@@ -8166,7 +8168,7 @@ function renderKayipZamanDetayliTablo() {
     return;
   }
 
-  // Tarih + dropdown filtresi
+  // Filtreler
   let filtered = [...kayipZamanData];
   if (_kzStartDate) filtered = filtered.filter(r => formatTarihKisa(r.tarih) >= _kzStartDate);
   if (_kzEndDate)   filtered = filtered.filter(r => formatTarihKisa(r.tarih) <= _kzEndDate);
@@ -8177,18 +8179,20 @@ function renderKayipZamanDetayliTablo() {
   if (fInsp)  filtered = filtered.filter(r => r.inspector === fInsp);
   if (fSebep) filtered = filtered.filter(r => r.sebep === fSebep);
 
-  // Sebep toplamları (top 4 kutu)
+  // Sebep ozet kutular (top 4)
   const sebepMap = {};
   filtered.forEach(r => { const s=r.sebep||'Diğer'; sebepMap[s]=(sebepMap[s]||0)+(r.sureDk||0); });
   const topSebepler = Object.entries(sebepMap).sort((a,b)=>b[1]-a[1]).slice(0,4);
   const sebepKartlar = topSebepler.map(([s,dk]) => `
-    <div style="background:#fff;border:1px solid var(--border2);border-radius:10px;padding:14px 16px;flex:1;min-width:130px">
-      <div style="font-size:20px;margin-bottom:6px">${SEBEP_IKONLAR[s]||'📝'}</div>
-      <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:3px;font-weight:600">${_escapeHtml(s)}</div>
+    <div style="background:#fff;border:1px solid var(--border2);border-radius:10px;padding:12px 14px;flex:1;min-width:120px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:22px">${SEBEP_IKONLAR[s]||'📝'}</span>
+      <div>
+        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:1px">${_escapeHtml(s)}</div>
+      </div>
     </div>`).join('');
 
-  // Inspector bazında grupla (ekip yöneticisi başlığı olmadan)
+  // Inspector bazinda grupla
   const inspMap = {};
   filtered.forEach(r => {
     const k = (r.inspector||'').toLowerCase();
@@ -8197,40 +8201,56 @@ function renderKayipZamanDetayliTablo() {
     inspMap[k].kayitlar.push(r);
   });
 
-  const inspRows = Object.values(inspMap)
-    .sort((a,b) => b.dk - a.dk)
-    .map(({isim, ekip, dk, kayitlar: ks}) => {
-      const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
-      const perf = perfObj ? getOrijinalHamPerf(perfObj) : null;
-      const perfHtml = perf !== null
-        ? `<span class="${getPerformanceClass(perf)}" style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700">${perf}%</span>
-           <span style="display:inline-flex;align-items:center;gap:4px;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;margin-left:8px">⏸ ${(dk/60).toFixed(1)}s <span style="font-weight:400;color:#999;font-size:10px">değ.dışı</span></span>`
-        : '<span style="color:var(--muted);font-size:12px">—</span>';
+  // Inspector satirlari - sadece ozet, tiklayinca detay acilir
+  const inspRows = Object.values(inspMap).sort((a,b)=>b.dk-a.dk).map(({isim, ekip, dk, kayitlar: ks}, idx) => {
+    const rowId = 'kzd_' + idx;
+    const isOpen = _kzDetayAcik[isim] === true;
+    const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
+    const perf = perfObj ? getOrijinalHamPerf(perfObj) : null;
+    const perfSpan = perf !== null
+      ? `<span class="${getPerformanceClass(perf)}" style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700">${perf}%</span>
+         <span style="background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:600;margin-left:6px">⏸ ${(dk/60).toFixed(1)}s değ.dışı</span>`
+      : `<span style="color:var(--muted)">—</span>`;
 
-      const detaylar = ks.map(r=>`
-        <tr style="background:#fafafa;border-bottom:1px solid #f0f0f0">
-          <td style="padding:5px 14px 5px 30px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">${formatTarihKisa(r.tarih)} ${r.gun?'('+r.gun+')':''}</td>
-          <td style="padding:5px 14px;font-size:11px;color:var(--muted);font-size:11px">${_escapeHtml(r.ekipYoneticisi||'')}</td>
-          <td style="padding:5px 14px;font-size:11px;font-family:'DM Mono',monospace">${(r.baslangic||'').substring(0,5)} – ${(r.bitis||'').substring(0,5)}</td>
-          <td style="padding:5px 14px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
-          <td style="padding:5px 14px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:5px;padding:1px 7px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
-          <td style="padding:5px 14px;font-size:11px;color:var(--muted)">${_escapeHtml(r.aciklama||'')}</td>
-        </tr>`).join('');
+    // Detay satirlari (gizli, tiklayinca acilir)
+    const detayHtml = ks.map(r=>`
+      <tr style="background:#fafafa;border-bottom:1px solid #f0f0f0">
+        <td style="padding:6px 14px 6px 24px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">${formatTarihKisa(r.tarih)} ${r.gun?'('+r.gun+')':''}</td>
+        <td style="padding:6px 14px;font-size:11px;color:var(--muted)">${_escapeHtml(r.ekipYoneticisi||'')}</td>
+        <td style="padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace">${(r.baslangic||'').substring(0,5)} – ${(r.bitis||'').substring(0,5)}</td>
+        <td style="padding:6px 14px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
+        <td style="padding:6px 14px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:5px;padding:1px 7px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
+        <td style="padding:6px 14px;font-size:11px;color:var(--muted)">${_escapeHtml(r.aciklama||'')}</td>
+      </tr>`).join('');
 
-      return `
-        <tr style="border-bottom:1px solid var(--border2)">
-          <td style="padding:11px 14px;font-weight:700;color:var(--navy)">${_escapeHtml(_formatDisplayName(isim))}</td>
-          <td style="padding:11px 14px">${perfHtml}</td>
-          <td style="padding:11px 14px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:7px;padding:4px 10px;font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${(dk/60).toFixed(1)}s</span></td>
-        </tr>${detaylar}`;
-    }).join('');
+    return `
+      <tr onclick="toggleKzDetay('${isim.replace(/'/g,"\\'")}')" style="border-bottom:1px solid var(--border2);cursor:pointer;transition:background .15s" onmouseover="this.style.background='#f8f9ff'" onmouseout="this.style.background=''">
+        <td style="padding:11px 14px;font-weight:700;color:var(--navy)">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="color:var(--muted);font-size:11px;transition:transform .2s;display:inline-block;transform:rotate(${isOpen?'90':'0'}deg)">▶</span>
+            ${_escapeHtml(_formatDisplayName(isim))}
+          </div>
+        </td>
+        <td style="padding:11px 14px">${perfSpan}</td>
+        <td style="padding:11px 14px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:7px;padding:4px 10px;font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${(dk/60).toFixed(1)}s</span></td>
+        <td style="padding:11px 14px;font-size:11px;color:var(--muted)">${ks.length} kayıt</td>
+      </tr>
+      <tr id="${rowId}_detail" style="display:${isOpen?'table-row':'none'}">
+        <td colspan="4" style="padding:0">
+          <table style="width:100%;border-collapse:collapse">
+            <tbody>${detayHtml}</tbody>
+          </table>
+        </td>
+      </tr>`;
+  }).join('');
 
   const tableHtml = inspRows
     ? `<table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="background:#f0f4ff;border-bottom:2px solid var(--border2)">
-          <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Inspector</th>
+          <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Inspector <span style="font-weight:400;opacity:.6">(detay için tıkla)</span></th>
           <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Performans & Kayıp Notu</th>
-          <th style="padding:10px 14px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px;width:110px">Toplam Kayıp</th>
+          <th style="padding:10px 14px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px;width:100px">Toplam Kayıp</th>
+          <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;width:80px">Kayıt</th>
         </tr></thead>
         <tbody>${inspRows}</tbody>
       </table>`
@@ -8246,11 +8266,15 @@ function renderKayipZamanDetayliTablo() {
         style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2)">
       ${(_kzStartDate||_kzEndDate)?`<button onclick="_kzStartDate='';_kzEndDate='';renderKayipZamanDetayliTablo()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);background:#fff;cursor:pointer;color:var(--muted)">✕ Temizle</button>`:''}
     </div>
-    ${topSebepler.length ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">${sebepKartlar}</div>` : ''}
+    ${topSebepler.length ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">${sebepKartlar}</div>` : ''}
     ${tableHtml}`;
 }
 
-// ─── Tüm kayıt flat listesi (filtreli + sayfalı) ───
+function toggleKzDetay(isim) {
+  _kzDetayAcik[isim] = !_kzDetayAcik[isim];
+  renderKayipZamanDetayliTablo();
+}
+
 function renderKayipZamanAdminListe() {
   const el       = document.getElementById('kz-admin-liste');
   const countEl  = document.getElementById('kz-admin-count');
@@ -8436,7 +8460,7 @@ function renderKayipZamanEkipGrid() {
     .sort(([a],[b]) => a.localeCompare(b,'tr'))
     .map(([ey, kayitlar], idx) => {
       const id = 'kzg_' + idx;
-      const isOpen = _kzGridOpen[ey] !== false;
+      const isOpen = _kzGridOpen[ey] === true; // default kapali
       const toplamDk = kayitlar.reduce((s,r)=>s+(r.sureDk||0),0);
 
       // Sebep ozeti
