@@ -7905,6 +7905,15 @@ function getDuzeltilmisPerformans(inspector) {
   return getOrijinalHamPerf(inspector);
 }
 
+// Inspector'in saatlik ortalama adet hizi (tahmini kayip adet hesabi icin)
+function getSaatlikAdetHizi(inspector) {
+  const adet = inspector.adet || 0;
+  const mesaiSn = inspector.mesaiSure || 0;
+  if (!adet || !mesaiSn) return 0;
+  const mesaiSaat = mesaiSn / 3600;
+  return adet / mesaiSaat;
+}
+
 // Orijinal ham performans (kayipsiz) - karsilastirma icin
 function getOrijinalHamPerf(inspector) {
   const mesaiSn    = inspector.mesaiSure    || 0;
@@ -8179,25 +8188,62 @@ function renderKayipZamanDetayliTablo() {
   if (fInsp)  filtered = filtered.filter(r => r.inspector === fInsp);
   if (fSebep) filtered = filtered.filter(r => r.sebep === fSebep);
 
-  // Sebep ozet kutular (top 4) - etkilenen inspector sayisi dahil
+  // Sebep ozet kutular (top 4) - etkilenen inspectorler ve kisi bazinda sure dahil
   const sebepMap = {};
-  const sebepInspSet = {};
+  const sebepInspDk = {}; // {sebep: {inspectorAdi: toplamDk}}
   filtered.forEach(r => {
     const s = r.sebep || 'Diğer';
     sebepMap[s] = (sebepMap[s]||0) + (r.sureDk||0);
-    if (!sebepInspSet[s]) sebepInspSet[s] = new Set();
-    sebepInspSet[s].add((r.inspector||'').toLowerCase());
+    if (!sebepInspDk[s]) sebepInspDk[s] = {};
+    const insKey = r.inspector || '';
+    sebepInspDk[s][insKey] = (sebepInspDk[s][insKey]||0) + (r.sureDk||0);
   });
   const topSebepler = Object.entries(sebepMap).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  // Sebep -> inspector dakika haritasini global degiskende sakla (popup icin)
+  window._kzSebepInspDk = sebepInspDk;
+
+  // Tahmini kayip adet hesabi: her inspector'in kendi saatlik hizina gore
+  function tahminiAdet(insName, dk) {
+    const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(insName||'').toLowerCase());
+    if (!perfObj) return null;
+    const hiz = getSaatlikAdetHizi(perfObj); // adet/saat
+    if (!hiz) return null;
+    return Math.round(hiz * (dk/60));
+  }
+
   const sebepKartlar = topSebepler.map(([s,dk]) => {
-    const inspCount = sebepInspSet[s] ? sebepInspSet[s].size : 0;
+    const insMap = sebepInspDk[s] || {};
+    const insEntries = Object.entries(insMap).sort((a,b)=>b[1]-a[1]);
+    const insCount = insEntries.length;
+    const TOP_N = 3;
+    const gosterilenler = insEntries.slice(0, TOP_N);
+    const kalanSayisi = insEntries.length - TOP_N;
+
+    // Bu sebebin toplam tahmini kayip adedi (tum inspectorler)
+    let toplamTahminiAdet = 0;
+    let adetHesaplanabildi = false;
+    insEntries.forEach(([n,d]) => {
+      const a = tahminiAdet(n,d);
+      if (a !== null) { toplamTahminiAdet += a; adetHesaplanabildi = true; }
+    });
+
     return `
-    <div style="background:#fff;border:1px solid var(--border2);border-radius:10px;padding:12px 14px;flex:1;min-width:120px;display:flex;align-items:center;gap:10px">
-      <span style="font-size:22px">${SEBEP_IKONLAR[s]||'📝'}</span>
-      <div>
-        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</div>
-        <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:1px">${_escapeHtml(s)}</div>
-        <div style="font-size:10px;color:var(--blue2);font-weight:600;margin-top:2px">👥 ${inspCount} inspector</div>
+    <div style="background:#fff;border:1px solid var(--border2);border-radius:10px;padding:12px 14px;flex:1;min-width:170px;cursor:pointer" onclick="showSebepInspectorDetay('${s.replace(/'/g,"\'")}')">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:22px">${SEBEP_IKONLAR[s]||'📝'}</span>
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:1px">${_escapeHtml(s)}</div>
+          <div style="font-size:10px;color:var(--blue2);font-weight:600;margin-top:2px">👥 ${insCount} inspector</div>
+          ${adetHesaplanabildi ? `<div style="font-size:10px;color:#8E24AA;font-weight:600;margin-top:2px">📦 ~${toplamTahminiAdet.toLocaleString('tr-TR')} adet (tahmini)</div>` : ''}
+        </div>
+      </div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0;display:flex;flex-direction:column;gap:3px">
+        ${gosterilenler.map(([n,d])=>{
+          const a = tahminiAdet(n,d);
+          return `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--navy);font-weight:600">${_escapeHtml(_formatDisplayName(n))}</span><span style="color:#C62828;font-family:'DM Mono',monospace;font-weight:600">${(d/60).toFixed(1)}s${a!==null?` <span style="color:#8E24AA">(~${a} ad.)</span>`:''}</span></div>`;
+        }).join('')}
+        ${kalanSayisi > 0 ? `<div style="font-size:10px;color:var(--blue2);font-weight:600;margin-top:2px;text-decoration:underline">+${kalanSayisi} kişi daha (tıkla)</div>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -8598,3 +8644,53 @@ function exportKayipZamanExcel() {
   URL.revokeObjectURL(url);
 }
 
+
+// ─── Sebep kutusuna tiklayinca tam inspector listesini goster ───
+function showSebepInspectorDetay(sebep) {
+  const popup = document.getElementById('kz-sebep-popup');
+  const content = document.getElementById('kz-sebep-popup-content');
+  if (!popup || !content) return;
+
+  const insMap = (window._kzSebepInspDk && window._kzSebepInspDk[sebep]) || {};
+  const insEntries = Object.entries(insMap).sort((a,b)=>b[1]-a[1]);
+  const toplamDk = insEntries.reduce((s,[,d])=>s+d,0);
+
+  const popup_title = popup.querySelector('.modal-title');
+  if (popup_title) popup_title.textContent = `${SEBEP_IKONLAR[sebep]||'📝'} ${sebep} — Etkilenen Inspectörler`;
+
+  if (!insEntries.length) {
+    content.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted)">Kayıt bulunamadı</div>`;
+  } else {
+    let toplamTahminiAdet = 0;
+    let adetVarMi = false;
+    const rows = insEntries.map(([n,d]) => {
+      const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(n||'').toLowerCase());
+      const hiz = perfObj ? getSaatlikAdetHizi(perfObj) : 0;
+      const tahmin = hiz ? Math.round(hiz * (d/60)) : null;
+      if (tahmin !== null) { toplamTahminiAdet += tahmin; adetVarMi = true; }
+      return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)">
+        <span style="font-size:13px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(n))}</span>
+        <div style="text-align:right">
+          <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:#C62828">${(d/60).toFixed(1)}s</span>
+          ${tahmin!==null ? `<div style="font-size:10px;color:#8E24AA;font-weight:600">~${tahmin} adet</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    content.innerHTML = `
+      <div style="max-height:340px;overflow-y:auto;margin-bottom:12px">${rows}</div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;border-top:2px solid var(--border2);padding-top:10px">
+        <span style="color:var(--muted)">Toplam (${insEntries.length} inspector)</span>
+        <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--navy)">${(toplamDk/60).toFixed(1)} Saat</span>
+      </div>
+      ${adetVarMi ? `
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px">
+        <span style="color:var(--muted)">Tahmini Kayıp Adet</span>
+        <span style="font-family:'DM Mono',monospace;font-weight:700;color:#8E24AA">~${toplamTahminiAdet.toLocaleString('tr-TR')} adet</span>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;font-style:italic">* Kişinin kendi ortalama hızına göre tahmini hesaplanmıştır, kesin değil.</div>` : ''}`;
+  }
+
+  popup.style.display = 'flex';
+}
