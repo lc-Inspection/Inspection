@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwdyJjqcEwDFCdkJYeUfFgQSt6sXCinju4BYjwmgW636ma1Z1Q7mX-aJ-g7LKEma5CI/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbypMrGwAlcqdtIqmfyAzxrZP2W0gxBixMJzYHuhI4I-0bcJEJJnuVmdwljT7AoCrvn0/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -3731,7 +3731,9 @@ function renderInspectorCards() {
                 <span style="font-size:13px;font-weight:700;color:#E65100">${inspector.overtimePerformans}%</span>
                 <span style="font-size:9px;color:var(--muted2)">(${Math.round((inspector.overtimeMesaiSure||0)/60)}dk ek mesaide)</span>
               </div>`
-            : ''}
+            : `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(0,0,0,.03);border-radius:7px">
+                <span style="font-size:11px;color:var(--muted2)">⏱ Overtime Yok</span>
+              </div>`}
           <div style="text-align:center">
             <span style="font-size:11px;color:var(--muted2)">📊 </span>
             <span style="font-size:12px;font-weight:600;color:var(--navy)">${klasmanCount} ${(translations[currentLang]||translations.tr).klasman_word}</span>
@@ -5096,8 +5098,8 @@ function toggleGenelDepoDropdown() {
 
 function toggleGenelTumDepolar(checked) {
   if (checked) orneklemeGenelDepolar = [];
-  renderGenelDepoDropdown();
-  setTimeout(() => { const dd = document.getElementById('genel-depo-dropdown'); if (dd) dd.style.display = 'block'; }, 0);
+  updateGenelDepoTumCheckbox();
+  updateGenelDepoLabel();
   performansHesapla();
 }
 
@@ -5108,24 +5110,40 @@ function onGenelDepoCheckboxChange(el) {
   } else {
     orneklemeGenelDepolar = orneklemeGenelDepolar.filter(d => d !== depo);
   }
-  renderGenelDepoDropdown();
-  setTimeout(() => { const dd = document.getElementById('genel-depo-dropdown'); if (dd) dd.style.display = 'block'; }, 0);
+  updateGenelDepoTumCheckbox();
+  updateGenelDepoLabel();
   performansHesapla();
 }
 
-// Tumunu Sec checkboxu degisince
+// "Tumunu Sec" checkbox durumunu DOM'u yeniden olusturmadan guncelle
+function updateGenelDepoTumCheckbox() {
+  const dd = document.getElementById('genel-depo-dropdown');
+  if (!dd) return;
+  const tumCheckbox = dd.querySelector('input[onchange^="toggleGenelTumDepolar"]');
+  if (tumCheckbox) tumCheckbox.checked = orneklemeGenelDepolar.length === 0;
+  // Eger Tumunu Sec isaretlendiyse diger checkboxlari da temizle (gorsel tutarlilik)
+  if (orneklemeGenelDepolar.length === 0) {
+    dd.querySelectorAll('.genel-depo-checkbox').forEach(cb => { cb.checked = false; });
+  }
+}
+
+function updateGenelDepoLabel() {
+  const label = document.getElementById('genel-depo-label');
+  if (label) label.textContent = orneklemeGenelDepolar.length === 0 ? 'Tüm Depolar' : `${orneklemeGenelDepolar.length} depo seçili`;
+}
+
+// Tumunu Sec checkboxu degisince - sadece dropdown'u guncelle, donem listesini yeniden olusturma
 function toggleTumDepolar(idx, checked) {
   if (!orneklemeDonemleri[idx]) return;
   if (checked) {
     orneklemeDonemleri[idx].depolar = []; // bos = tum depolar
   }
-  renderOrneklemeDonemleri();
-  // Dropdown'u acik tut
-  setTimeout(() => { const el = document.getElementById('depo-dropdown-' + idx); if (el) el.style.display = 'block'; }, 0);
+  updateDepoDropdownContent(idx);
+  updateDepoButtonLabel(idx);
   performansHesapla();
 }
 
-// Tek bir depo checkbox'i degisince
+// Tek bir depo checkbox'i degisince - sadece dropdown'u guncelle, donem listesini yeniden olusturma
 function onDepoCheckboxChange(idx, el) {
   if (!orneklemeDonemleri[idx]) return;
   const depo = el.dataset.depo;
@@ -5136,9 +5154,32 @@ function onDepoCheckboxChange(idx, el) {
     depolar = depolar.filter(d => d !== depo);
   }
   orneklemeDonemleri[idx].depolar = depolar;
-  renderOrneklemeDonemleri();
-  setTimeout(() => { const dd = document.getElementById('depo-dropdown-' + idx); if (dd) dd.style.display = 'block'; }, 0);
+  updateDepoDropdownContent(idx);
+  updateDepoButtonLabel(idx);
   performansHesapla();
+}
+
+// Dropdown icerigini DOM'u yeniden olusturmadan guncelle (Tumunu Sec checkbox durumu icin)
+function updateDepoDropdownContent(idx) {
+  const dd = document.getElementById('depo-dropdown-' + idx);
+  if (!dd) return;
+  const p = orneklemeDonemleri[idx];
+  const seciliSayi = (p.depolar || []).length;
+  const tumCheckbox = dd.querySelector('.depo-tum-secim');
+  if (tumCheckbox) tumCheckbox.checked = seciliSayi === 0;
+  if (seciliSayi === 0) {
+    dd.querySelectorAll('.depo-checkbox').forEach(cb => { cb.checked = false; });
+  }
+}
+
+// Depo secim butonunun etiketini guncelle (X depo secili / Tum Depolar)
+function updateDepoButtonLabel(idx) {
+  const btn = document.querySelector(`button[onclick="toggleDepoDropdown(${idx})"]`);
+  if (!btn) return;
+  const p = orneklemeDonemleri[idx];
+  const seciliSayi = (p.depolar || []).length;
+  const text = seciliSayi === 0 ? 'Tüm Depolar' : `${seciliSayi} depo seçili`;
+  btn.innerHTML = `🏬 ${text} <span style="font-size:9px">▼</span>`;
 }
 
 // Disari tiklayinca depo dropdown'lari kapat
@@ -8365,7 +8406,7 @@ const SEBEP_IKONLAR = {
   'Sistemsel Hata':    '⚙️',
   'Ürün Olmaması':     '📦',
   'Elektrik Kesintisi':'⚡',
-  'Makine Arızası':    '🔧',
+  'Insp. Lokasyon Değişimi': '📍',
   'Diğer':             '📝'
 };
 
