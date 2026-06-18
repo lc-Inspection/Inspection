@@ -833,7 +833,7 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 .performance-circle { position: relative; width: 180px; height: 180px; margin: 0 auto 14px; }
 .performance-circle svg { width: 180px; height: 180px; transform: rotate(-90deg); }
 .performance-circle-bg { fill: none; stroke: rgba(255,255,255,.05); stroke-width: 8; }
-.performance-circle-progress { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1); }
+.performance-circle-progress { fill: none; stroke-width: 8; stroke-linecap: round; }
 .performance-circle-text { position: absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align: center; }
 .performance-circle-value {
   font-size: 38px; font-weight: 800;
