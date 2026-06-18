@@ -97,7 +97,7 @@ const translations = {
     filter_none:          '— Filtre yok (tüm satırlar) —',
     detailed_perf:        'Detaylı Performans',
     loading_records:      'Kayıt detayları yükleniyor...',
-    sampling_desc:        '<span data-i18n="sampling_off">Off: actual quantity used.</span> <strong data-i18n="one_below">One Below</strong> / <strong data-i18n="two_below">Two Below</strong>: <span data-i18n="sampling_desc_end">quantity converted by sampling table.</span>',
+    sampling_desc:        '<span data-i18n="sampling_off">Kapalı: gerçek adet kullanılır.</span> <strong data-i18n="one_below">Bir Alttan</strong> / <strong data-i18n="two_below">İki Alttan</strong>: <span data-i18n="sampling_desc_end">adet örnekleme tablosuna göre dönüştürülür.</span>',
     target_below_100:     'hedef → performans',
     target_above_100:     'hedef → performans',
     start_slideshow:      'Gösterimi Başlat',
@@ -415,425 +415,10 @@ const translations = {
     pwa_install_hint:      'Masaüstüne veya ana ekrana ekleyin, uygulama gibi açılır',
     pwa_installed:         '✅ Uygulama yüklendi!',
     pwa_installing:        '⏳ Yükleniyor...',
-  },
-
-  en: {
-    // Login
-    login_title:          'Sign In',
-    login_sub:            'Enter your password to continue',
-    login_btn:            '🔓 Sign In',
-    password_placeholder: '••••••',
-    username_placeholder: 'Username (leave empty for admin)',
-    server_active:        'Server verification active',
-    cancel:               'Cancel',
-    nav_user_mgmt:        'User Management',
-    logout_btn:           'Log Out',
-    change_my_pw:         '✏️ Change My Password',
-
-    // Top bar
-    how_it_works:         'ℹ️ How It Works',
-    klasman:              'Classification',
-
-    // Sidebar nav
-    nav_home:             'Home',
-    nav_dashboard:        'Dashboard',
-    nav_management:       'Management',
-    nav_klasman_mgmt:     'Classification Mgmt',
-    nav_analysis:         'Analysis',
-    nav_klasman_analysis: 'Classification Analysis',
-    nav_perf_analysis:    'Performance Analysis',
-    nav_display:          'Display',
-    nav_live:             'Live View',
-
-    // Dashboard page
-    dash_title:           'Inspector Performance Dashboard',
-    dash_sub:             'Monitor all inspectors\' performance on a single screen',
-    pull_from_sheets:     '📥 Pull from Sheets',
-    clear:                '🗑️ Clear',
-    export_excel:         '📊 Export to Excel',
-
-    // Summary stats
-    stat_total_inspector: 'Total Inspectors',
-    stat_excellent:       'Excellent (≥95%)',
-    stat_good:            'Good (85-94%)',
-    stat_average:         'Average (70-84%)',
-    stat_poor:            'Poor (<70%)',
-    stat_avg_perf:        '📅 Avg Performance',
-    stat_avg_days:        '⏰ Avg Working Days',
-    stat_total_product:   '📦 Total Products',
-
-    // Filters
-    filter_perf:          'Performance Filter:',
-    filter_all:           'All',
-    filter_klasman:       'Classification Filter:',
-    filter_all_klasman:   'All Classifications',
-    filter_search:        'Search Inspector:',
-    inspector_search_ph:  'Inspector name...',
-    filter_sort:          'Sort By:',
-    sort_perf_desc:       'Performance (High→Low)',
-    sort_perf_asc:        'Performance (Low→High)',
-    sort_name_asc:        'Name (A→Z)',
-    sort_name_desc:       'Name (Z→A)',
-    sort_qty_desc:        'Quantity (Most→Least)',
-    sort_qty_asc:         'Quantity (Least→Most)',
-
-    // Empty state
-    no_data_yet:          'No performance data yet',
-    no_data_sub:          'Upload an Excel file from the Performance Analysis page to get started',
-
-    // Pagination
-    prev:                 '‹ Previous',
-    next:                 'Next ›',
-
-    // Login dynamic states
-    verifying:            '⏳ Verifying...',
-    connecting:           'Connecting to server...',
-    verified:             'Verified ✓',
-    error_label:          'Error',
-    pw_empty:             '❌ Password cannot be empty',
-    pw_wrong:             '❌ Wrong password, please try again',
-    pw_no_server_cache:   '⚠️ Could not connect to server and no cache found. Check your internet connection.',
-    pw_offline:           'Offline verification (cache)',
-    pw_no_sheets_pw:      'No password found in Sheets',
-    pw_unreachable:       'Server unreachable',
-    pw_wrong_klasman:     'Wrong password!',
-    pw_overlay_title:     'Sign In',
-    pw_overlay_sub:       'Enter your password to continue',
-    pw_klasman_title:     'Classification Management',
-    pw_klasman_sub:       'A password is required to access this section',
-    // Dynamic JS strings
-    sending:              '⏳ Sending...',
-    pulling:              '⏳ Pulling...',
-    no_data_js:           'No data',
-    no_data_js_hint:      'First upload an Excel file from the Performance Analysis page',
-    data_not_found:       'Data not found',
-    days_suffix:          'days',
-    days_suffix_short:    'day',
-    filter_none:          '— No filter (all rows) —',
-    detailed_perf:        'Detailed Performance',
-    loading_records:      'Loading record details...',
-    sampling_desc:        'Off: actual quantity used. <strong>One Below</strong> / <strong>Two Below</strong>: quantity converted by sampling table.',
-    target_below_100:     'target → performance increases by',
-    target_above_100:     'target → performance decreases by',
-    start_slideshow:      'Start Display',
-    stop_slideshow:       '⏸ Stop',
-    no_perf_alert:        'No performance data yet! First load data from the Performance Analysis page.',
-    records_summary:      'records · ',
-    units_summary:        'units · ',
-    analyzing:            'Analyzing...',
-    col_overtime_label:   '⏰ Overtime Duration',
-    // Card & JS dynamic labels
-    working:              'working days',
-    units_short:          'units',
-    klasman_word:         'classifications',
-    efficiency_label:     'efficiency',
-    above_target:         'above target',
-    below_target:         'below target',
-    overtime_over:        'overtime+',
-    detailed_analysis:    'Detailed Analysis',
-    perf_excellent:       'Excellent',
-    perf_good:            'Good',
-    perf_average:         'Average',
-    perf_poor:            'Poor',
-    stat_total_product2:  'TOTAL QTY',
-    std_duration_label:   'STD DURATION',
-    adj_perf_label_upper: 'ADJ. PERFORMANCE',
-    best_inspector_month: 'Best Inspector of the Month',
-    // Final remaining keys
-    excel_cols_hint:      'Your Excel must contain Col A: Classification, Col R: Quantity, Col K: Start Date, Col L: End Date.',
-    overtime_col_hint:    'Without an overtime column, calculated as daily 7.5h × working days.',
-    col_t_label:          'Column (T)',
-    blank_rows_hint:      'If selected, blank rows are excluded from the calculation.',
-    security_warning:     'Security Warning:',
-    try_other_model:      'If you get an error, try a different model',
-    default_opt:          'Default',
-    sort_by_date:         'By Date ↑',
-    sampling_off:         'Off: actual quantity used.',
-    one_below:            'One Below',
-    sampling_desc_end:    'quantity converted by sampling table.',
-    // New dynamic keys
-    closed_label:         'Closed',
-    open_label:           'Open',
-    hide_label:           'Hide',
-    raw_avg:              'Raw Avg.:',
-    perf_formula:         'Std Duration ÷ (Days × 7.5h) × 100',
-    adj_formula:          'Raw Perf × (100÷${hedef})',
-    records_word:         'records',
-    days_x_formula:       'days × 7.5h = {h}h working',
-    avg_perf_plain:       'Average Performance',
-    stat_avg_perf_plain:  'Average Performance',
-    ai_overtime_prompt:   'Analyze overtime and overwork status. When is intensity highest? How is overtime managed?',
-    waiting_best_inspector: 'Best Inspector of the Month awaited...',
-    // Extended i18n keys
-    actual_duration_th:    'Actual Duration',
-    actual_label:          '⏱ Actual',
-    actual_per_unit:       'Actual/Unit',
-    actual_vs_std:         'Actual / Standard ratio',
-    add_first_station:     'Add the first station to start defining this classification',
-    add_station:           '＋ Add Station',
-    adj_avg_perf:          'Adjusted Avg. Performance:',
-    adj_avg_short:         '⚡ Adj. Avg.:',
-    adj_perf_label:        'Adj. Performance',
-    ai_custom_q:           '💬 Ask a Custom Question',
-    ai_general:            '📊 General Performance Evaluation',
-    ai_improve:            '💡 Improvement Suggestions',
-    ai_klasman_compare:    '👔 Comparison by Classification',
-    ai_overtime:           '🌙 Overtime & Intensity Analysis',
-    ai_panel_hint:         'AI-powered detailed analysis · Click to open',
-    ai_strengths:          '💪 Strengths/Weaknesses',
-    all_btn:               'All',
-    all_inspectors:        'All Inspectors',
-    api_key_warning:       '⚠️ Do not share your key with others.',
-    api_token_hint:        '(Must match the API_TOKEN in Apps Script)',
-    apiscript_match_hint:  'Must match value in Apps Script file',
-    app_subtitle:          'Inspection Control',
-    avg_work_days:         '📆 Avg. Working:',
-    awaiting_results:      'Awaiting analysis results',
-    broadcast_settings:    'Broadcast Settings',
-    broadcast_settings_hint: 'Configure before starting the display',
-    cancel_btn:            'Cancel',
-    change_klasman_pw:     '✏️ Change Classification Password',
-    change_pw:             '✏️ Change Password',
-    change_search:         'Change the search criteria',
-    col_auto_derive:       '— Auto-derive from K/L columns —',
-    col_end_date:          'End Date (L)',
-    col_inspector:         'Inspector Column',
-    col_klasman:           'Classification Column (A)',
-    col_mapping_title:     '🔗 Column Mapping',
-    col_start_date:        'Start Date (K)',
-    completed_btn:         '✅ Completed',
-    current_pw:            'Current password:',
-    current_time:          'Current Time',
-    // User Management
-    user_mgmt_title:       '👥 User Management',
-    user_mgmt_sub:         'Add, edit users and choose which tabs they can see',
-    refresh:               'Refresh',
-    add_user:              'New User',
-    user_list:             'Users',
-    username_col:          'Username',
-    tabs_col:              'Visible Tabs',
-    actions_col:           'Actions',
-    loading:               'Loading…',
-    user_mgmt_hint:        'Users log in with their own username/password instead of the admin password. They cannot see sections other than the tabs assigned here. Dashboard is open to everyone.',
-    user_modal_hint:       'Set the username, password, and which tabs they can see',
-    username_label:        'Username',
-    password_label:        'Password',
-    password_hint:         'At least 4 characters',
-    password_hint_edit:    'Leave empty to keep the current password',
-    select_tabs:           'Visible Tabs',
-    save_btn:              '💾 Save',
-    edit_btn:              '✏️ Edit',
-    delete_btn:            '🗑️ Delete',
-    no_users:              'No users have been added yet',
-    admin_row_note:        'Has access to all tabs',
-    // Team Management (Dashboard)
-    my_team_title:         '👥 My Team',
-    manage_team:           'Manage Team',
-    other_teams_btn:       'Other Teams',
-    other_teams_title:     'Team Performances',
-    other_teams_empty:     'No other team managers found.',
-    team_member_count:     'Team Members',
-    team_avg_perf:         'Team Avg. Performance',
-    team_total_product:    'Team Total Quantity',
-    team_avg_days:         'Team Avg. Working Days',
-    team_empty_hint:       "You haven't added any inspectors to your team yet. Click \"Manage Team\" to get started.",
-    remove_from_team:      'Remove from team',
-    team_modal_title:      '👥 Manage My Team',
-    team_modal_sub:        'Select the inspectors you want to track',
-    team_search_ph:        'Search inspector...',
-    team_no_result:        'No results found',
-    team_only_filter:      '👥 My Team Only',
-    team_remove_confirm:   'remove from team?',
-    team_managers_label:   'Team Managers',
-    team_manager_prefix:   'Team Manager',
-    team_manager_member_count: 'Number of Employees',
-    team_manager_total_qty:    'Inspected Quantity',
-    team_manager_avg_perf:     'Average Performance',
-    team_manager_no_members:   'No inspectors have been added to this team yet.',
-    nav_ekip_analiz:       'My Team Analysis',
-    ekip_analiz_title:     '🧑‍🤝‍🧑 My Team Analysis',
-    ekip_analiz_sub:       'Compare your team members\' performance by classification',
-    ekip_analiz_top_producer:     'Top Producer',
-    ekip_analiz_general_ranking:  'Overall Performance Ranking',
-    ekip_analiz_col_name:         'Inspector',
-    ekip_analiz_col_perf:         'Performance',
-    ekip_analiz_col_qty:          'Total Quantity',
-    ekip_analiz_col_klasman_count: 'Classification Count',
-    ekip_analiz_dist_title:       'Performance Distribution',
-    ekip_analiz_uretim_title:     'Productivity / Quantity Distribution',
-    ekip_analiz_daily_avg:        'Average daily quantity',
-    general_status_label:  'General Status',
-    display_not_started:   'Display not started',
-    download_excel:        '📊 Download Excel',
-    end_date_th:           'End',
-    excel_upload_title:    '📁 Upload Excel',
-    file_drop:             'Select or drag a file',
-    file_format:           '.xlsx / .xls format',
-    filter_no_result:      'No filter results found',
-    filter_no_result_hint: 'Try changing the filter criteria',
-    gemini_8b:             'gemini-1.5-flash-8b (Fastest)',
-    gemini_api_key:        'Gemini API Key',
-    gemini_flash:          'gemini-2.5-flash (Recommended)',
-    gemini_lite:           'gemini-2.0-flash-lite (Free / Fast)',
-    gemini_pro:            'gemini-2.5-pro (Most Powerful)',
-    how_to_setup:          'How to set up? ℹ️',
-    icon_modal_hint:       'Enter a name and select an icon',
-    inspector_detail_sub:  'Detailed performance analysis by classification',
-    inspector_detail_title:'Inspector Details',
-    klasman_analiz_overlay_sub:   'Detailed performance analysis by classification',
-    klasman_analiz_overlay_title: 'Classification Analysis — Fetched from Sheets',
-    klasman_analiz_sub:    'Compare standard and actual per-unit inspection durations by classification',
-    klasman_analiz_title:  '🎯 Actual Duration Analysis by Classification',
-    klasman_count:         'Classifications',
-    klasman_details:       '📋 Classification Details',
-    klasman_filter_empty:  'No classification found matching the filter',
-    klasman_pw_hint:       'Access password for this page:',
-    klasman_pw_label:      '🔑 Classification Management Password:',
-    live_h2_sub:           'Track inspector performance live',
-    live_h2_title:         'Live Performance Display',
-    live_page_sub:         'Broadcast inspector performances on a large screen · HD video export',
-    live_page_title:       'Live Performance Display',
-    login_klasman_sub:     'Admin password required to access this section',
-    login_klasman_title:   'Classification Management',
-    no_data_hint:          'Upload an Excel file and complete classification definitions to see the analysis',
-    no_data_live:          'No data yet',
-    no_perf_data:          'No Performance Data Found',
-    no_perf_data_hint:     'First upload an Excel file from the Performance Analysis page',
-    no_records_found:      'No records found matching the filter.',
-    not_found:             'Not Found',
-    one_unit_check:        '1 unit inspection',
-    open_link:             '🔗 Open',
-    open_link_hint:        'Used to open the table in a browser',
-    opt_excellent:         'Excellent (≥95%)',
-    opt_good:              'Good (≥85%)',
-    overtime_duration:     'Overtime Duration',
-    page_klasman_sub:      'Define product classifications and adjust station durations',
-    page_klasman_title:    'Classification Management',
-    perf_how_sub:          'Calculation logic, formulas, and Google Sheets integration',
-    perf_how_title:        '📊 Performance Analysis — How Does It Work?',
-    perf_page_sub:         'Upload an Excel file and measure performance by inspector',
-    perf_page_title:       'Performance Analysis',
-    print_btn:             '🖨️ Print',
-    pull:                  '📥 Pull',
-    pw_settings:           '🔒 Password Settings:',
-    quick_analyses:        '⚡ Quick Analyses',
-    record_count:          'Record Count',
-    reset:                 '↺ Reset',
-    sampling_mode:         'Sampling Mode',
-    sampling_date_toggle:  '📅 Use Different Levels by Date',
-    sampling_date_hint:    "When enabled, rows whose start date falls within a defined period are calculated using that period's sampling mode. Rows outside all periods use the default mode above.",
-    sampling_period_add:   '+ Add Period',
-    sampling_period_max:   'You can add up to 3 periods',
-    sampling_period_start: 'Start',
-    sampling_period_end:   'End',
-    sampling_period_mode:  'Mode',
-    sampling_period_remove:'Remove period',
-    sampling_default_label:'Default (rows outside all periods)',
-    mode_kapali:           'Off',
-    mode_bir:              'One Below',
-    mode_iki:              'Two Below',
-    see_details:           'See Details',
-    select_icon:           'Select Icon',
-    select_icon_btn:       'Select Icon',
-    select_klasman:        'Select a classification',
-    select_klasman_hint:   'Select a classification on the left to edit station durations',
-    selected_icon:         'Selected icon',
-    send:                  '📤 Send',
-    send_btn:              'Send ↵',
-    send_hint:             'You can also send with Ctrl+Enter',
-    sheets_conn_sub:       'Sync classification data with Google Sheets — access from different computers',
-    sheets_conn_title:     'Google Sheets Connection',
-    sheets_help_intro:     'To sync classification data with Google Sheets',
-    sheets_settings_title: '🔗 Google Sheets Connection Settings',
-    sheets_table_label:    'Google Sheets Table Link (View)',
-    sheets_url_label:      'Google Apps Script Web App URL (Send/Receive Data)',
-    slide_duration:        '⏱ Slide Duration',
-    slide_flip:            'Flip',
-    slide_slide:           'Slide',
-    slide_zoom:            'Zoom',
-    sort_diff_best:        'Diff ↑ (Best)',
-    sort_diff_worst:       'Diff ↓ (Worst)',
-    sort_label:            'Sort:',
-    start_date_th:         'Start',
-    station_count:         'Station Count',
-    status_high:           '🔴 High',
-    status_near:           '⚠️ Near',
-    std_duration:          'Standard Duration',
-    std_duration_th:       'Standard Duration',
-    top5:                  'Top 10',
-    total_duration_label:  'Total Duration (s)',
-    total_product:         'Total Products',
-    total_qty:             'Total Quantity',
-    transition_effect:     '✨ Transition Effect',
-    two_below:             'Two Below',
-    unit_check_duration:   '1-Unit Inspection Duration',
-    unit_check_hint:       'Standard time spent per product',
-    view_mode:             '👁 View Mode',
-    waiting_data:          'Awaiting data',
-    waiting_data_sub:      'This will populate automatically after a performance analysis is run',
-    no_overtime_data:      'No overtime data',
-    gkey_empty:            '⚠️ Please enter a key.',
-    gkey_invalid:          '⚠️ Invalid format. API key is too short.',
-    gkey_saving:           '✅ Saved! Sending to Sheets...',
-    gkey_saved_sheets:     '✅ Key saved and sent to Sheets!',
-    gkey_saved_local:      '✅ Saved locally (no Sheets connection).',
-    gkey_save_fail:        '❌ Save failed: ',
-    gkey_deleted:          '🗑 Key deleted. Removing from Sheets...',
-    gkey_ask_question:     'Please enter a question.',
-    gkey_no_key:           'Please enter and save your Gemini API key first.',
-    gkey_empty_response:   'Gemini returned an empty response.',
-    gkey_api_error:        'API Error: ',
-    gkey_check_key:        ' — Please check your API key.',
-    date_filter_with:      'With Date',
-    date_filter_without:   'Without Date',
-    analysis_result:       'Analysis Result',
-    clear_btn:             '✕ Clear',
-    gemini_analyzing:      'Gemini analyzing...',
-    custom_analysis:       '💬 Custom Analysis',
-    clearing:              '⏳ Clearing...',
-    clear_confirm:         '⚠️ All performance data will be deleted!\n\nThis action will:\n• Clear dashboard data\n• Delete the History, Performance Data, PerformanceRaw and InspectorRecords sheets in Google Sheets\n\nDo you want to continue?',
-    clear_ok_sheets:       '✅ Data cleared! (Local + Sheets)',
-    clear_ok_local_err:    '✅ Local data cleared. Sheets connection error: ',
-    clear_ok_local:        '✅ Local data cleared. (Sheets connection not configured)',
-    clear_status:          '🗑️ All performance data cleared',
-    klasman_actual_analysis: 'Actual Duration Analysis by Classification',
-    total_units_summary:   'total units',
-    on_target:             'On Target',
-    near_target:           'Near',
-    high_label:            'High',
-    no_std:                'No Std',
-    std_duration_sn:       '🕐 Standard Duration (s)',
-    actual_duration_sn:    '⏱ Actual/Working Duration (s)',
-    perf_formula_inline:   '(Standard Duration ÷ Working Duration) × 100',
-    file_uploading:        '⏳ Uploading file...',
-    file_empty:            '❌ File appears to be empty.',
-    file_loaded:           '✅ rows successfully loaded — ',
-    file_error:            '❌ Error: ',
-    col_select_warning:    '⚠️ Please select at least Classification, Inspector and Quantity columns',
-    no_data_processable:   '❌ No processable data found',
-    analysis_done:         ' inspector(s) successfully analyzed',
-    hd_recording:          '🔴 Recording HD Video (1920×1080)...',
-    // Sheets sync messages
-    sheets_sent_klasman:   '✅ classifications sent to Google Sheets!',
-    sheets_updated_count:  '✅ classifications + performance data updated from Sheets!',
-    sheets_loaded_perf:    '✅ inspector records loaded from Sheets!',
-    sheets_no_perf:        'ℹ️ No performance data in Sheets yet.',
-    sheets_sent_perf:      '✅ inspector records sent to Google Sheets!',
-    sheets_loaded_to_perf: '✅ inspector records loaded from Sheets into Performance Analysis!',
-    sheets_klasman_sync:   '☁️ Classification change synced to Sheets',
-    sheets_perf_updated:   '✅ Inspector data updated from Sheets',
-    sheets_analiz_sent:    '✅ Classification analysis updated and sent to Sheets!',
-    sheets_analiz_loaded:  '✅ classification analyses loaded from Sheets!',
-    // PWA
-    pwa_install:           'Install App',
-    pwa_install_full:      'Install App — Create Shortcut',
-    pwa_install_hint:      'Add to desktop or home screen, opens like a native app',
-    pwa_installed:         '✅ App installed!',
-    pwa_installing:        '⏳ Installing...',
   }
 };
 
-let currentLang = localStorage.getItem('panelLang') || 'tr';
+let currentLang = 'tr'; // Panel artik sadece Turkce destekliyor; dil secimi kaldirildi
 
 // i18n yardımcısı: belirli bir DOM kökü altındaki tüm [data-i18n] ve [data-i18n-placeholder] elementlerini çevirir
 function applyI18nToNewNodes(root) {
@@ -2048,7 +1633,7 @@ function _renderKlAnalizUI(el) {
 
     <!-- KARTLAR -->
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:20px;">
-      ${kartlar || '<div style="grid-column:1/-1;padding:48px;text-align:center;color:var(--muted2);"><div style="font-size:32px;margin-bottom:12px;">🔍</div><h3 style="font-weight:500;color:var(--muted);" data-i18n="klasman_filter_empty">No classification found matching the filter</h3></div>'}
+      ${kartlar || '<div style="grid-column:1/-1;padding:48px;text-align:center;color:var(--muted2);"><div style="font-size:32px;margin-bottom:12px;">🔍</div><h3 style="font-weight:500;color:var(--muted);" data-i18n="klasman_filter_empty">Filtreyle eşleşen klasman bulunamadı</h3></div>'}
     </div>
 
     <!-- SAYFALAMA -->
@@ -2350,7 +1935,7 @@ function showSheetsHelp() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
         <div>
           <h2 style="font-size:18px;font-weight:700;color:var(--navy);margin-bottom:4px">📋 Google Apps Script Kurulum Rehberi</h2>
-          <p style="font-size:12px;color:var(--muted)" data-i18n="sheets_help_intro">To sync classification data with Google Sheets</p>
+          <p style="font-size:12px;color:var(--muted)" data-i18n="sheets_help_intro">Klasman verilerini Google Sheets ile senkronize etmek için</p>
         </div>
         <button onclick="this.closest('[style*=fixed]').remove()" style="width:32px;height:32px;border:1px solid var(--border);background:var(--offwhite);border-radius:8px;cursor:pointer;font-size:16px">✕</button>
       </div>
@@ -2573,8 +2158,8 @@ function showPerformansHowItWorks() {
       <!-- Başlık -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
         <div>
-          <h2 style="font-size:19px;font-weight:700;color:var(--navy);margin-bottom:4px" data-i18n="perf_how_title">📊 Performance Analysis — How Does It Work?</h2>
-          <p style="font-size:12px;color:var(--muted)" data-i18n="perf_how_sub">Calculation logic, formulas, and Google Sheets integration</p>
+          <h2 style="font-size:19px;font-weight:700;color:var(--navy);margin-bottom:4px" data-i18n="perf_how_title">📊 Performans Analizi — Nasıl Çalışır?</h2>
+          <p style="font-size:12px;color:var(--muted)" data-i18n="perf_how_sub">Hesaplama mantığı, formüller ve Google Sheets entegrasyonu</p>
         </div>
         <button onclick="this.closest('[style*=fixed]').remove()" style="width:34px;height:34px;border:1px solid var(--border);background:var(--offwhite);border-radius:8px;cursor:pointer;font-size:17px;flex-shrink:0">✕</button>
       </div>
@@ -3591,8 +3176,8 @@ function renderInspectorCards() {
     grid.innerHTML = `
       <div class="empty">
         <div class="empty-icon">🔍</div>
-        <h3 data-i18n="filter_no_result">No filter results found</h3>
-        <p data-i18n="filter_no_result_hint">Try changing the filter criteria</p>
+        <h3 data-i18n="filter_no_result">Filtre sonucu bulunamadı</h3>
+        <p data-i18n="filter_no_result_hint">Filtre kriterlerini değiştirmeyi deneyin</p>
       </div>
     `;
     applyI18nToNewNodes(grid);
@@ -3687,7 +3272,7 @@ function renderInspectorCards() {
               </div>
               ${currentHedef !== 100 ? `<div style="position:absolute;top:-6px;right:-6px;background:var(--amber);color:#fff;font-size:8px;font-weight:700;padding:2px 5px;border-radius:8px;line-height:1.2">H%${currentHedef}</div>` : ''}
             </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase" data-i18n="adj_perf_label">Adj. Performance</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase" data-i18n="adj_perf_label">Düz. Performans</div>
             <div style="font-size:9px;color:${progressColor};font-weight:600;margin-top:1px">${performansSeviyesi}</div>
           </div>
         </div>
@@ -3696,11 +3281,11 @@ function renderInspectorCards() {
         <div class="inspector-stats">
           <div class="inspector-stat">
             <div class="inspector-stat-value">${inspector.adet.toLocaleString('tr-TR')}</div>
-            <div class="inspector-stat-label" data-i18n="total_qty">Total Quantity</div>
+            <div class="inspector-stat-label" data-i18n="total_qty">Toplam Adet</div>
           </div>
           <div class="inspector-stat">
             <div class="inspector-stat-value">${inspector.kayit.toLocaleString('tr-TR')}</div>
-            <div class="inspector-stat-label" data-i18n="record_count">Record Count</div>
+            <div class="inspector-stat-label" data-i18n="record_count">Kayıt Sayısı</div>
           </div>
         </div>
 
@@ -3708,13 +3293,13 @@ function renderInspectorCards() {
         <div class="inspector-stats">
           <div class="inspector-stat">
             <div class="inspector-stat-value">${fmtSnKisa(inspector.standartSure||0)}</div>
-            <div class="inspector-stat-label" data-i18n="std_duration">Standard Duration</div>
+            <div class="inspector-stat-label" data-i18n="std_duration">Standart Süre</div>
           </div>
           <div class="inspector-stat">
             <div class="inspector-stat-value">${fmtSnKisa(inspector.mesaiSure||0)}</div>
-            <div class="inspector-stat-label"><span data-i18n="overtime_duration">Overtime Duration</span>${
+            <div class="inspector-stat-label"><span data-i18n="overtime_duration">Mesai Süresi</span>${
               inspector.toplamMesaistiSaniye > 0
-                ? `<br><span style="color:#E65100;font-size:9px;font-weight:700">🌙 +${Math.round(inspector.toplamMesaistiSaniye/60)}dk <span data-i18n="overtime_over">overtime+</span></span>`
+                ? `<br><span style="color:#E65100;font-size:9px;font-weight:700">🌙 +${Math.round(inspector.toplamMesaistiSaniye/60)}dk <span data-i18n="overtime_over">mesai üstü</span></span>`
                 : ''
             }</div>
           </div>
@@ -4238,7 +3823,7 @@ function renderListe(){
   if (countEl) countEl.textContent = `✅ ${totalDone}  ·  ⚠️ ${totalUndone}`;
 
   if(!slice.length){
-    el.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><h3 data-i18n="not_found">Not Found</h3><p data-i18n="change_search">Change the search criteria</p></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><h3 data-i18n="not_found">Bulunamadı</h3><p data-i18n="change_search">Arama kriterlerini değiştirin</p></div>';
     applyI18nToNewNodes(el);
   } else {
     el.innerHTML = '<div class="kl-grid">' + slice.map(k => {
@@ -4360,7 +3945,7 @@ function renderEditor(){
             style="flex:1;padding:8px 12px;border:1.5px solid var(--blue3);border-radius:8px;font-size:13px;font-weight:600;color:var(--navy);"
             placeholder="Klasman adı">
         </div>
-        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;" data-i18n="select_icon_btn">Select Icon</div>
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;" data-i18n="select_icon_btn">İkon Seç</div>
         <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;max-height:130px;overflow-y:auto;padding:2px;" id="editor-icon-grid-${k.id}">
           ${iconGridHtml}
         </div>
@@ -4368,8 +3953,8 @@ function renderEditor(){
       <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--lgreen);border:1px solid var(--green);border-radius:8px;margin-bottom:8px">
         <div style="width:32px;height:32px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px">⏱</div>
         <div style="flex:1">
-          <strong style="font-size:13px;color:var(--green);display:block" data-i18n="unit_check_duration">1-Unit Inspection Duration</strong>
-          <span style="font-size:11px;color:var(--muted2)" data-i18n="unit_check_hint">Standard time spent per product</span>
+          <strong style="font-size:13px;color:var(--green);display:block" data-i18n="unit_check_duration">1 Birim Muayene Süresi</strong>
+          <span style="font-size:11px;color:var(--muted2)" data-i18n="unit_check_hint">Ürün başına harcanan standart süre</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <input type="number" value="${urunKontrolSuresi}" min="0" step="1" 
@@ -4411,7 +3996,7 @@ function renderEditor(){
           <div style="padding:40px 24px;text-align:center;border:2px dashed var(--border);border-radius:8px;background:var(--offwhite)">
             <div style="font-size:24px;margin-bottom:8px;opacity:0.5">⚙️</div>
             <h3 style="font-size:13px;font-weight:500;color:var(--muted);margin-bottom:4px">"İstasyon Ekle" ile başlayın</h3>
-            <p style="font-size:11px;color:var(--muted2)" data-i18n="add_first_station">Add the first station to start defining this classification</p>
+            <p style="font-size:11px;color:var(--muted2)" data-i18n="add_first_station">Bu klasmanı tanımlamaya başlamak için ilk istasyonu ekleyin</p>
           </div>
         `:''}
         ${k.istasyonlar.map((ist,i)=>`
@@ -4439,7 +4024,7 @@ function renderEditor(){
             </div>
             <div>
               <div style="font-size:18px;font-weight:700;color:var(--blue);font-family:'DM Mono',monospace">${k.istasyonlar.length}</div>
-              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px" data-i18n="station_count">Station Count</div>
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px" data-i18n="station_count">İstasyon Sayısı</div>
             </div>
             <div>
               <div style="font-size:18px;font-weight:700;color:var(--green);font-family:'DM Mono',monospace">${(toplamSure/60).toFixed(1)}</div>
