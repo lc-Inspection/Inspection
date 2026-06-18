@@ -937,7 +937,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbypMrGwAlcqdtIqmfyAzxrZP2W0gxBixMJzYHuhI4I-0bcJEJJnuVmdwljT7AoCrvn0/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz5sz6_qf5Dh4RWH5mC-Hs21vCZ2MlBNbOsVxPDt7XzWf43_Qwla-2JlvbCvN7FLuGm/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -3731,9 +3731,7 @@ function renderInspectorCards() {
                 <span style="font-size:13px;font-weight:700;color:#E65100">${inspector.overtimePerformans}%</span>
                 <span style="font-size:9px;color:var(--muted2)">(${Math.round((inspector.overtimeMesaiSure||0)/60)}dk ek mesaide)</span>
               </div>`
-            : `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(0,0,0,.03);border-radius:7px">
-                <span style="font-size:11px;color:var(--muted2)">⏱ Overtime Yok</span>
-              </div>`}
+            : ''}
           <div style="text-align:center">
             <span style="font-size:11px;color:var(--muted2)">📊 </span>
             <span style="font-size:12px;font-weight:600;color:var(--navy)">${klasmanCount} ${(translations[currentLang]||translations.tr).klasman_word}</span>
@@ -5016,10 +5014,6 @@ function orneklemeAdet(adet, mod) {
 const ORNEKLEME_DONEM_MAX = 3;
 let orneklemeDonemleri = [];
 
-// Genel/varsayilan moddaki depo filtresi (donem disindaki satirlara uygulanir)
-// Bos array = tum depolar dahil
-let orneklemeGenelDepolar = [];
-
 function toggleOrneklemeDonemleri() {
   const aktif = document.getElementById('ornekleme-tarihli-aktif')?.checked;
   const wrap = document.getElementById('ornekleme-donemler-wrap');
@@ -5028,7 +5022,7 @@ function toggleOrneklemeDonemleri() {
   if (tag)  tag.style.display  = aktif ? 'inline-block' : 'none';
   if (aktif && orneklemeDonemleri.length === 0) {
     // İlk açılışta kullanım kolaylığı için bir dönem ekle
-    orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali', depolar: [] });
+    orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali' });
   }
   renderOrneklemeDonemleri();
   performansHesapla();
@@ -5036,7 +5030,7 @@ function toggleOrneklemeDonemleri() {
 
 function addOrneklemeDonemi() {
   if (orneklemeDonemleri.length >= ORNEKLEME_DONEM_MAX) return;
-  orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali', depolar: [] });
+  orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali' });
   renderOrneklemeDonemleri();
   performansHesapla();
 }
@@ -5046,152 +5040,6 @@ function removeOrneklemeDonemi(idx) {
   renderOrneklemeDonemleri();
   performansHesapla();
 }
-
-// Depo dropdown'unu ac/kapat
-function toggleDepoDropdown(idx) {
-  document.querySelectorAll('[id^="depo-dropdown-"]').forEach(el => {
-    if (el.id !== 'depo-dropdown-' + idx) el.style.display = 'none';
-  });
-  const el = document.getElementById('depo-dropdown-' + idx);
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-
-// ─── Genel (varsayilan) mod icin depo dropdown ───
-function renderGenelDepoDropdown() {
-  const dd = document.getElementById('genel-depo-dropdown');
-  const label = document.getElementById('genel-depo-label');
-  if (!dd) return;
-  const tumDepolar = getBenzersizDepoListesi();
-  const seciliSayi = orneklemeGenelDepolar.length;
-
-  if (label) label.textContent = seciliSayi === 0 ? 'Tüm Depolar' : `${seciliSayi} depo seçili`;
-
-  if (tumDepolar.length === 0) {
-    dd.innerHTML = `<div style="font-size:11px;color:var(--muted);padding:6px">Önce Excel yükleyin / InspectionYapilanDepo sütunu seçin</div>`;
-    return;
-  }
-
-  dd.innerHTML = `
-    <label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#8E24AA;padding:4px 6px;cursor:pointer;border-bottom:1px solid var(--border2);margin-bottom:4px">
-      <input type="checkbox" onchange="toggleGenelTumDepolar(this.checked)" ${seciliSayi === 0 ? 'checked' : ''} style="width:14px;height:14px;margin:0">
-      Tümünü Seç
-    </label>
-    ${tumDepolar.map(d => `
-      <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--navy);padding:4px 6px;cursor:pointer">
-        <input type="checkbox" data-depo="${_escapeHtml(d)}" class="genel-depo-checkbox" ${orneklemeGenelDepolar.includes(d) ? 'checked' : ''} onchange="onGenelDepoCheckboxChange(this)" style="width:14px;height:14px;margin:0">
-        ${_escapeHtml(d)}
-      </label>
-    `).join('')}`;
-}
-
-function toggleGenelDepoDropdown() {
-  document.querySelectorAll('[id^="depo-dropdown-"]').forEach(el => { el.style.display = 'none'; });
-  const dd = document.getElementById('genel-depo-dropdown');
-  if (!dd) return;
-  if (dd.style.display === 'none' || !dd.style.display) {
-    renderGenelDepoDropdown();
-    dd.style.display = 'block';
-  } else {
-    dd.style.display = 'none';
-  }
-}
-
-function toggleGenelTumDepolar(checked) {
-  if (checked) orneklemeGenelDepolar = [];
-  updateGenelDepoTumCheckbox();
-  updateGenelDepoLabel();
-  performansHesapla();
-}
-
-function onGenelDepoCheckboxChange(el) {
-  const depo = el.dataset.depo;
-  if (el.checked) {
-    if (!orneklemeGenelDepolar.includes(depo)) orneklemeGenelDepolar.push(depo);
-  } else {
-    orneklemeGenelDepolar = orneklemeGenelDepolar.filter(d => d !== depo);
-  }
-  updateGenelDepoTumCheckbox();
-  updateGenelDepoLabel();
-  performansHesapla();
-}
-
-// "Tumunu Sec" checkbox durumunu DOM'u yeniden olusturmadan guncelle
-function updateGenelDepoTumCheckbox() {
-  const dd = document.getElementById('genel-depo-dropdown');
-  if (!dd) return;
-  const tumCheckbox = dd.querySelector('input[onchange^="toggleGenelTumDepolar"]');
-  if (tumCheckbox) tumCheckbox.checked = orneklemeGenelDepolar.length === 0;
-  // Eger Tumunu Sec isaretlendiyse diger checkboxlari da temizle (gorsel tutarlilik)
-  if (orneklemeGenelDepolar.length === 0) {
-    dd.querySelectorAll('.genel-depo-checkbox').forEach(cb => { cb.checked = false; });
-  }
-}
-
-function updateGenelDepoLabel() {
-  const label = document.getElementById('genel-depo-label');
-  if (label) label.textContent = orneklemeGenelDepolar.length === 0 ? 'Tüm Depolar' : `${orneklemeGenelDepolar.length} depo seçili`;
-}
-
-// Tumunu Sec checkboxu degisince - sadece dropdown'u guncelle, donem listesini yeniden olusturma
-function toggleTumDepolar(idx, checked) {
-  if (!orneklemeDonemleri[idx]) return;
-  if (checked) {
-    orneklemeDonemleri[idx].depolar = []; // bos = tum depolar
-  }
-  updateDepoDropdownContent(idx);
-  updateDepoButtonLabel(idx);
-  performansHesapla();
-}
-
-// Tek bir depo checkbox'i degisince - sadece dropdown'u guncelle, donem listesini yeniden olusturma
-function onDepoCheckboxChange(idx, el) {
-  if (!orneklemeDonemleri[idx]) return;
-  const depo = el.dataset.depo;
-  let depolar = orneklemeDonemleri[idx].depolar || [];
-  if (el.checked) {
-    if (!depolar.includes(depo)) depolar.push(depo);
-  } else {
-    depolar = depolar.filter(d => d !== depo);
-  }
-  orneklemeDonemleri[idx].depolar = depolar;
-  updateDepoDropdownContent(idx);
-  updateDepoButtonLabel(idx);
-  performansHesapla();
-}
-
-// Dropdown icerigini DOM'u yeniden olusturmadan guncelle (Tumunu Sec checkbox durumu icin)
-function updateDepoDropdownContent(idx) {
-  const dd = document.getElementById('depo-dropdown-' + idx);
-  if (!dd) return;
-  const p = orneklemeDonemleri[idx];
-  const seciliSayi = (p.depolar || []).length;
-  const tumCheckbox = dd.querySelector('.depo-tum-secim');
-  if (tumCheckbox) tumCheckbox.checked = seciliSayi === 0;
-  if (seciliSayi === 0) {
-    dd.querySelectorAll('.depo-checkbox').forEach(cb => { cb.checked = false; });
-  }
-}
-
-// Depo secim butonunun etiketini guncelle (X depo secili / Tum Depolar)
-function updateDepoButtonLabel(idx) {
-  const btn = document.querySelector(`button[onclick="toggleDepoDropdown(${idx})"]`);
-  if (!btn) return;
-  const p = orneklemeDonemleri[idx];
-  const seciliSayi = (p.depolar || []).length;
-  const text = seciliSayi === 0 ? 'Tüm Depolar' : `${seciliSayi} depo seçili`;
-  btn.innerHTML = `🏬 ${text} <span style="font-size:9px">▼</span>`;
-}
-
-// Disari tiklayinca depo dropdown'lari kapat
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('[id^="depo-dropdown-"]') && !e.target.closest('[onclick^="toggleDepoDropdown"]')) {
-    document.querySelectorAll('[id^="depo-dropdown-"]').forEach(el => { el.style.display = 'none'; });
-  }
-  if (!e.target.closest('#genel-depo-dropdown') && !e.target.closest('#btn-genel-depo')) {
-    const dd = document.getElementById('genel-depo-dropdown');
-    if (dd) dd.style.display = 'none';
-  }
-});
 
 function onOrneklemeDonemChange(el) {
   const idx = parseInt(el.dataset.idx, 10);
@@ -5207,54 +5055,23 @@ function renderOrneklemeDonemleri() {
   const maxHint = document.getElementById('ornekleme-donem-max-hint');
   if (!listEl) return;
   const t = translations[currentLang] || translations.tr;
-  const tumDepolar = getBenzersizDepoListesi();
 
-  listEl.innerHTML = orneklemeDonemleri.map((p, idx) => {
-    if (!Array.isArray(p.depolar)) p.depolar = [];
-    const seciliSayi = p.depolar.length;
-    const depoLabel = seciliSayi === 0 ? 'Tüm Depolar' : `${seciliSayi} depo seçili`;
-    return `
-    <div style="display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #E1BEE7;border-radius:7px;padding:6px 10px">
-      <span style="font-size:11px;font-weight:700;color:#8E24AA;min-width:14px;padding-top:6px">${idx + 1}.</span>
-      <div style="display:flex;flex-direction:column;gap:6px;flex:1">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <label style="font-size:10.5px;color:var(--muted);margin:0" data-i18n="sampling_period_start">${t.sampling_period_start}</label>
-          <input type="date" data-idx="${idx}" data-field="start" value="${p.start || ''}" onchange="onOrneklemeDonemChange(this)" style="width:auto;padding:4px 6px;font-size:12px">
-          <label style="font-size:10.5px;color:var(--muted);margin:0" data-i18n="sampling_period_end">${t.sampling_period_end}</label>
-          <input type="date" data-idx="${idx}" data-field="end" value="${p.end || ''}" onchange="onOrneklemeDonemChange(this)" style="width:auto;padding:4px 6px;font-size:12px">
-          <label style="font-size:10.5px;color:var(--muted);margin:0" data-i18n="sampling_period_mode">${t.sampling_period_mode}</label>
-          <select data-idx="${idx}" data-field="mode" onchange="onOrneklemeDonemChange(this)" style="width:auto;padding:4px 8px;font-size:12px">
-            <option value="kapali" ${p.mode === 'kapali' ? 'selected' : ''}>${t.mode_kapali}</option>
-            <option value="bir" ${p.mode === 'bir' ? 'selected' : ''}>${t.mode_bir}</option>
-            <option value="iki" ${p.mode === 'iki' ? 'selected' : ''}>${t.mode_iki}</option>
-          </select>
-          <button type="button" onclick="removeOrneklemeDonemi(${idx})" title="${t.sampling_period_remove}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:14px;padding:2px 6px;margin-left:auto">✕</button>
-        </div>
-        <div style="position:relative;display:inline-block">
-          <button type="button" onclick="toggleDepoDropdown(${idx})" style="display:flex;align-items:center;gap:6px;font-size:11px;padding:5px 10px;border:1.5px solid #CE93D8;border-radius:6px;background:#FAF5FB;color:var(--navy);cursor:pointer">
-            🏬 ${depoLabel} <span style="font-size:9px">▼</span>
-          </button>
-          <div id="depo-dropdown-${idx}" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid var(--border2);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.12);padding:8px;z-index:50;min-width:220px;max-height:260px;overflow-y:auto">
-            ${tumDepolar.length === 0
-              ? `<div style="font-size:11px;color:var(--muted);padding:6px">Önce Excel yükleyin / InspectionYapilanDepo sütunu seçin</div>`
-              : `
-              <label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#8E24AA;padding:4px 6px;cursor:pointer;border-bottom:1px solid var(--border2);margin-bottom:4px">
-                <input type="checkbox" data-donem-idx="${idx}" class="depo-tum-secim" onchange="toggleTumDepolar(${idx}, this.checked)" ${seciliSayi === 0 ? 'checked' : ''} style="width:14px;height:14px;margin:0">
-                Tümünü Seç
-              </label>
-              ${tumDepolar.map(d => `
-                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--navy);padding:4px 6px;cursor:pointer">
-                  <input type="checkbox" data-donem-idx="${idx}" data-depo="${_escapeHtml(d)}" class="depo-checkbox" ${p.depolar.includes(d) ? 'checked' : ''} onchange="onDepoCheckboxChange(${idx}, this)" style="width:14px;height:14px;margin:0">
-                  ${_escapeHtml(d)}
-                </label>
-              `).join('')}`
-            }
-          </div>
-        </div>
-      </div>
+  listEl.innerHTML = orneklemeDonemleri.map((p, idx) => `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #E1BEE7;border-radius:7px;padding:6px 10px">
+      <span style="font-size:11px;font-weight:700;color:#8E24AA;min-width:14px">${idx + 1}.</span>
+      <label style="font-size:10.5px;color:var(--muted);margin:0" data-i18n="sampling_period_start">${t.sampling_period_start}</label>
+      <input type="date" data-idx="${idx}" data-field="start" value="${p.start || ''}" onchange="onOrneklemeDonemChange(this)" style="width:auto;padding:4px 6px;font-size:12px">
+      <label style="font-size:10.5px;color:var(--muted);margin:0" data-i18n="sampling_period_end">${t.sampling_period_end}</label>
+      <input type="date" data-idx="${idx}" data-field="end" value="${p.end || ''}" onchange="onOrneklemeDonemChange(this)" style="width:auto;padding:4px 6px;font-size:12px">
+      <label style="font-size:10.5px;color:var(--muted);margin:0" data-i18n="sampling_period_mode">${t.sampling_period_mode}</label>
+      <select data-idx="${idx}" data-field="mode" onchange="onOrneklemeDonemChange(this)" style="width:auto;padding:4px 8px;font-size:12px">
+        <option value="kapali" ${p.mode === 'kapali' ? 'selected' : ''}>${t.mode_kapali}</option>
+        <option value="bir" ${p.mode === 'bir' ? 'selected' : ''}>${t.mode_bir}</option>
+        <option value="iki" ${p.mode === 'iki' ? 'selected' : ''}>${t.mode_iki}</option>
+      </select>
+      <button type="button" onclick="removeOrneklemeDonemi(${idx})" title="${t.sampling_period_remove}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:14px;padding:2px 6px;margin-left:auto">✕</button>
     </div>
-  `;
-  }).join('');
+  `).join('');
 
   if (addBtn) addBtn.style.display = orneklemeDonemleri.length >= ORNEKLEME_DONEM_MAX ? 'none' : '';
   if (maxHint) maxHint.style.display = orneklemeDonemleri.length >= ORNEKLEME_DONEM_MAX ? '' : 'none';
@@ -5274,39 +5091,6 @@ function getOrneklemeModForDate(date) {
     const startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
     const endDate   = new Date(ey, em - 1, ed, 23, 59, 59, 999);
     if (date >= startDate && date <= endDate) return p.mode;
-  }
-  return null;
-}
-
-
-// Excel'deki InspectionYapilanDepo sutunundan benzersiz depo isimlerini cikarir
-function getBenzersizDepoListesi() {
-  const yapilanDepoCol = document.getElementById('col-yapilan-depo')?.value || '';
-  if (!yapilanDepoCol || !excelRows || !excelRows.length) return [];
-  const set = new Set();
-  excelRows.forEach(row => {
-    const v = String(row[yapilanDepoCol] ?? '').trim();
-    if (v) set.add(v);
-  });
-  return [...set].sort((a,b)=>a.localeCompare(b,'tr'));
-}
-
-// Verilen tarihe denk gelen donemin depo filtresini dondurur.
-// Donemin depolar listesi bossa veya tum depolar seciliyse null doner (filtre yok = tum depolar dahil).
-function getOrneklemeDepoFiltresiForDate(date) {
-  if (!date) return null;
-  const aktif = document.getElementById('ornekleme-tarihli-aktif')?.checked;
-  if (!aktif) return null;
-  for (const p of orneklemeDonemleri) {
-    if (!p.start || !p.end) continue;
-    const [sy, sm, sd] = p.start.split('-').map(Number);
-    const [ey, em, ed] = p.end.split('-').map(Number);
-    const startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
-    const endDate   = new Date(ey, em - 1, ed, 23, 59, 59, 999);
-    if (date >= startDate && date <= endDate) {
-      if (Array.isArray(p.depolar) && p.depolar.length > 0) return p.depolar;
-      return null;
-    }
   }
   return null;
 }
@@ -5334,10 +5118,6 @@ function updateOrneklemeUI() {
 function performansHesapla(){
   const tablo=document.getElementById('perf-tablo');
   const empty=document.getElementById('perf-empty');
-
-  // Genel depo butonu etiketini guncelle (dropdown acik degilken de dogru gorunsun)
-  const genelDepoLbl = document.getElementById('genel-depo-label');
-  if (genelDepoLbl) genelDepoLbl.textContent = orneklemeGenelDepolar.length === 0 ? 'Tüm Depolar' : `${orneklemeGenelDepolar.length} depo seçili`;
 
   if(!excelRows.length){
     tablo.style.display='none'; 
@@ -5450,30 +5230,6 @@ function performansHesapla(){
     }
 
     const adet = orneklemeAdet(adetHam, satırOrneklemeMod);
-
-    // Depo filtresi: once donem bazli filtreye bak, eger satir hicbir doneme
-    // denk gelmiyorsa (veya tarihli mod kapaliysa) genel/varsayilan depo
-    // filtresi uygulanir.
-    const donemDepoFiltresi = getOrneklemeDepoFiltresiForDate(parsedBaslangic);
-    const aktifDonemVarMi = document.getElementById('ornekleme-tarihli-aktif')?.checked &&
-      orneklemeDonemleri.some(p => {
-        if (!p.start || !p.end || !parsedBaslangic) return false;
-        const [sy,sm,sd] = p.start.split('-').map(Number);
-        const [ey,em,ed] = p.end.split('-').map(Number);
-        const sd_ = new Date(sy,sm-1,sd,0,0,0,0);
-        const ed_ = new Date(ey,em-1,ed,23,59,59,999);
-        return parsedBaslangic >= sd_ && parsedBaslangic <= ed_;
-      });
-
-    if (donemDepoFiltresi && yapilanDepoCol) {
-      // Satır bir döneme denk geliyor ve o dönemde depo filtresi var
-      const satirDepo = String(row[yapilanDepoCol] ?? '').trim();
-      if (!donemDepoFiltresi.includes(satirDepo)) return;
-    } else if (!aktifDonemVarMi && orneklemeGenelDepolar.length > 0 && yapilanDepoCol) {
-      // Satır hiçbir döneme denk gelmiyor -> genel depo filtresi uygulanır
-      const satirDepo = String(row[yapilanDepoCol] ?? '').trim();
-      if (!orneklemeGenelDepolar.includes(satirDepo)) return;
-    }
 
     // InspectionYapilanDepo filtresi: sütun seçiliyse boş satırları atla
     if (yapilanDepoCol) {
@@ -8406,7 +8162,7 @@ const SEBEP_IKONLAR = {
   'Sistemsel Hata':    '⚙️',
   'Ürün Olmaması':     '📦',
   'Elektrik Kesintisi':'⚡',
-  'Insp. Lokasyon Değişimi': '📍',
+  'Makine Arızası':    '🔧',
   'Diğer':             '📝'
 };
 
