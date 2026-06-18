@@ -5914,6 +5914,12 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// position:fixed popup, scroll sirasinda butonla hizasi bozulmasin diye kapatilir
+window.addEventListener('scroll', () => {
+  const popup = document.getElementById('diger-ekipler-popup');
+  if (popup && popup.style.display !== 'none') popup.style.display = 'none';
+}, true);
+
 // ────────────────────────────
 // TOUCH KONTROLÜ (MOBİL)
 // ────────────────────────────
@@ -7344,6 +7350,7 @@ async function _pushTeamToSheets() {
 async function toggleDigerEkipler(e) {
   e.stopPropagation();
   const popup = document.getElementById('diger-ekipler-popup');
+  const btn   = document.getElementById('btn-diger-ekipler');
   if (!popup) return;
   const isOpen = popup.style.display !== 'none';
   if (isOpen) { popup.style.display = 'none'; return; }
@@ -7354,6 +7361,22 @@ async function toggleDigerEkipler(e) {
   // Popup'ı hemen aç, yükleniyorsa göster
   liste.innerHTML = `<div style="padding:10px 14px;font-size:12px;color:var(--muted)">⏳ Yükleniyor...</div>`;
   popup.style.display = '';
+
+  // Buton konumuna göre popup'ı konumlandır (position:fixed, kart taşmasından bağımsız)
+  if (btn) {
+    const rect = btn.getBoundingClientRect();
+    const popupWidth = Math.min(280, window.innerWidth * 0.9);
+    let left = rect.right - popupWidth;
+    if (left < 8) left = 8;
+    let top = rect.bottom + 8;
+    // Eğer popup ekranın altına taşıyorsa, butonun üstüne aç
+    const estimatedHeight = Math.min(360, window.innerHeight * 0.6);
+    if (top + estimatedHeight > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - estimatedHeight - 8);
+    }
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
+  }
 
   // Cache boşsa bekleyerek yükle
   if (!_usersCache.length) await _silentLoadUsersCache();
@@ -8150,6 +8173,193 @@ function renderKayipZamanAdminListe() {
         <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:4px 12px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700">⏸ ${(toplamDk/60).toFixed(1)} saat</span>
       </div>`;
   }
+}
+
+// ─── Kayıp Zaman: Rapor Görünümü (admin sayfasında, modal içinde) ───
+function showKayipZamanRaporGorunumu() {
+  const overlay = document.getElementById('kz-rapor-overlay');
+  const content = document.getElementById('kz-rapor-content');
+  if (!overlay || !content) return;
+
+  // Aktif filtreleri uygula (tarih aralığı + ekip/inspector/sebep dropdown'ları, eğer sayfada açıksa)
+  let records = [...kayipZamanData];
+  if (_kzStartDate) records = records.filter(r => formatTarihKisa(r.tarih) >= _kzStartDate);
+  if (_kzEndDate)   records = records.filter(r => formatTarihKisa(r.tarih) <= _kzEndDate);
+  const fEkip  = document.getElementById('kz-admin-filter-ekip')?.value  || '';
+  const fInsp  = document.getElementById('kz-admin-filter-inspector')?.value || '';
+  const fSebep = document.getElementById('kz-admin-filter-sebep')?.value || '';
+  if (fEkip)  records = records.filter(r => r.ekipYoneticisi === fEkip);
+  if (fInsp)  records = records.filter(r => r.inspector === fInsp);
+  if (fSebep) records = records.filter(r => r.sebep === fSebep);
+
+  if (!records.length) {
+    content.innerHTML = `<div style="padding:60px 24px;text-align:center;color:var(--muted)">
+      <div style="font-size:32px;margin-bottom:10px">📭</div>
+      Seçilen filtrelerle eşleşen kayıp zaman kaydı yok.
+    </div>`;
+    overlay.style.display = 'flex';
+    return;
+  }
+
+  // Tahmini adet hesabı (her inspector'ın kendi hızına göre)
+  function tahminiAdetIcin(insName, dk) {
+    const perfObj = performansData.find(p => (p.ins||'').toLowerCase() === (insName||'').toLowerCase());
+    if (!perfObj) return null;
+    const hiz = getSaatlikAdetHizi(perfObj);
+    if (!hiz) return null;
+    return Math.round(hiz * (dk/60));
+  }
+
+  const toplamDk = records.reduce((s,r)=>s+(r.sureDk||0),0);
+  const toplamInsp = new Set(records.map(r=>(r.inspector||'').toLowerCase())).size;
+  let toplamAdetGenel = 0, adetVarMiGenel = false;
+  records.forEach(r => { const a = tahminiAdetIcin(r.inspector, r.sureDk); if (a!==null) { toplamAdetGenel += a; adetVarMiGenel = true; } });
+
+  // Sebep bazında grupla
+  const sebepMap = {};
+  records.forEach(r => {
+    const s = r.sebep || 'Diğer';
+    if (!sebepMap[s]) sebepMap[s] = { dk: 0, insSet: new Set(), kayit: 0, adet: 0, adetVarMi: false };
+    sebepMap[s].dk += r.sureDk || 0;
+    sebepMap[s].insSet.add(r.inspector || '');
+    sebepMap[s].kayit += 1;
+    const a = tahminiAdetIcin(r.inspector, r.sureDk);
+    if (a !== null) { sebepMap[s].adet += a; sebepMap[s].adetVarMi = true; }
+  });
+  const sebepSirali = Object.entries(sebepMap).sort((a,b)=>b[1].dk - a[1].dk);
+  const maxDk = sebepSirali.length ? sebepSirali[0][1].dk : 1;
+
+  // Tarih aralığı metni
+  const tarihMetni = (_kzStartDate || _kzEndDate)
+    ? `${_kzStartDate ? formatTarihKisa(new Date(_kzStartDate)) || _kzStartDate : 'başlangıç'} – ${_kzEndDate ? formatTarihKisa(new Date(_kzEndDate)) || _kzEndDate : 'bugün'}`
+    : new Date().toLocaleDateString('tr-TR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  // ── Sebep özet kartları ──
+  const sebepKartHtml = sebepSirali.map(([s, d]) => `
+    <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px 20px">
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
+        <span style="font-size:24px;line-height:1">${SEBEP_IKONLAR[s]||'📝'}</span>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--navy)">${_escapeHtml(s)}</div>
+          <div style="font-size:10.5px;color:var(--muted2);margin-top:2px">${d.kayit} kayıt · ${d.insSet.size} inspector</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
+          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--red)">${(d.dk/60).toFixed(1)}s</div>
+          <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Bekleme Saati</div>
+        </div>
+        <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
+          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+d.adet.toLocaleString('tr-TR') : '—'}</div>
+          <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Tah. Kayıp Adet</div>
+        </div>
+        <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
+          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.insSet.size}</div>
+          <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Inspector</div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  // ── Çubuk grafik ──
+  const barRenkler = ['linear-gradient(90deg,#1565C0,#42A5F5)','linear-gradient(90deg,#E65100,#FFA726)','linear-gradient(90deg,#6A1B9A,#AB47BC)','linear-gradient(90deg,#2E7D32,#66BB6A)'];
+  const barHtml = sebepSirali.map(([s,d], i) => {
+    const pct = Math.max(8, Math.round((d.dk / maxDk) * 100));
+    return `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:${i === sebepSirali.length-1 ? 0 : 16}px">
+      <div style="width:170px;font-size:12px;font-weight:600;color:var(--navy);flex-shrink:0">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}</div>
+      <div style="flex:1;height:22px;background:var(--offwhite);border-radius:6px;overflow:hidden;position:relative">
+        <div style="height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;width:${pct}%;background:${barRenkler[i%barRenkler.length]}">
+          <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#fff">${(d.dk/60).toFixed(1)}s</span>
+        </div>
+      </div>
+      <div style="width:70px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);flex-shrink:0">${d.dk} dk</div>
+    </div>`;
+  }).join('');
+
+  // ── Detaylı tablo (en fazla 100 satır gösterilir, performans için) ──
+  const tabloKayitlari = [...records].sort((a,b)=>(b.sureDk||0)-(a.sureDk||0)).slice(0, 100);
+  const tabloHtml = tabloKayitlari.map(r => {
+    const a = tahminiAdetIcin(r.inspector, r.sureDk);
+    return `
+    <tr style="border-bottom:1px solid var(--border2)">
+      <td style="padding:11px 16px;font-weight:700;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
+      <td style="padding:11px 16px"><span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;font-size:11.5px;font-weight:600;background:var(--lblue3);color:var(--blue2)">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
+      <td style="padding:11px 16px;text-align:center"><span style="display:inline-flex;padding:3px 10px;border-radius:6px;font-size:11.5px;font-weight:700;background:#FFEBEE;color:var(--red);font-family:'DM Mono',monospace">${(r.sureDk/60).toFixed(1)}s</span></td>
+      <td style="padding:11px 16px;text-align:center"><span style="display:inline-flex;padding:3px 10px;border-radius:6px;font-size:11.5px;font-weight:700;background:#F3E5F5;color:#7B1FA2;font-family:'DM Mono',monospace">${a !== null ? '~'+a : '—'}</span></td>
+    </tr>`;
+  }).join('');
+
+  const tabloNot = records.length > 100
+    ? `<div style="padding:10px 16px;font-size:11px;color:var(--muted2);text-align:center;border-top:1px solid var(--border2)">İlk 100 kayıt gösteriliyor (toplam ${records.length} kayıt). Tüm veri için Excel dışa aktarımını kullanın.</div>`
+    : '';
+
+  content.innerHTML = `
+    <div style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);border-radius:14px 14px 0 0;padding:24px 28px;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+      <div>
+        <h1 style="font-size:19px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:9px">⏸ Kayıp Zaman Raporu</h1>
+        <p style="font-size:11.5px;color:rgba(255,255,255,.6);margin-top:5px">Inspection ekipleri — değerlendirme dışı tutulan süreler</p>
+      </div>
+      <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:8px 16px;font-size:11.5px;font-weight:600;text-align:right">
+        Rapor Aralığı
+        <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;display:block;margin-top:2px">${tarihMetni}</span>
+      </div>
+    </div>
+
+    <div style="padding:24px 28px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px">
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px;border-top:3px solid var(--red)">
+          <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--navy)">${records.length}</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:6px">Toplam Kayıt</div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px;border-top:3px solid var(--amber)">
+          <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--navy)">${(toplamDk/60).toFixed(1)}s</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:6px">Toplam Kayıp Süre</div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px;border-top:3px solid var(--blue)">
+          <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--navy)">${toplamInsp}</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:6px">Etkilenen Inspector</div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px;border-top:3px solid var(--green)">
+          <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--navy)">${adetVarMiGenel ? '~'+toplamAdetGenel.toLocaleString('tr-TR') : '—'}</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:6px">Tahmini Kayıp Adet</div>
+        </div>
+      </div>
+
+      <div style="font-size:14px;font-weight:700;color:var(--navy);margin:24px 0 14px;display:flex;align-items:center;gap:8px">
+        📦 Sebep Bazında Özet <span style="background:var(--lblue3);color:var(--blue2);font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">${sebepSirali.length} sebep</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px">
+        ${sebepKartHtml}
+      </div>
+
+      <div style="font-size:14px;font-weight:700;color:var(--navy);margin:24px 0 14px">📊 Sebep Bazında Bekleme Saati Dağılımı</div>
+      <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:22px 24px;margin-bottom:24px">
+        ${barHtml}
+      </div>
+
+      <div style="font-size:14px;font-weight:700;color:var(--navy);margin:24px 0 14px">📋 Detaylı Kayıt Listesi</div>
+      <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:#f0f4ff;border-bottom:2px solid var(--border2)">
+            <th style="padding:11px 16px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Inspector</th>
+            <th style="padding:11px 16px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Sebep</th>
+            <th style="padding:11px 16px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Bekleme Saati</th>
+            <th style="padding:11px 16px;text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Tahmini Kayıp Adet</th>
+          </tr></thead>
+          <tbody>${tabloHtml}</tbody>
+        </table>
+        ${tabloNot}
+      </div>
+
+      <div style="font-size:11px;color:var(--muted2);margin-top:18px;line-height:1.6;background:#fff;border:1px solid var(--border2);border-radius:10px;padding:14px 16px">
+        <b style="color:var(--muted)">Not:</b> Tahmini Kayıp Adet, ilgili inspector'ın kendi gerçek ortalama hızına
+        (toplam adet / mesai süresi) göre hesaplanmıştır. Performans verisi bulunmayan kayıtlarda "—" gösterilir.
+        Bu değerler kesin değildir, büyüklük mertebesi vermek amacıyla sunulur.
+      </div>
+    </div>
+  `;
+
+  overlay.style.display = 'flex';
 }
 
 function showKayipZamanSebepPopup() {
