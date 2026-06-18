@@ -1247,3 +1247,51 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   from { opacity:0; transform:translateY(-8px); }
   to   { opacity:1; transform:translateY(0); }
 }
+
+/* ─── Kayıp Zaman: Tarih Aralığı Bar ─── */
+.kz-tarih-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 18px; padding: 12px 16px;
+  background: var(--offwhite); border: 1px solid var(--border2); border-radius: 10px;
+}
+.kz-tarih-label { font-size: 12px; font-weight: 700; color: var(--navy); white-space: nowrap; }
+.kz-date-input {
+  width: auto; max-width: 150px; padding: 6px 10px; font-size: 12.5px;
+  border-radius: 7px; border: 1px solid var(--border2); background: #fff; color: var(--navy);
+  font-family: 'DM Mono', monospace;
+}
+.kz-tarih-ayrac { color: var(--muted2); font-size: 12px; }
+.kz-tarih-temizle {
+  font-size: 11.5px; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--border2);
+  background: #fff; cursor: pointer; color: var(--muted); font-weight: 600; margin-left: auto;
+  transition: background .15s;
+}
+.kz-tarih-temizle:hover { background: #FFEBEE; color: var(--red); border-color: #FFCDD2; }
+
+/* ─── Kayıp Zaman: Sebep Kartları ─── */
+.kz-sebep-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px; margin-bottom: 22px;
+}
+.kz-sebep-card {
+  background: #fff; border: 1px solid var(--border2); border-radius: 14px;
+  padding: 18px 20px; cursor: pointer; transition: box-shadow .2s, border-color .2s;
+}
+.kz-sebep-card:hover { box-shadow: 0 4px 16px rgba(13,43,94,.08); border-color: var(--lblue); }
+.kz-sebep-card-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.kz-sebep-icon { font-size: 24px; line-height: 1; }
+.kz-sebep-name { font-size: 14px; font-weight: 700; color: var(--navy); letter-spacing: -.2px; }
+.kz-sebep-sub { font-size: 10.5px; color: var(--muted2); margin-top: 2px; }
+.kz-sebep-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 4px; }
+.kz-sebep-stat {
+  text-align: center; background: var(--offwhite); border-radius: 9px; padding: 9px 4px;
+}
+.kz-sebep-stat .v { font-family:'DM Mono',monospace; font-size: 16px; font-weight: 700; color: var(--navy); }
+.kz-sebep-stat .l { font-size: 8px; color: var(--muted2); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; margin-top: 3px; }
+.kz-sebep-stat.hilite .v { color: var(--red); }
+.kz-sebep-list { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border2); display: flex; flex-direction: column; gap: 6px; }
+.kz-sebep-list-row { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; }
+.kz-sebep-list-name { color: var(--navy); font-weight: 600; }
+.kz-sebep-list-val { color: var(--red); font-family:'DM Mono',monospace; font-weight: 700; }
+.kz-sebep-list-adet { color: #8E24AA; font-weight: 600; }
+.kz-sebep-more { font-size: 10.5px; color: var(--blue2); font-weight: 600; margin-top: 2px; text-decoration: underline; cursor: pointer; }
