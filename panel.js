@@ -7938,22 +7938,37 @@ function renderKayipZamanDetayliTablo() {
     });
 
     return `
-    <div style="background:#fff;border:1px solid var(--border2);border-radius:10px;padding:12px 14px;flex:1;min-width:170px;cursor:pointer" onclick="showSebepInspectorDetay('${s.replace(/'/g,"\'")}')">
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:22px">${SEBEP_IKONLAR[s]||'📝'}</span>
+    <div class="kz-sebep-card" onclick="showSebepInspectorDetay('${s.replace(/'/g,"\'")}')">
+      <div class="kz-sebep-card-top">
+        <span class="kz-sebep-icon">${SEBEP_IKONLAR[s]||'📝'}</span>
         <div>
-          <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</div>
-          <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:1px">${_escapeHtml(s)}</div>
-          <div style="font-size:10px;color:var(--blue2);font-weight:600;margin-top:2px">👥 ${insCount} inspector</div>
-          ${adetHesaplanabildi ? `<div style="font-size:10px;color:#8E24AA;font-weight:600;margin-top:2px">📦 ~${toplamTahminiAdet.toLocaleString('tr-TR')} adet (tahmini)</div>` : ''}
+          <div class="kz-sebep-name">${_escapeHtml(s)}</div>
+          <div class="kz-sebep-sub">${insCount} inspector etkilendi · tıkla, detayı gör</div>
         </div>
       </div>
-      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0;display:flex;flex-direction:column;gap:3px">
+      <div class="kz-sebep-stats">
+        <div class="kz-sebep-stat hilite">
+          <div class="v">${(dk/60).toFixed(1)}s</div>
+          <div class="l">Bekleme Saati</div>
+        </div>
+        <div class="kz-sebep-stat">
+          <div class="v">${adetHesaplanabildi ? '~'+toplamTahminiAdet.toLocaleString('tr-TR') : '—'}</div>
+          <div class="l">Tah. Kayıp Adet</div>
+        </div>
+        <div class="kz-sebep-stat">
+          <div class="v">${insCount}</div>
+          <div class="l">Inspector</div>
+        </div>
+      </div>
+      <div class="kz-sebep-list">
         ${gosterilenler.map(([n,d])=>{
           const a = tahminiAdet(n,d);
-          return `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--navy);font-weight:600">${_escapeHtml(_formatDisplayName(n))}</span><span style="color:#C62828;font-family:'DM Mono',monospace;font-weight:600">${(d/60).toFixed(1)}s${a!==null?` <span style="color:#8E24AA">(~${a} ad.)</span>`:''}</span></div>`;
+          return `<div class="kz-sebep-list-row">
+            <span class="kz-sebep-list-name">${_escapeHtml(_formatDisplayName(n))}</span>
+            <span class="kz-sebep-list-val">${(d/60).toFixed(1)}s${a!==null?` <span class="kz-sebep-list-adet">(~${a} ad.)</span>`:''}</span>
+          </div>`;
         }).join('')}
-        ${kalanSayisi > 0 ? `<div style="font-size:10px;color:var(--blue2);font-weight:600;margin-top:2px;text-decoration:underline">+${kalanSayisi} kişi daha (tıkla)</div>` : ''}
+        ${kalanSayisi > 0 ? `<div class="kz-sebep-more">+${kalanSayisi} kişi daha (tıkla)</div>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -8023,16 +8038,14 @@ function renderKayipZamanDetayliTablo() {
     : '<div style="padding:20px;text-align:center;color:var(--muted)">Seçilen aralıkta kayıt yok</div>';
 
   container.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-      <span style="font-size:12px;font-weight:600;color:var(--muted)">📅 Tarih Aralığı:</span>
-      <input type="date" id="kz-date-start" value="${_kzStartDate}" onchange="_kzStartDate=this.value;renderKayipZamanDetayliTablo()"
-        style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2)">
-      <span style="color:var(--muted)">—</span>
-      <input type="date" id="kz-date-end" value="${_kzEndDate}" onchange="_kzEndDate=this.value;renderKayipZamanDetayliTablo()"
-        style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2)">
-      ${(_kzStartDate||_kzEndDate)?`<button onclick="_kzStartDate='';_kzEndDate='';renderKayipZamanDetayliTablo()" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);background:#fff;cursor:pointer;color:var(--muted)">✕ Temizle</button>`:''}
+    <div class="kz-tarih-bar">
+      <span class="kz-tarih-label">📅 Tarih Aralığı</span>
+      <input type="date" id="kz-date-start" value="${_kzStartDate}" onchange="_kzStartDate=this.value;renderKayipZamanDetayliTablo()" class="kz-date-input">
+      <span class="kz-tarih-ayrac">—</span>
+      <input type="date" id="kz-date-end" value="${_kzEndDate}" onchange="_kzEndDate=this.value;renderKayipZamanDetayliTablo()" class="kz-date-input">
+      ${(_kzStartDate||_kzEndDate)?`<button onclick="_kzStartDate='';_kzEndDate='';renderKayipZamanDetayliTablo()" class="kz-tarih-temizle">✕ Temizle</button>`:''}
     </div>
-    ${topSebepler.length ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">${sebepKartlar}</div>` : ''}
+    ${topSebepler.length ? `<div class="kz-sebep-grid">${sebepKartlar}</div>` : ''}
     ${tableHtml}`;
 }
 
