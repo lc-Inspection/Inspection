@@ -781,9 +781,9 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 
 .inspector-slide-main {
   display: grid;
-  grid-template-columns: 220px 1fr 220px;
-  gap: 36px;
-  align-items: center;
+  grid-template-columns: 260px 1fr 240px;
+  gap: 28px;
+  align-items: start;
 }
 
 /* Avatar */
@@ -829,7 +829,7 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 }
 
 /* Performance circle */
-.inspector-slide-performance { text-align: center; }
+.inspector-slide-performance { text-align: center; padding-top: 24px; }
 .performance-circle { position: relative; width: 180px; height: 180px; margin: 0 auto 14px; }
 .performance-circle svg { width: 180px; height: 180px; transform: rotate(-90deg); }
 .performance-circle-bg { fill: none; stroke: rgba(255,255,255,.05); stroke-width: 8; }
@@ -851,21 +851,51 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   display: inline-block;
 }
 
-/* Klasman rows */
-.slide-klasman-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 12px;
-  background: rgba(255,255,255,.03);
-  border-radius: 8px; margin-bottom: 6px;
-  border: 1px solid rgba(255,255,255,.05);
-  transition: background .15s;
+/* Klasman kartları (büyük format, en fazla 3) */
+.slide-klasman-cards { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.slide-klasman-card {
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 12px;
+  padding: 12px 14px;
+  text-align: left;
 }
-.slide-klasman-row:hover { background: rgba(255,255,255,.06); }
-.slide-klasman-name { font-size: 12px; color: rgba(255,255,255,.7); flex: 1; font-weight: 600; letter-spacing: -.1px; }
-.slide-klasman-adet { font-size: 10px; color: rgba(255,255,255,.3); white-space: nowrap; }
-.slide-klasman-bar { width: 50px; height: 3px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; }
-.slide-klasman-bar-fill { height: 100%; border-radius: 2px; transition: width .7s ease; }
-.slide-klasman-perf { font-size: 13px; font-weight: 800; font-family:'DM Mono',monospace; min-width: 48px; text-align: right; letter-spacing: -.5px; }
+.slide-klasman-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.slide-klasman-card-name { font-size: 13px; font-weight: 700; color: rgba(255,255,255,.85); letter-spacing: -.1px; }
+.slide-klasman-card-perf { font-size: 16px; font-weight: 800; font-family:'DM Mono',monospace; letter-spacing: -.5px; }
+.slide-klasman-bar { width: 100%; height: 5px; background: rgba(255,255,255,.07); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+.slide-klasman-bar-fill { height: 100%; border-radius: 3px; transition: width .7s ease; }
+.slide-klasman-card-adet { font-size: 11px; color: rgba(255,255,255,.4); font-weight: 600; }
+
+/* Orta kolon: istatistik kartlar + overtime blok birlikte */
+.inspector-slide-center { display: flex; flex-direction: column; gap: 18px; }
+
+/* Overtime bloğu */
+.slide-overtime-block {
+  background: linear-gradient(135deg, rgba(255,152,0,.08) 0%, rgba(255,255,255,.03) 100%);
+  border: 1px solid rgba(255,152,0,.18);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+.slide-overtime-empty { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.07); }
+.slide-overtime-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px;
+  color: rgba(255,183,77,.85); margin-bottom: 12px;
+}
+.slide-overtime-empty .slide-overtime-header { color: rgba(255,255,255,.35); }
+.slide-overtime-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+.slide-overtime-stat { text-align: center; }
+.slide-overtime-stat-value {
+  font-size: 22px; font-weight: 800; color: #fff;
+  font-family:'DM Mono',monospace; line-height:1; margin-bottom: 5px; letter-spacing: -.5px;
+}
+.slide-overtime-unit { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.4); margin-left: 2px; }
+.slide-overtime-stat-label {
+  font-size: 8.5px; color: rgba(255,255,255,.35);
+  text-transform: uppercase; letter-spacing: 1px; font-weight: 700;
+}
+.slide-overtime-none { font-size: 12px; color: rgba(255,255,255,.4); text-align: center; padding: 8px 0; }
 
 /* Performance color classes */
 .perf-excellent .inspector-slide-stat-value, .perf-excellent .performance-circle-value { color: #4DB6AC; }
@@ -1012,6 +1042,11 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   
   .inspector-slide-info {
     grid-template-columns: 1fr;
+  }
+  
+  .slide-overtime-stats {
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
   
   .welcome-stats {
