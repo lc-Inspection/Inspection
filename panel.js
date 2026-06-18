@@ -5014,6 +5014,10 @@ function orneklemeAdet(adet, mod) {
 const ORNEKLEME_DONEM_MAX = 3;
 let orneklemeDonemleri = [];
 
+// Genel/varsayilan moddaki depo filtresi (donem disindaki satirlara uygulanir)
+// Bos array = tum depolar dahil
+let orneklemeGenelDepolar = [];
+
 function toggleOrneklemeDonemleri() {
   const aktif = document.getElementById('ornekleme-tarihli-aktif')?.checked;
   const wrap = document.getElementById('ornekleme-donemler-wrap');
@@ -5050,6 +5054,65 @@ function toggleDepoDropdown(idx) {
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
+// ─── Genel (varsayilan) mod icin depo dropdown ───
+function renderGenelDepoDropdown() {
+  const dd = document.getElementById('genel-depo-dropdown');
+  const label = document.getElementById('genel-depo-label');
+  if (!dd) return;
+  const tumDepolar = getBenzersizDepoListesi();
+  const seciliSayi = orneklemeGenelDepolar.length;
+
+  if (label) label.textContent = seciliSayi === 0 ? 'Tüm Depolar' : `${seciliSayi} depo seçili`;
+
+  if (tumDepolar.length === 0) {
+    dd.innerHTML = `<div style="font-size:11px;color:var(--muted);padding:6px">Önce Excel yükleyin / InspectionYapilanDepo sütunu seçin</div>`;
+    return;
+  }
+
+  dd.innerHTML = `
+    <label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#8E24AA;padding:4px 6px;cursor:pointer;border-bottom:1px solid var(--border2);margin-bottom:4px">
+      <input type="checkbox" onchange="toggleGenelTumDepolar(this.checked)" ${seciliSayi === 0 ? 'checked' : ''} style="width:14px;height:14px;margin:0">
+      Tümünü Seç
+    </label>
+    ${tumDepolar.map(d => `
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--navy);padding:4px 6px;cursor:pointer">
+        <input type="checkbox" data-depo="${_escapeHtml(d)}" class="genel-depo-checkbox" ${orneklemeGenelDepolar.includes(d) ? 'checked' : ''} onchange="onGenelDepoCheckboxChange(this)" style="width:14px;height:14px;margin:0">
+        ${_escapeHtml(d)}
+      </label>
+    `).join('')}`;
+}
+
+function toggleGenelDepoDropdown() {
+  document.querySelectorAll('[id^="depo-dropdown-"]').forEach(el => { el.style.display = 'none'; });
+  const dd = document.getElementById('genel-depo-dropdown');
+  if (!dd) return;
+  if (dd.style.display === 'none' || !dd.style.display) {
+    renderGenelDepoDropdown();
+    dd.style.display = 'block';
+  } else {
+    dd.style.display = 'none';
+  }
+}
+
+function toggleGenelTumDepolar(checked) {
+  if (checked) orneklemeGenelDepolar = [];
+  renderGenelDepoDropdown();
+  setTimeout(() => { const dd = document.getElementById('genel-depo-dropdown'); if (dd) dd.style.display = 'block'; }, 0);
+  performansHesapla();
+}
+
+function onGenelDepoCheckboxChange(el) {
+  const depo = el.dataset.depo;
+  if (el.checked) {
+    if (!orneklemeGenelDepolar.includes(depo)) orneklemeGenelDepolar.push(depo);
+  } else {
+    orneklemeGenelDepolar = orneklemeGenelDepolar.filter(d => d !== depo);
+  }
+  renderGenelDepoDropdown();
+  setTimeout(() => { const dd = document.getElementById('genel-depo-dropdown'); if (dd) dd.style.display = 'block'; }, 0);
+  performansHesapla();
+}
+
 // Tumunu Sec checkboxu degisince
 function toggleTumDepolar(idx, checked) {
   if (!orneklemeDonemleri[idx]) return;
@@ -5082,6 +5145,10 @@ function onDepoCheckboxChange(idx, el) {
 document.addEventListener('click', (e) => {
   if (!e.target.closest('[id^="depo-dropdown-"]') && !e.target.closest('[onclick^="toggleDepoDropdown"]')) {
     document.querySelectorAll('[id^="depo-dropdown-"]').forEach(el => { el.style.display = 'none'; });
+  }
+  if (!e.target.closest('#genel-depo-dropdown') && !e.target.closest('#btn-genel-depo')) {
+    const dd = document.getElementById('genel-depo-dropdown');
+    if (dd) dd.style.display = 'none';
   }
 });
 
@@ -5227,6 +5294,10 @@ function performansHesapla(){
   const tablo=document.getElementById('perf-tablo');
   const empty=document.getElementById('perf-empty');
 
+  // Genel depo butonu etiketini guncelle (dropdown acik degilken de dogru gorunsun)
+  const genelDepoLbl = document.getElementById('genel-depo-label');
+  if (genelDepoLbl) genelDepoLbl.textContent = orneklemeGenelDepolar.length === 0 ? 'Tüm Depolar' : `${orneklemeGenelDepolar.length} depo seçili`;
+
   if(!excelRows.length){
     tablo.style.display='none'; 
         empty.style.display='block'; 
@@ -5339,12 +5410,28 @@ function performansHesapla(){
 
     const adet = orneklemeAdet(adetHam, satırOrneklemeMod);
 
-    // Donem bazli depo filtresi: satirin tarihi bir doneme denk geliyorsa ve o
-    // donemde belirli depolar seciliyse, satirin deposu o listede degilse atla
+    // Depo filtresi: once donem bazli filtreye bak, eger satir hicbir doneme
+    // denk gelmiyorsa (veya tarihli mod kapaliysa) genel/varsayilan depo
+    // filtresi uygulanir.
     const donemDepoFiltresi = getOrneklemeDepoFiltresiForDate(parsedBaslangic);
+    const aktifDonemVarMi = document.getElementById('ornekleme-tarihli-aktif')?.checked &&
+      orneklemeDonemleri.some(p => {
+        if (!p.start || !p.end || !parsedBaslangic) return false;
+        const [sy,sm,sd] = p.start.split('-').map(Number);
+        const [ey,em,ed] = p.end.split('-').map(Number);
+        const sd_ = new Date(sy,sm-1,sd,0,0,0,0);
+        const ed_ = new Date(ey,em-1,ed,23,59,59,999);
+        return parsedBaslangic >= sd_ && parsedBaslangic <= ed_;
+      });
+
     if (donemDepoFiltresi && yapilanDepoCol) {
+      // Satır bir döneme denk geliyor ve o dönemde depo filtresi var
       const satirDepo = String(row[yapilanDepoCol] ?? '').trim();
       if (!donemDepoFiltresi.includes(satirDepo)) return;
+    } else if (!aktifDonemVarMi && orneklemeGenelDepolar.length > 0 && yapilanDepoCol) {
+      // Satır hiçbir döneme denk gelmiyor -> genel depo filtresi uygulanır
+      const satirDepo = String(row[yapilanDepoCol] ?? '').trim();
+      if (!orneklemeGenelDepolar.includes(satirDepo)) return;
     }
 
     // InspectionYapilanDepo filtresi: sütun seçiliyse boş satırları atla
