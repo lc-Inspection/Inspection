@@ -5439,16 +5439,17 @@ function showSlide(index) {
   }
   
   const inspector = slideshowInspectors[index];
+  const t = translations[currentLang] || translations.tr;
   // Düz. Performans (verimlilikPerf) varsa onu kullan, yoksa genelHizPerf
   const performans = Math.round(getDispPerf(inspector));
   const hamPerf = Math.round(inspector.genelHizPerf ?? 0);
   const performansClass = getPerformanceClass(performans);
   
   const performansLevel = (() => {
-    if (performans >= 95) return (translations[currentLang]||translations.tr).perf_excellent;
-    if (performans >= 85) return (translations[currentLang]||translations.tr).perf_good;
-    if (performans >= 70) return (translations[currentLang]||translations.tr).perf_average;
-    return (translations[currentLang]||translations.tr).perf_poor; // "Geliştirilmeli" yerine "Düşük" olarak değiştirildi
+    if (performans >= 95) return t.perf_excellent;
+    if (performans >= 85) return t.perf_good;
+    if (performans >= 70) return t.perf_average;
+    return t.perf_poor;
   })();
   
   const ini = inspector.ins.split(' ').map(w => w[0] || '').slice(0, 2).join('').toUpperCase();
@@ -5459,28 +5460,66 @@ function showSlide(index) {
   const strokeDasharray = circumference;
   const strokeDashoffset = circumference - (Math.min(performans, 150) / 150) * circumference;
 
-  // Klasman breakdown satırları
+  // Klasman breakdown satırları (büyük kart formatı, en fazla 3)
   const klasmanEntries = Object.entries(inspector.klasmanlar || {})
     .sort((a, b) => (b[1].adet || 0) - (a[1].adet || 0))
-    .slice(0, 4);
+    .slice(0, 3);
 
   const klasmanRows = klasmanEntries.length ? klasmanEntries.map(([kName, kData]) => {
     const kPerf = Math.round(kData.hizPerf || 0);
     const kColor = kPerf >= 95 ? '#4CAF50' : kPerf >= 85 ? '#2196F3' : kPerf >= 70 ? '#FF9800' : '#ef5350';
     const barW = Math.min(100, kPerf);
-    return `<div class="slide-klasman-row">
-      <span class="slide-klasman-name">${kName}</span>
-      <span class="slide-klasman-adet">${(kData.adet || 0).toLocaleString('tr-TR')} ${(translations[currentLang]||translations.tr).units_short}</span>
+    return `<div class="slide-klasman-card">
+      <div class="slide-klasman-card-top">
+        <span class="slide-klasman-card-name">${kName}</span>
+        <span class="slide-klasman-card-perf" style="color:${kColor}">${kPerf}%</span>
+      </div>
       <div class="slide-klasman-bar"><div class="slide-klasman-bar-fill" style="width:${barW}%;background:${kColor}"></div></div>
-      <span class="slide-klasman-perf" style="color:${kColor}">${kPerf}%</span>
+      <div class="slide-klasman-card-adet">${(kData.adet || 0).toLocaleString('tr-TR')} ${t.units_short}</div>
     </div>`;
-  }).join('') : `<div style="font-size:12px;color:rgba(255,255,255,.4);text-align:center;padding:8px">${(translations[currentLang]||translations.tr).no_data_live}</div>`;
+  }).join('') : `<div style="font-size:12px;color:rgba(255,255,255,.4);text-align:center;padding:16px">${t.no_data_live}</div>`;
+
+  // Overtime hesapları
+  const otMesaiSn   = inspector.overtimeMesaiSure || 0;
+  const otStdSn     = inspector.standartSureOvertime || 0;
+  const otPerf       = inspector.overtimePerformans;
+  const hasOvertime  = otMesaiSn > 0;
+  // Overtime'da kontrol edilen tahmini adet: toplam adedin, overtime standart süre / toplam standart süre oranı kadarı
+  let otAdetTahmini = null;
+  if (hasOvertime && inspector.standartSure > 0 && otStdSn > 0) {
+    otAdetTahmini = Math.round((inspector.adet || 0) * (otStdSn / inspector.standartSure));
+  }
+  const otColor = otPerf === null || otPerf === undefined ? 'rgba(255,255,255,.4)'
+    : otPerf >= 95 ? '#4CAF50' : otPerf >= 85 ? '#2196F3' : otPerf >= 70 ? '#FF9800' : '#ef5350';
+
+  const overtimeBlockHtml = hasOvertime ? `
+    <div class="slide-overtime-block">
+      <div class="slide-overtime-header">🌙 <span>Overtime</span></div>
+      <div class="slide-overtime-stats">
+        <div class="slide-overtime-stat">
+          <div class="slide-overtime-stat-value">${Math.round(otMesaiSn/60)}<span class="slide-overtime-unit">dk</span></div>
+          <div class="slide-overtime-stat-label">Ek Mesai</div>
+        </div>
+        <div class="slide-overtime-stat">
+          <div class="slide-overtime-stat-value" style="color:${otColor}">${otPerf !== null && otPerf !== undefined ? otPerf+'%' : '—'}</div>
+          <div class="slide-overtime-stat-label">Verimlilik</div>
+        </div>
+        <div class="slide-overtime-stat">
+          <div class="slide-overtime-stat-value">${otAdetTahmini !== null ? otAdetTahmini.toLocaleString('tr-TR') : '—'}</div>
+          <div class="slide-overtime-stat-label">Kontrol Edilen (tah.)</div>
+        </div>
+      </div>
+    </div>` : `
+    <div class="slide-overtime-block slide-overtime-empty">
+      <div class="slide-overtime-header">🌙 <span>Overtime</span></div>
+      <div class="slide-overtime-none">Bu dönemde overtime çalışması yok</div>
+    </div>`;
 
   const slideHtml = `
     <div class="inspector-slide active ${performansClass} anim-${animationEffect}">
       <div class="inspector-slide-header">
-        <div class="inspector-slide-title">${(translations[currentLang]||translations.tr).detailed_perf}</div>
-        <div class="inspector-slide-subtitle">${new Date().toLocaleDateString(currentLang === 'en' ? 'en-GB' : 'tr-TR', { 
+        <div class="inspector-slide-title">${t.detailed_perf}</div>
+        <div class="inspector-slide-subtitle">${new Date().toLocaleDateString('tr-TR', { 
           weekday: 'long', 
           year: 'numeric', 
           month: 'long', 
@@ -5489,37 +5528,40 @@ function showSlide(index) {
       </div>
       
       <div class="inspector-slide-main">
-        <!-- Sol: Avatar ve İsim -->
+        <!-- Sol: Avatar, İsim, Klasman kartları -->
         <div class="inspector-slide-avatar">
           <div class="inspector-slide-avatar-circle">
             ${ini}
           </div>
           <div class="inspector-slide-name">${inspector.ins}</div>
-          <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom:16px;">
-            📅 ${inspector.gunSayisi || 0} ${(translations[currentLang]||translations.tr).working}
+          <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom:14px;">
+            📅 ${inspector.gunSayisi || 0} ${t.working}
           </div>
-          <!-- Klasman Breakdown -->
-          <div style="text-align:left;width:100%">${klasmanRows}</div>
+          <!-- Klasman Kartları (büyük format) -->
+          <div class="slide-klasman-cards">${klasmanRows}</div>
         </div>
         
-        <!-- Orta: İstatistikler -->
-        <div class="inspector-slide-info">
-          <div class="inspector-slide-stat">
-            <div class="inspector-slide-stat-value">${(inspector.adet || 0).toLocaleString('tr-TR')}</div>
-            <div class="inspector-slide-stat-label">${(translations[currentLang]||translations.tr).total_product}</div>
+        <!-- Orta: İstatistikler + Overtime bloğu -->
+        <div class="inspector-slide-center">
+          <div class="inspector-slide-info">
+            <div class="inspector-slide-stat">
+              <div class="inspector-slide-stat-value">${(inspector.adet || 0).toLocaleString('tr-TR')}</div>
+              <div class="inspector-slide-stat-label">${t.total_product}</div>
+            </div>
+            <div class="inspector-slide-stat">
+              <div class="inspector-slide-stat-value">${(inspector.kayit || 0).toLocaleString('tr-TR')}</div>
+              <div class="inspector-slide-stat-label">${t.record_count}</div>
+            </div>
+            <div class="inspector-slide-stat">
+              <div class="inspector-slide-stat-value">${fmtSnKisa(inspector.standartSure||0)}</div>
+              <div class="inspector-slide-stat-label">${t.std_duration}</div>
+            </div>
+            <div class="inspector-slide-stat">
+              <div class="inspector-slide-stat-value">${Object.keys(inspector.klasmanlar || {}).length}</div>
+              <div class="inspector-slide-stat-label">${t.klasman_count}</div>
+            </div>
           </div>
-          <div class="inspector-slide-stat">
-            <div class="inspector-slide-stat-value">${(inspector.kayit || 0).toLocaleString('tr-TR')}</div>
-            <div class="inspector-slide-stat-label">${(translations[currentLang]||translations.tr).record_count}</div>
-          </div>
-          <div class="inspector-slide-stat">
-            <div class="inspector-slide-stat-value">${fmtSnKisa(inspector.standartSure||0)}</div>
-            <div class="inspector-slide-stat-label">${(translations[currentLang]||translations.tr).std_duration}</div>
-          </div>
-          <div class="inspector-slide-stat">
-            <div class="inspector-slide-stat-value">${Object.keys(inspector.klasmanlar || {}).length}</div>
-            <div class="inspector-slide-stat-label">${(translations[currentLang]||translations.tr).klasman_count}</div>
-          </div>
+          ${overtimeBlockHtml}
         </div>
         
         <!-- Sağ: Performans -->
@@ -5543,12 +5585,12 @@ function showSlide(index) {
             </svg>
             <div class="performance-circle-text">
               <div class="performance-circle-value">${performans}%</div>
-              <div class="performance-circle-label">${inspector.verimlilikPerf !== null && inspector.verimlilikPerf !== undefined ? (translations[currentLang]||translations.tr).adj_perf_label_upper : (translations[currentLang]||translations.tr).avg_perf_plain}</div>
+              <div class="performance-circle-label">${inspector.verimlilikPerf !== null && inspector.verimlilikPerf !== undefined ? t.adj_perf_label_upper : t.avg_perf_plain}</div>
             </div>
           </div>
           <div class="performance-level">${performansLevel}</div>
           ${inspector.verimlilikPerf !== null && inspector.verimlilikPerf !== undefined && hamPerf !== performans
-            ? `<div style="margin-top:10px;font-size:12px;color:rgba(255,255,255,.5)">${(translations[currentLang]||translations.tr).raw_avg} <strong style="color:rgba(255,255,255,.75)">${hamPerf}%</strong></div>`
+            ? `<div style="margin-top:10px;font-size:12px;color:rgba(255,255,255,.5)">${t.raw_avg} <strong style="color:rgba(255,255,255,.75)">${hamPerf}%</strong></div>`
             : ''}
         </div>
       </div>
