@@ -5576,15 +5576,16 @@ function showSlide(index) {
               />
               <circle
                 class="performance-circle-progress"
+                id="perf-circle-progress"
                 cx="75"
                 cy="75"
                 r="${radius}"
                 stroke-dasharray="${strokeDasharray}"
-                stroke-dashoffset="${strokeDashoffset}"
+                stroke-dashoffset="${circumference}"
               />
             </svg>
             <div class="performance-circle-text">
-              <div class="performance-circle-value">${performans}%</div>
+              <div class="performance-circle-value" id="perf-circle-value">0%</div>
               <div class="performance-circle-label">${inspector.verimlilikPerf !== null && inspector.verimlilikPerf !== undefined ? t.adj_perf_label_upper : t.avg_perf_plain}</div>
             </div>
           </div>
@@ -5599,11 +5600,49 @@ function showSlide(index) {
   
   mainArea.innerHTML = slideHtml;
 
+  // Performans yüzdesi + çemberi senkronize sayaç animasyonuyla doldur
+  animatePerformanceCircle(performans, circumference);
+
   // Countdown ring'i sıfırla
   if (slideshowActive) _resetCountdownRing();
   
   // Footer bilgilerini güncelle
   updateSlideFooter(index);
+}
+
+// Performans yüzdesini (sayı) ve SVG çemberini (stroke-dashoffset) eş zamanlı,
+// aynı easing eğrisiyle 0'dan hedef değere animasyonlu olarak doldurur.
+function animatePerformanceCircle(targetPercent, circumference) {
+  const valueEl  = document.getElementById('perf-circle-value');
+  const circleEl = document.getElementById('perf-circle-progress');
+  if (!valueEl || !circleEl) return;
+
+  const duration = 1200; // ms - eski CSS transition süresiyle aynı
+  const startTime = performance.now();
+  // ease-out cubic (CSS cubic-bezier(.4,0,.2,1)'e yakın bir JS karşılığı)
+  const easeOutCubic = x => 1 - Math.pow(1 - x, 3);
+
+  function frame(now) {
+    const elapsed = now - startTime;
+    const rawProgress = Math.min(elapsed / duration, 1);
+    const eased = easeOutCubic(rawProgress);
+
+    const currentVal = Math.round(eased * targetPercent);
+    valueEl.textContent = currentVal + '%';
+
+    const currentOffset = circumference - (Math.min(eased * targetPercent, 150) / 150) * circumference;
+    circleEl.style.strokeDashoffset = currentOffset;
+
+    if (rawProgress < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      // Son karede tam hedef değere kilitle (yuvarlama hatalarını önler)
+      valueEl.textContent = targetPercent + '%';
+      const finalOffset = circumference - (Math.min(targetPercent, 150) / 150) * circumference;
+      circleEl.style.strokeDashoffset = finalOffset;
+    }
+  }
+  requestAnimationFrame(frame);
 }
 
 function showWelcomeScreen() {
