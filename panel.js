@@ -3731,7 +3731,9 @@ function renderInspectorCards() {
                 <span style="font-size:13px;font-weight:700;color:#E65100">${inspector.overtimePerformans}%</span>
                 <span style="font-size:9px;color:var(--muted2)">(${Math.round((inspector.overtimeMesaiSure||0)/60)}dk ek mesaide)</span>
               </div>`
-            : ''}
+            : `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(0,0,0,.03);border-radius:7px">
+                <span style="font-size:11px;color:var(--muted2)">⏱ Overtime Yok</span>
+              </div>`}
           <div style="text-align:center">
             <span style="font-size:11px;color:var(--muted2)">📊 </span>
             <span style="font-size:12px;font-weight:600;color:var(--navy)">${klasmanCount} ${(translations[currentLang]||translations.tr).klasman_word}</span>
@@ -8162,7 +8164,7 @@ const SEBEP_IKONLAR = {
   'Sistemsel Hata':    '⚙️',
   'Ürün Olmaması':     '📦',
   'Elektrik Kesintisi':'⚡',
-  'Makine Arızası':    '🔧',
+  'Insp. Lokasyon Değişimi': '📍',
   'Diğer':             '📝'
 };
 
