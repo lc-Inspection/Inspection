@@ -222,10 +222,12 @@
 
       <!-- Ekip Yöneticileri (sadece admin için) -->
       <div id="team-managers-section" style="display:none">
-        <div class="section-label" id="team-managers-toggle" onclick="toggleTeamManagersSection()" style="cursor:pointer;user-select:none">
-          <span>🧑‍💼</span><span data-i18n="team_managers_label">Ekip Yöneticileri</span>
-          <span id="team-managers-count" style="font-size:10px;color:var(--muted2);font-weight:600;margin-left:4px"></span>
-          <span id="team-managers-chevron" style="margin-left:auto;font-size:11px;color:var(--muted2);transition:transform .2s">▶</span>
+        <div id="team-managers-toggle" onclick="toggleTeamManagersSection()" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--lblue3) 0%,#fff 100%);border:1px solid var(--lblue);border-radius:10px;padding:11px 16px;margin:4px 0 12px;transition:background .15s">
+          <span style="font-size:15px">🧑‍💼</span>
+          <span style="font-size:12px;font-weight:700;color:var(--navy);letter-spacing:.3px" data-i18n="team_managers_label">Ekip Yöneticileri</span>
+          <span id="team-managers-count" style="font-size:11px;color:var(--blue2);font-weight:700;background:rgba(33,150,243,.12);padding:1px 8px;border-radius:99px"></span>
+          <span style="font-size:10.5px;color:var(--muted);margin-left:4px">— görmek için tıkla</span>
+          <span id="team-managers-chevron" style="margin-left:auto;font-size:12px;color:var(--blue2);transition:transform .2s">▶</span>
         </div>
         <div id="team-managers-grid" class="team-managers-grid" style="display:none"></div>
       </div>
@@ -1038,7 +1040,7 @@
           <p>Tüm ekiplerin kayıp zaman kayıtları ve düzeltilmiş performanslar</p>
         </div>
         <div class="ph-buttons">
-          <button class="btn" onclick="loadKayipZamanAdmin()">🔄 Yenile</button>
+          <button class="btn" onclick="forceRefreshKayipZamanAdmin()">🔄 Yenile</button>
           <button class="btn" onclick="showKayipZamanRaporGorunumu()" style="background:var(--lblue3);color:var(--blue2);border-color:var(--lblue)">📄 Rapor Görünümü</button>
           <button class="btn" onclick="showKayipZamanSebepPopup()" style="background:var(--lamber);color:var(--amber);border-color:var(--amber)">⚠️ Sebep Özeti</button>
           <button class="btn" onclick="exportKayipZamanExcel()" style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7">📊 Excel</button>
