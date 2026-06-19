@@ -222,10 +222,12 @@
 
       <!-- Ekip Yöneticileri (sadece admin için) -->
       <div id="team-managers-section" style="display:none">
-        <div class="section-label">
+        <div class="section-label" id="team-managers-toggle" onclick="toggleTeamManagersSection()" style="cursor:pointer;user-select:none">
           <span>🧑‍💼</span><span data-i18n="team_managers_label">Ekip Yöneticileri</span>
+          <span id="team-managers-count" style="font-size:10px;color:var(--muted2);font-weight:600;margin-left:4px"></span>
+          <span id="team-managers-chevron" style="margin-left:auto;font-size:11px;color:var(--muted2);transition:transform .2s">▶</span>
         </div>
-        <div id="team-managers-grid" class="team-managers-grid"></div>
+        <div id="team-managers-grid" class="team-managers-grid" style="display:none"></div>
       </div>
 
       <div class="section-label" id="general-status-label" style="display:none">
@@ -1045,7 +1047,10 @@
       </div>
 
       <!-- Özet Kartlar -->
-      <div id="kz-admin-ozet" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px"></div>
+      <div id="kz-admin-ozet" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px"></div>
+
+      <!-- Sebep Bazında Özet + Çubuk Grafik (rapor estetiği) -->
+      <div id="kz-sebep-ozet-wrap"></div>
 
       <!-- Ekip Dashboard Grid (yan yana kutular) -->
       <div id="kz-ekip-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px;margin-bottom:20px"></div>
