@@ -1,4 +1,10 @@
 /* ============================================================
+   GLOBAL STATE - dosyanin en basinda tanimlanir, init kodu
+   calismadan once kesin olarak hazir olsun diye
+   ============================================================ */
+let _teamManagersOpen = false; // Ekip Yoneticileri bolumu - default kapali
+
+/* ============================================================
    ÇEVIRI / TRANSLATION SYSTEM
    ============================================================ */
 const translations = {
@@ -6161,6 +6167,7 @@ function handleGesture() {
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 // INIT & EVENT LISTENERS
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+_teamManagersOpen = false; // Sayfa yuklenirken kesin olarak kapali baslat (guvenlik onlemi)
 loadData();
 loadConfig();
 renderListe();
@@ -7375,7 +7382,7 @@ function renderEkipAnaliz() {
 // kullanıcı adı, çalışan sayısı, toplam kontrol edilen adet ve performans
 // ortalaması. _usersCache'teki "team" alanına sahip (admin olmayan)
 // kullanıcılar üzerinden çalışır.
-let _teamManagersOpen = true; // default acik
+// (tasindi: _teamManagersOpen artik dosyanin basinda tanimli)
 
 function toggleTeamManagersSection() {
   _teamManagersOpen = !_teamManagersOpen;
