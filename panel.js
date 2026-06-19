@@ -4909,17 +4909,17 @@ function performansHesapla(){
 
       // ── 2.Kalite Standart Süre Hesabı ────────────────────────────────────
       // Kural: 2.Kalite ürünlerde standart süre ve gerçekleşen süreye
-      // bakılmaksızın performans %80 olmalıdır.
+      // bakılmaksızın performans %70 olmalıdır.
       //
-      // Uygulama: standartSure = kayitFiiliSure × 0.80 olarak ayarlanır.
-      // Böylece bu satırın mesai içindeki payı × 0.80 × 100 = %80 performans
+      // Uygulama: standartSure = kayitFiiliSure × 0.70 olarak ayarlanır.
+      // Böylece bu satırın mesai içindeki payı × 0.70 × 100 = %70 performans
       // katkısı sağlanmış olur. Gerçekleşen süre yoksa (tarih bilgisi eksik)
       // 40sn × adet sabit kuralı fallback olarak kullanılmaya devam eder.
       const kayitFiiliSure2K = tarihGecerli
         ? hesaplaGerceklesenSure(parsedBaslangic, parsedBitis)
         : null;
       const standartSure2K = (kayitFiiliSure2K && kayitFiiliSure2K > 0)
-        ? kayitFiiliSure2K * 0.80   // %80 performans hedefi
+        ? kayitFiiliSure2K * 0.70   // %70 performans hedefi
         : 40 * adet;                // Tarih yoksa sabit fallback
 
       // Grup anahtarı olarak gerçek Klasman adı kullanılmaya çalışılır (varsa);
@@ -4950,7 +4950,7 @@ function performansHesapla(){
         no: kl2K.kayitlar.length + 1, klasman: klasmanKey2K, adet,
         standartSure: standartSure2K, kayitFiiliSure: kayitFiiliSure2K,
         kontrolAdetSuresi: (kayitFiiliSure2K && kayitFiiliSure2K > 0)
-          ? Math.round(kayitFiiliSure2K * 0.80 / Math.max(1, adet))
+          ? Math.round(kayitFiiliSure2K * 0.70 / Math.max(1, adet))
           : 40,  // Sabit fallback
         istasyonSuresi: 0, istasyonDetay: [],
         baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli,
@@ -5106,20 +5106,20 @@ function performansHesapla(){
     let mesaiSureSn;
     let performans = null;
 
-    // ── 2.Kalite %80 Performans Düzeltmesi ──────────────────────────────────
-    // 2.Kalite satırları için "standartSure = kayitFiiliSure × 0.80" kullandık.
+    // ── 2.Kalite %70 Performans Düzeltmesi ──────────────────────────────────
+    // 2.Kalite satırları için "standartSure = kayitFiiliSure × 0.70" kullandık.
     // Ancak kayitFiiliSure (satır başına mola-dahil süre) ile mesaiHesap
     // (günlük 7.5s × gün, mola düşülmüş) farklı tabanlardan geliyor; çok sayıda
     // kısa satır varsa ya da satırlar çakışıyorsa küçük sapmalar oluşabilir.
     //
     // Daha güvenilir düzeltme: tüm inspector standartSure hesaplandıktan SONRA,
-    // "2.Kalite satırlarının mesai içindeki ağırlığı × 0.80" olan bölümü
+    // "2.Kalite satırlarının mesai içindeki ağırlığı × 0.70" olan bölümü
     // geriye dönük olarak doğru değere ayarla.
     //
     // Adımlar:
     //  1) 2K klasmanlarının toplam kayitFiiliSure'si → 2K toplamı
     //  2) Tüm klasmanların toplam kayitFiiliSure'si → genel toplam
-    //  3) Eğer mesai belli ise: 2K_standartSure = mesaiSureSn × (2K_fiili / genel_fiili) × 0.80
+    //  3) Eğer mesai belli ise: 2K_standartSure = mesaiSureSn × (2K_fiili / genel_fiili) × 0.70
     //     (fiili süre oran olarak kullanılır — mesai içindeki pay tahmini)
     //  4) Normal klasmanların standartSure'si değişmez; sadece 2K klasmanlarınki güncellenir.
     //
@@ -5155,8 +5155,8 @@ function performansHesapla(){
       if (toplamFiiliSureTum > 0 && toplamFiiliSure2K > 0) {
         // 2K'nın mesai içindeki tahmini payı
         const pay2K = toplamFiiliSure2K / toplamFiiliSureTum;
-        // 2K için hedeflenen standartSure (%80 performans)
-        const hedeflenen2KStandart = mesaiSureSn * pay2K * 0.80;
+        // 2K için hedeflenen standartSure (%70 performans)
+        const hedeflenen2KStandart = mesaiSureSn * pay2K * 0.70;
         // Mevcut 2K standartSure toplamı
         const mevcut2KStandart = kalite2Klasmanlar.reduce((s, k) => s + (inspectorData.klasmanlar[k].toplamStandartSure || 0), 0);
         const duzeltmeOrani = mevcut2KStandart > 0 ? hedeflenen2KStandart / mevcut2KStandart : 1;
