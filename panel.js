@@ -7845,6 +7845,11 @@ async function fetchKayipZamanData() {
     const data = await jsonpFetch(url, { action: 'getKayipZaman', token });
     if (data?.status === 'ok' && Array.isArray(data.kayitlar)) {
       kayipZamanData = data.kayitlar;
+      // localStorage'a kaydet → sayfa yenilenince sıfırlanmasın
+      try {
+        localStorage.setItem(KZ_LS_KEY, JSON.stringify(kayipZamanData));
+        localStorage.setItem(KZ_LS_TS,  String(Date.now()));
+      } catch(e) { /* localStorage doluysa sessizce geç */ }
     }
   } catch(e) {
     console.warn('Kayıp zaman verisi çekilemedi:', e);
@@ -8054,6 +8059,21 @@ function renderKayipZamanEkipListe() {
 // ─── Admin: Sayfayı Yükle ───
 let _kzLastFetchTime = 0;
 const KZ_CACHE_MS = 20000; // 20 saniye icinde tekrar girilirse network'e gitmeden cache'den goster
+const KZ_LS_KEY   = 'kz_cache_data';    // localStorage anahtarı
+const KZ_LS_TS    = 'kz_cache_ts';      // localStorage zaman damgası
+const KZ_LS_MAX   = 10 * 60 * 1000;    // 10 dakika → localStorage cache geçerlilik süresi
+
+// localStorage'dan önceki oturumun verisini geri yükle (sayfa yenilenince sıfırlanmasın)
+(function _kzRestoreFromLS() {
+  try {
+    const ts  = parseInt(localStorage.getItem(KZ_LS_TS) || '0', 10);
+    const raw = localStorage.getItem(KZ_LS_KEY);
+    if (raw && ts && (Date.now() - ts) < KZ_LS_MAX) {
+      kayipZamanData   = JSON.parse(raw);
+      _kzLastFetchTime = ts;
+    }
+  } catch(e) { /* localStorage erişim hatası — sessizce geç */ }
+})();
 
 async function loadKayipZamanAdmin() {
   const perf = document.getElementById('kz-admin-perf-table');
