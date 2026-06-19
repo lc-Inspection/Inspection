@@ -1,10 +1,4 @@
 /* ============================================================
-   GLOBAL STATE - dosyanin en basinda tanimlanir, init kodu
-   calismadan once kesin olarak hazir olsun diye
-   ============================================================ */
-let _teamManagersOpen = false; // Ekip Yoneticileri bolumu - default kapali
-
-/* ============================================================
    ÇEVIRI / TRANSLATION SYSTEM
    ============================================================ */
 const translations = {
@@ -2010,29 +2004,6 @@ SHEET_NAME = 'Klasmanlar'      ← Sekme adı (değiştirmeye gerek yok)</div>
 // ────────────────────────────────────────────────────────────────────────────
 // PERFORMANS ANALİZİ — MANİFEST GÖNDER (manuel buton)
 // ────────────────────────────────────────────────────────────────────────────
-// ────────────────────────────────────────────────────────────────────────────
-// PERFORMANS VERİSİ — SENKRON DURUMU (Sheets'e gönderilmedi uyarısı)
-// ────────────────────────────────────────────────────────────────────────────
-// performansHesapla() her çalıştığında (örnekleme modu, tarih, sütun vs.
-// değiştiğinde) çağrılır. Veri artık otomatik Sheets'e gitmediği için
-// kullanıcıya "değişiklikler var, göndermedin" uyarısı gösterir.
-function markPerformansUnsynced() {
-  const btn = document.getElementById('perf-push-btn');
-  if (!btn) return;
-  btn.classList.add('btn-pulse-warning');
-  btn.dataset.unsynced = '1';
-  if (!btn.dataset.origLabel) btn.dataset.origLabel = btn.innerHTML;
-  btn.innerHTML = '📤 Sheets\'e Gönder <span style="background:#fff;color:#E65100;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px">●</span>';
-}
-
-function markPerformansSynced() {
-  const btn = document.getElementById('perf-push-btn');
-  if (!btn) return;
-  btn.classList.remove('btn-pulse-warning');
-  btn.dataset.unsynced = '0';
-  if (btn.dataset.origLabel) btn.innerHTML = btn.dataset.origLabel;
-}
-
 async function pushPerformansManual(ev) {
   window._uploadAborted = false;
   const url   = appConfig.sheetsWebAppUrl;
@@ -2113,7 +2084,6 @@ async function pushPerformansManual(ev) {
     await pushInspectorKayitlarToSheets(performansData, url, token);
 
     showSuccessMessage(`✅ ${performansData.length} ` + (translations[currentLang]||translations.tr).sheets_sent_perf);
-    markPerformansSynced();
   } catch(err) {
     alert('❌ Gönderme hatası: ' + err.message);
   } finally {
@@ -3061,9 +3031,10 @@ function onHedefChange() {
     renderDashboard();
     renderPerfTabloFromData();
     updateSidebar();
-    // NOT: Otomatik Sheets push kaldırıldı — artık sadece "Sheets'e Gönder"
-    // butonuna basıldığında gönderilir (bkz. manualPushPerformansToSheets).
-    markPerformansUnsynced();
+    // Sheets'e de güncelle — Excel yoksa bile hedef değişikliği push edilsin
+    if (!excelRows || excelRows.length === 0) {
+      pushPerformansRawToSheets(performansData);
+    }
   }
   // Tabloda da güncelle (Excel yüklüyse)
   if (excelRows && excelRows.length > 0) performansHesapla();
@@ -3453,9 +3424,7 @@ function showInspectorDetail(inspectorName) {
           kayitFiiliSure: k.kayitFiiliSure || 0, baslangic: k.baslangic,
           bitis: k.bitis, tarihGecerli: k.tarihGecerli,
           ortalamaKontrolSn: k.adet > 0 && k.kayitFiiliSure > 0 ? Math.round(k.kayitFiiliSure / k.adet) : null,
-          talepNo: k.talepNo || '',
-          is2KalitePerf80: k.is2KalitePerf80 || false,
-          inspectionTipi: k.inspectionTipi || ''
+          talepNo: k.talepNo || ''
         });
       });
     });
@@ -3466,18 +3435,13 @@ function showInspectorDetail(inspectorName) {
   openAnalizOverlay(buildTumKayitlar(inspector), inspector, _aoHedefValNow);
 
   // ── ARKA PLAN: Sheets'ten veri çek, gelince tabloyu güncelle ──
-  // ÖNEMLİ (v10.1): Performans verisi artık otomatik Sheets'e gönderilmiyor
-  // (sadece "📤 Sheets'e Gönder" butonuna basıldığında). Bu yüzden, eğer
-  // bellekte Excel'den taze hesaplanmış ama henüz gönderilmemiş ("unsynced")
-  // veri varsa, Sheets'ten çekilen eski veriyle ÜZERİNE YAZILMAZ — aksi
-  // halde doğru hesaplanan adet/standart süre gibi değerler eski sheet
-  // verisiyle değişebilir (örnekleme modu hatası buradan kaynaklanıyordu).
-  const perfPushBtn = document.getElementById('perf-push-btn');
-  const isUnsynced = perfPushBtn && perfPushBtn.dataset.unsynced === '1';
-
-  const url   = appConfig.sheetsWebAppUrl;
-  const token = appConfig.sheetsApiToken;
-  if (url && token && !isUnsynced) {
+  // Her zaman Sheets'ten taze veriyi çek (kayıtlar memory'de olsa bile)
+const url   = appConfig.sheetsWebAppUrl;
+const token = appConfig.sheetsApiToken;
+if (url && token) {
+    const url   = appConfig.sheetsWebAppUrl;
+    const token = appConfig.sheetsApiToken;
+    if (url && token) {
       // Loading göstergesi tablo altına ekle
       const loadBanner = document.createElement('div');
       loadBanner.id = 'ao-sheets-loading';
@@ -3521,6 +3485,7 @@ function showInspectorDetail(inspectorName) {
         })
         .catch(e => console.warn('getInspectorKayitlar hatası:', e.message))
         .finally(() => { const b = document.getElementById('ao-sheets-loading'); if(b) b.remove(); });
+    }
   }
 }
 
@@ -3684,7 +3649,7 @@ function exportInspectorDetail() {
         'Standart Süre (sn)':   std,
         'Gerçekleşen Süre':     fmtSnExcel(fiili),
         'Gerçekleşen (sn)':     fiili || '—',
-        'Oran (Std./Ger.)':     (k.is2KalitePerf80 || (k.inspectionTipi && k.inspectionTipi.toLowerCase().startsWith('2.kalite'))) ? '2. Kalite' : (oran !== null ? oran + '%' : '—'),
+        'Oran (Std./Ger.)':     oran !== null ? oran + '%' : '—',
         'Ort. Kontrol (sn/ad)': k.adet > 0 && fiili > 0 ? Math.round(fiili / k.adet) : '—',
         'Başlangıç':            fmtTarihExcel(k.baslangic),
         'Bitiş':                fmtTarihExcel(k.bitis),
@@ -4761,12 +4726,6 @@ function performansHesapla(){
   }) || '';
   const yapilanDepoCol = document.getElementById('col-yapilan-depo')?.value || '';
   const sonucCol = document.getElementById('col-sonuc')?.value || '';
-  // 2.Kalite sabit süre kuralı için "Inspection Tipi" sütununu otomatik bul
-  // (panelde ayrı bir seçim alanı yok — sadece Excel sütun adına bakılır)
-  const inspectionTipiCol = excelCols.find(c => {
-    const norm = c.toLowerCase().replace(/[^a-z0-9]/g,'').replace(/ş/g,'s').replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ö/g,'o').replace(/ı/g,'i').replace(/ç/g,'c');
-    return norm.includes('inspectiontipi');
-  }) || '';
   const orneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
   const verimlilikHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
 
@@ -4864,108 +4823,7 @@ function performansHesapla(){
       const depoVal = String(row[yapilanDepoCol] ?? '').trim();
       if (!depoVal) return;
     }
-
-    // ── 2.KALİTE SABİT SÜRE KURALI ─────────────────────────────────────────
-    // "Inspection Tipi" sütunu "2.Kalite" ile BAŞLAYAN bir değer içeriyorsa
-    // (örn. "2.Kalite Inspection-Açık Adet", "2.Kalite Inspection-Koli",
-    // "2.Kalite Takım" veya sade "2.Kalite") bu satır Klasman eşleştirmesine
-    // hiç bakılmaz; standart süre sabit olarak 40sn × adet (örnekleme sonrası)
-    // olarak hesaplanır. Diğer tüm kurallar (örnekleme, tarih, mesai vb.)
-    // olduğu gibi devam eder — sadece klasman/standart süre kaynağı değişir.
-    const inspectionTipiRaw = inspectionTipiCol ? String(row[inspectionTipiCol] || '').trim() : '';
-    const is2Kalite = inspectionTipiRaw.toLocaleLowerCase('tr-TR').startsWith('2.kalite');
-
-    if (is2Kalite) {
-      if (!ins || !adet) return;
-
-      if (!inspectorMap[ins]) {
-        inspectorMap[ins] = {
-          ins: ins,
-          klasmanlar: {},
-          toplamAdet: 0,
-          kayitListesi: [],
-          mesaiSureSn: null
-        };
-      }
-
-      // Mesai süresini parse et
-      if (mesaiHam !== null && mesaiHam !== undefined && mesaiHam !== '') {
-        const parsedMesai = parseMesaiSuresi(mesaiHam);
-        if (parsedMesai && parsedMesai > 0) {
-          if (inspectorMap[ins].mesaiSureSn === null || parsedMesai > inspectorMap[ins].mesaiSureSn) {
-            inspectorMap[ins].mesaiSureSn = parsedMesai;
-          }
-        }
-      }
-
-      if (tarihGecerli) {
-        const zatenVar = inspectorMap[ins].kayitListesi.some(
-          r => r.parsedBaslangic.getTime() === parsedBaslangic.getTime() &&
-               r.parsedBitis.getTime()     === parsedBitis.getTime()
-        );
-        if (!zatenVar) inspectorMap[ins].kayitListesi.push({ parsedBaslangic, parsedBitis });
-        basariliTarihKayitlar++;
-      } else {
-        tarihHataliKayitlar++;
-      }
-
-      // ── 2.Kalite Standart Süre Hesabı ────────────────────────────────────
-      // Kural: 2.Kalite ürünlerde standart süre ve gerçekleşen süreye
-      // bakılmaksızın performans %80 olmalıdır.
-      //
-      // Uygulama: standartSure = kayitFiiliSure × 0.80 olarak ayarlanır.
-      // Böylece bu satırın mesai içindeki payı × 0.80 × 100 = %80 performans
-      // katkısı sağlanmış olur. Gerçekleşen süre yoksa (tarih bilgisi eksik)
-      // 40sn × adet sabit kuralı fallback olarak kullanılmaya devam eder.
-      const kayitFiiliSure2K = tarihGecerli
-        ? hesaplaGerceklesenSure(parsedBaslangic, parsedBitis)
-        : null;
-      const standartSure2K = (kayitFiiliSure2K && kayitFiiliSure2K > 0)
-        ? kayitFiiliSure2K * 0.80   // %80 performans hedefi
-        : 40 * adet;                // Tarih yoksa sabit fallback
-
-      // Grup anahtarı olarak gerçek Klasman adı kullanılmaya çalışılır (varsa);
-      // yoksa "2.Kalite" özel grubu altında toplanır. Standart süre/istasyon
-      // bilgisi klasmana bakılmaksızın sabit kuraldan gelir.
-      const klasmanKey2K = excelKlasman || '2.Kalite';
-      if (!inspectorMap[ins].klasmanlar[klasmanKey2K]) {
-        inspectorMap[ins].klasmanlar[klasmanKey2K] = {
-          kayitlar: [],
-          toplamAdet: 0,
-          toplamStandartSure: 0,
-          toplamKayitFiiliSure: 0
-        };
-      }
-      const kl2K = inspectorMap[ins].klasmanlar[klasmanKey2K];
-      kl2K.toplamAdet += adet;
-      kl2K.toplamStandartSure += standartSure2K;
-      if (kayitFiiliSure2K && kayitFiiliSure2K > 0) {
-        kl2K.toplamKayitFiiliSure += kayitFiiliSure2K;
-      }
-      const kayitNormalSayilir2K = kayitNormalMi(parsedBitis);
-      if (kayitNormalSayilir2K) {
-        kl2K.toplamStandartSureNormal = (kl2K.toplamStandartSureNormal||0) + standartSure2K;
-      } else {
-        kl2K.toplamStandartSureOvertime = (kl2K.toplamStandartSureOvertime||0) + standartSure2K;
-      }
-      kl2K.kayitlar.push({
-        no: kl2K.kayitlar.length + 1, klasman: klasmanKey2K, adet,
-        standartSure: standartSure2K, kayitFiiliSure: kayitFiiliSure2K,
-        kontrolAdetSuresi: (kayitFiiliSure2K && kayitFiiliSure2K > 0)
-          ? Math.round(kayitFiiliSure2K * 0.80 / Math.max(1, adet))
-          : 40,  // Sabit fallback
-        istasyonSuresi: 0, istasyonDetay: [],
-        baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli,
-        normalMesai: kayitNormalSayilir2K,
-        talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '',
-        inspectionTipi: inspectionTipiRaw,
-        is2KalitePerf80: true   // Debug/görsel için işaret
-      });
-
-      inspectorMap[ins].toplamAdet += adet;
-      return; // Bu satır için normal klasman akışına devam edilmez
-    }
-
+    
     if(!excelKlasman || !ins || !adet) return;
     
     const klasmanKey = normalize(excelKlasman);
@@ -5107,84 +4965,18 @@ function performansHesapla(){
     // Tek Performans Metriği - Mesai Bazlı
     let mesaiSureSn;
     let performans = null;
-
-    // ── 2.Kalite %80 Performans Düzeltmesi ──────────────────────────────────
-    // 2.Kalite satırları için "standartSure = kayitFiiliSure × 0.80" kullandık.
-    // Ancak kayitFiiliSure (satır başına mola-dahil süre) ile mesaiHesap
-    // (günlük 7.5s × gün, mola düşülmüş) farklı tabanlardan geliyor; çok sayıda
-    // kısa satır varsa ya da satırlar çakışıyorsa küçük sapmalar oluşabilir.
-    //
-    // Daha güvenilir düzeltme: tüm inspector standartSure hesaplandıktan SONRA,
-    // "2.Kalite satırlarının mesai içindeki ağırlığı × 0.80" olan bölümü
-    // geriye dönük olarak doğru değere ayarla.
-    //
-    // Adımlar:
-    //  1) 2K klasmanlarının toplam kayitFiiliSure'si → 2K toplamı
-    //  2) Tüm klasmanların toplam kayitFiiliSure'si → genel toplam
-    //  3) Eğer mesai belli ise: 2K_standartSure = mesaiSureSn × (2K_fiili / genel_fiili) × 0.80
-    //     (fiili süre oran olarak kullanılır — mesai içindeki pay tahmini)
-    //  4) Normal klasmanların standartSure'si değişmez; sadece 2K klasmanlarınki güncellenir.
-    //
-    // NOT: Bu adım mesaiSureSn belli olduktan SONRA uygulanabilir, dolayısıyla
-    // aşağıdaki mesai hesabından sonraya taşındı.
-
-    // Mesaiyi hesapla
+    
     if (inspectorData.mesaiSureSn && inspectorData.mesaiSureSn > 0) {
+      // Excel'den mesai sütunu var
       mesaiSureSn = inspectorData.mesaiSureSn;
+      performans = Math.round((toplamStandartSure / mesaiSureSn) * 100);
     } else if (mesaiHesap && mesaiHesap.toplamMesaiSaniye > 0) {
+      // Günlük 7.5 saat × gün sayısı
       mesaiSureSn = mesaiHesap.toplamMesaiSaniye;
-    } else {
-      mesaiSureSn = fiiliSureSn;
-    }
-
-    // 2.Kalite klasmanlarını bul
-    const kalite2Klasmanlar = Object.keys(inspectorData.klasmanlar).filter(k => {
-      const kayitlar = inspectorData.klasmanlar[k].kayitlar || [];
-      return kayitlar.length > 0 && kayitlar.every(r => r.is2KalitePerf80);
-    });
-    const normalKlasmanlar = Object.keys(inspectorData.klasmanlar).filter(k => !kalite2Klasmanlar.includes(k));
-
-    if (kalite2Klasmanlar.length > 0 && mesaiSureSn && mesaiSureSn > 0) {
-      // Tüm klasmanların toplamKayitFiiliSure'si (ağırlık tabanı)
-      let toplamFiiliSureTum = 0;
-      let toplamFiiliSure2K  = 0;
-      Object.entries(inspectorData.klasmanlar).forEach(([k, kl]) => {
-        const f = kl.toplamKayitFiiliSure || 0;
-        toplamFiiliSureTum += f;
-        if (kalite2Klasmanlar.includes(k)) toplamFiiliSure2K += f;
-      });
-
-      if (toplamFiiliSureTum > 0 && toplamFiiliSure2K > 0) {
-        // 2K'nın mesai içindeki tahmini payı
-        const pay2K = toplamFiiliSure2K / toplamFiiliSureTum;
-        // 2K için hedeflenen standartSure (%80 performans)
-        const hedeflenen2KStandart = mesaiSureSn * pay2K * 0.80;
-        // Mevcut 2K standartSure toplamı
-        const mevcut2KStandart = kalite2Klasmanlar.reduce((s, k) => s + (inspectorData.klasmanlar[k].toplamStandartSure || 0), 0);
-        const duzeltmeOrani = mevcut2KStandart > 0 ? hedeflenen2KStandart / mevcut2KStandart : 1;
-
-        // 2K klasmanlarının standartSure'sini düzelt
-        kalite2Klasmanlar.forEach(k => {
-          const kl = inspectorData.klasmanlar[k];
-          const eskiStandart = kl.toplamStandartSure || 0;
-          const yeniStandart = eskiStandart * duzeltmeOrani;
-          toplamStandartSure = toplamStandartSure - eskiStandart + yeniStandart;
-          toplamStandartSureNormal   -= (kl.toplamStandartSureNormal || 0);
-          toplamStandartSureOvertime -= (kl.toplamStandartSureOvertime || 0);
-          toplamStandartSureNormal   += (kl.toplamStandartSureNormal || 0) * duzeltmeOrani;
-          toplamStandartSureOvertime += (kl.toplamStandartSureOvertime || 0) * duzeltmeOrani;
-          // klasmanlarObj'yi de güncelle (görüntü için)
-          if (klasmanlarObj[k]) {
-            klasmanlarObj[k].standartSure = yeniStandart;
-          }
-        });
-      }
-    }
-
-    // Toplam performansı hesapla
-    if (mesaiSureSn && mesaiSureSn > fiiliSureSn * 0.1) {
       performans = Math.round((toplamStandartSure / mesaiSureSn) * 100);
     } else {
+      // Hiçbiri yoksa null
+      mesaiSureSn = fiiliSureSn; // Gösterim için
       performans = null;
     }
 
@@ -5255,12 +5047,9 @@ function performansHesapla(){
   // Yeni bir yükleme başlıyor — önceki Temizle iptalini sıfırla
   window._uploadAborted = false;
 
-  // NOT: Otomatik Sheets gönderimi KALDIRILDI.
-  // Her hesaplamada (sütun değişimi, örnekleme modu, tarih aralığı vb.)
-  // Google Sheets'e otomatik yazma yapılmaz. Veri sadece "📤 Sheets'e Gönder"
-  // butonuna (pushPerformansManual) basıldığında gönderilir. Bu sayede:
-  //  - Ayar değiştirirken Sheets'e art arda istek atılmaz (race condition önlenir)
-  //  - Detay modalında yanlışlıkla eski/yarım veri görünmesi engellenir
+  // Google Sheets'e otomatik gönder (bağlantı ayarı yapılmışsa)
+  pushPerformansToSheets(liste);
+  pushPerformansRawToSheets(liste); // tam JSON — diğer bilgisayarlardan çekilebilir
   
   const satirlar=liste.map((row,i)=>{
     const ini=row.ins.split(' ').map(w=>w[0]||'').slice(0,2).join('').toUpperCase();
@@ -6169,7 +5958,6 @@ function handleGesture() {
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 // INIT & EVENT LISTENERS
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
-_teamManagersOpen = false; // Sayfa yuklenirken kesin olarak kapali baslat (guvenlik onlemi)
 loadData();
 loadConfig();
 renderListe();
@@ -7384,16 +7172,6 @@ function renderEkipAnaliz() {
 // kullanıcı adı, çalışan sayısı, toplam kontrol edilen adet ve performans
 // ortalaması. _usersCache'teki "team" alanına sahip (admin olmayan)
 // kullanıcılar üzerinden çalışır.
-// (tasindi: _teamManagersOpen artik dosyanin basinda tanimli)
-
-function toggleTeamManagersSection() {
-  _teamManagersOpen = !_teamManagersOpen;
-  const grid = document.getElementById('team-managers-grid');
-  const chevron = document.getElementById('team-managers-chevron');
-  if (grid) grid.style.display = _teamManagersOpen ? '' : 'none';
-  if (chevron) chevron.style.transform = _teamManagersOpen ? 'rotate(90deg)' : 'rotate(0deg)';
-}
-
 async function renderTeamManagersSection() {
   const section = document.getElementById('team-managers-section');
   const grid = document.getElementById('team-managers-grid');
@@ -7416,14 +7194,6 @@ async function renderTeamManagersSection() {
     section.style.display = 'none';
     return;
   }
-
-  const countLbl = document.getElementById('team-managers-count');
-  if (countLbl) countLbl.textContent = `${managers.length} ekip`;
-
-  // Mevcut açık/kapalı durumunu koru (varsayılan: kapalı)
-  grid.style.display = _teamManagersOpen ? '' : 'none';
-  const chevron = document.getElementById('team-managers-chevron');
-  if (chevron) chevron.style.transform = _teamManagersOpen ? 'rotate(90deg)' : 'rotate(0deg)';
 
   const t = translations[currentLang] || translations.tr;
 
@@ -7845,11 +7615,6 @@ async function fetchKayipZamanData() {
     const data = await jsonpFetch(url, { action: 'getKayipZaman', token });
     if (data?.status === 'ok' && Array.isArray(data.kayitlar)) {
       kayipZamanData = data.kayitlar;
-      // localStorage'a kaydet → sayfa yenilenince sıfırlanmasın
-      try {
-        localStorage.setItem(KZ_LS_KEY, JSON.stringify(kayipZamanData));
-        localStorage.setItem(KZ_LS_TS,  String(Date.now()));
-      } catch(e) { /* localStorage doluysa sessizce geç */ }
     }
   } catch(e) {
     console.warn('Kayıp zaman verisi çekilemedi:', e);
@@ -8057,51 +7822,14 @@ function renderKayipZamanEkipListe() {
 }
 
 // ─── Admin: Sayfayı Yükle ───
-let _kzLastFetchTime = 0;
-const KZ_CACHE_MS = 20000; // 20 saniye icinde tekrar girilirse network'e gitmeden cache'den goster
-const KZ_LS_KEY   = 'kz_cache_data';    // localStorage anahtarı
-const KZ_LS_TS    = 'kz_cache_ts';      // localStorage zaman damgası
-const KZ_LS_MAX   = 10 * 60 * 1000;    // 10 dakika → localStorage cache geçerlilik süresi
-
-// localStorage'dan önceki oturumun verisini geri yükle (sayfa yenilenince sıfırlanmasın)
-(function _kzRestoreFromLS() {
-  try {
-    const ts  = parseInt(localStorage.getItem(KZ_LS_TS) || '0', 10);
-    const raw = localStorage.getItem(KZ_LS_KEY);
-    if (raw && ts && (Date.now() - ts) < KZ_LS_MAX) {
-      kayipZamanData   = JSON.parse(raw);
-      _kzLastFetchTime = ts;
-    }
-  } catch(e) { /* localStorage erişim hatası — sessizce geç */ }
-})();
-
 async function loadKayipZamanAdmin() {
+  // Loading goster
   const perf = document.getElementById('kz-admin-perf-table');
   const liste = document.getElementById('kz-admin-liste');
-
-  const cacheTaze = kayipZamanData.length > 0 && (Date.now() - _kzLastFetchTime) < KZ_CACHE_MS;
-
-  if (cacheTaze) {
-    // Veri taze (20sn icinde cekilmis) - aninda render et, network'e gitme
-    ['kz-admin-filter-ekip','kz-admin-filter-inspector'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) { while(el.options.length > 1) el.remove(1); }
-    });
-    window._kzAdminPage = 1;
-    _kzDetayPage = 1;
-    _kzStartDate = '';
-    _kzEndDate = '';
-    renderKayipZamanAdminAll();
-    updateKayipNavBadge();
-    return;
-  }
-
-  // Loading goster
   if (perf)  perf.innerHTML  = '<div style="padding:30px;text-align:center;color:var(--muted)">\u23F3 Veri çekiliyor...</div>';
   if (liste) liste.innerHTML = '';
 
   await fetchKayipZamanData();
-  _kzLastFetchTime = Date.now();
 
   // Dropdown'lari sifirla
   ['kz-admin-filter-ekip','kz-admin-filter-inspector'].forEach(id => {
@@ -8109,17 +7837,10 @@ async function loadKayipZamanAdmin() {
     if (el) { while(el.options.length > 1) el.remove(1); }
   });
   window._kzAdminPage = 1;
-  _kzDetayPage = 1;
   _kzStartDate = '';
   _kzEndDate = '';
   renderKayipZamanAdminAll();
   updateKayipNavBadge();
-}
-
-// "Yenile" butonu icin: cache'i atlayip zorla yeniden ceker
-async function forceRefreshKayipZamanAdmin() {
-  _kzLastFetchTime = 0;
-  await loadKayipZamanAdmin();
 }
 
 function updateKayipNavBadge() {
@@ -8145,7 +7866,6 @@ function renderKayipZamanAdminAll() {
 
 // Filtre degisince hem detayli tablo hem liste yenilenir
 function onKzAdminFilterChange() {
-  _kzDetayPage = 1;
   renderKayipZamanDetayliTablo();
 }
 
@@ -8156,41 +7876,7 @@ function renderKayipZamanAdminOzet() {
   const toplamKayit = kayipZamanData.length;
   const toplamDk    = kayipZamanData.reduce((s,r)=>s+(r.sureDk||0),0);
   const inspSayisi  = new Set(kayipZamanData.map(r=>r.inspector)).size;
-
-  // Ilk ve son kayit tarihini bul (YYYY-MM-DD string karsilastirmasi guvenilir siralamadir)
-  const tarihKisaListesi = kayipZamanData.map(r => formatTarihKisaISO(r.tarih)).filter(Boolean).sort();
-  const ilkTarihISO = tarihKisaListesi.length ? tarihKisaListesi[0] : null;
-  const sonTarihISO = tarihKisaListesi.length ? tarihKisaListesi[tarihKisaListesi.length-1] : null;
-  const ilkTarihGorunum = ilkTarihISO ? formatTarihKisa(ilkTarihISO) : '—';
-  const sonTarihGorunum = sonTarihISO ? formatTarihKisa(sonTarihISO) : '—';
-
-  function tahminiAdetIcinOzet(insName, dk) {
-    const perfObj = performansData.find(p => (p.ins||'').toLowerCase() === (insName||'').toLowerCase());
-    if (!perfObj) return null;
-    const hiz = getSaatlikAdetHizi(perfObj);
-    if (!hiz) return null;
-    return Math.round(hiz * (dk/60));
-  }
-  let toplamAdet = 0, adetVarMi = false;
-  kayipZamanData.forEach(r => {
-    const a = tahminiAdetIcinOzet(r.inspector, r.sureDk);
-    if (a !== null) { toplamAdet += a; adetVarMi = true; }
-  });
-
-  const tarihBarHtml = toplamKayit > 0 ? `
-    <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:#fff;border:1px solid var(--border2);border-radius:10px;padding:11px 16px;margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:7px">
-        <span style="font-size:14px">📅</span>
-        <span style="font-size:11.5px;color:var(--muted);font-weight:600">İlk Kayıt Tarihi:</span>
-        <span style="font-size:12.5px;color:var(--navy);font-weight:700;font-family:'DM Mono',monospace">${ilkTarihGorunum}</span>
-      </div>
-      <span style="color:var(--border2)">|</span>
-      <div style="display:flex;align-items:center;gap:7px">
-        <span style="font-size:11.5px;color:var(--muted);font-weight:600">Son Kayıt Tarihi:</span>
-        <span style="font-size:12.5px;color:var(--navy);font-weight:700;font-family:'DM Mono',monospace">${sonTarihGorunum}</span>
-      </div>
-    </div>` : '';
-
+  const ekipSayisi  = new Set(kayipZamanData.map(r=>r.ekipYoneticisi)).size;
   el.innerHTML = `
     <div class="summary-stat" style="border-color:#EF9A9A;background:linear-gradient(135deg,#FFEBEE 0%,#fff 100%)">
       <div class="summary-stat-value" style="color:#C62828">${toplamKayit}</div>
@@ -8204,112 +7890,9 @@ function renderKayipZamanAdminOzet() {
       <div class="summary-stat-value" style="color:var(--blue2)">${inspSayisi}</div>
       <div class="summary-stat-label">Etkilenen Inspector</div>
     </div>
-    <div class="summary-stat" style="border-color:#A5D6A7;background:linear-gradient(135deg,#E8F5E9 0%,#fff 100%)">
-      <div class="summary-stat-value" style="color:#2E7D32">${adetVarMi ? '~'+toplamAdet.toLocaleString('tr-TR') : '—'}</div>
-      <div class="summary-stat-label">Tahmini Kayıp Adet</div>
-    </div>`;
-
-  const tarihBarContainer = document.getElementById('kz-tarih-ozet-bar');
-  if (tarihBarContainer) tarihBarContainer.innerHTML = tarihBarHtml;
-
-  renderKayipZamanSebepOzetKartlari();
-}
-
-// formatTarihKisa'nin YYYY-MM-DD string'e cevirebilen versiyonu - siralama icin guvenilir
-function formatTarihKisaISO(tarih) {
-  if (!tarih) return '';
-  const s = String(tarih);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  try {
-    const d = new Date(s);
-    if (!isNaN(d)) {
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth()+1).padStart(2,'0');
-      const dd = String(d.getDate()).padStart(2,'0');
-      return `${yyyy}-${mm}-${dd}`;
-    }
-  } catch(e) {}
-  return '';
-}
-
-// ─── Sebep Bazında Özet Kartları + Çubuk Grafik (ana sayfada, rapor estetiğiyle) ───
-function renderKayipZamanSebepOzetKartlari() {
-  const wrap = document.getElementById('kz-sebep-ozet-wrap');
-  if (!wrap) return;
-
-  if (!kayipZamanData.length) { wrap.innerHTML = ''; return; }
-
-  function tahminiAdetIcinSebep(insName, dk) {
-    const perfObj = performansData.find(p => (p.ins||'').toLowerCase() === (insName||'').toLowerCase());
-    if (!perfObj) return null;
-    const hiz = getSaatlikAdetHizi(perfObj);
-    if (!hiz) return null;
-    return Math.round(hiz * (dk/60));
-  }
-
-  const sebepMap = {};
-  kayipZamanData.forEach(r => {
-    const s = r.sebep || 'Diğer';
-    if (!sebepMap[s]) sebepMap[s] = { dk: 0, insSet: new Set(), kayit: 0, adet: 0, adetVarMi: false };
-    sebepMap[s].dk += r.sureDk || 0;
-    sebepMap[s].insSet.add(r.inspector || '');
-    sebepMap[s].kayit += 1;
-    const a = tahminiAdetIcinSebep(r.inspector, r.sureDk);
-    if (a !== null) { sebepMap[s].adet += a; sebepMap[s].adetVarMi = true; }
-  });
-  const sebepSirali = Object.entries(sebepMap).sort((a,b)=>b[1].dk - a[1].dk);
-  const maxDk = sebepSirali.length ? sebepSirali[0][1].dk : 1;
-
-  const sebepKartHtml = sebepSirali.map(([s, d]) => `
-    <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px 20px">
-      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
-        <span style="font-size:24px;line-height:1">${SEBEP_IKONLAR[s]||'📝'}</span>
-        <div>
-          <div style="font-size:14px;font-weight:700;color:var(--navy)">${_escapeHtml(s)}</div>
-          <div style="font-size:10.5px;color:var(--muted2);margin-top:2px">${d.kayit} kayıt · ${d.insSet.size} inspector</div>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--red)">${(d.dk/60).toFixed(1)}s</div>
-          <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Bekleme Saati</div>
-        </div>
-        <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+d.adet.toLocaleString('tr-TR') : '—'}</div>
-          <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Tah. Kayıp Adet</div>
-        </div>
-        <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.insSet.size}</div>
-          <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Inspector</div>
-        </div>
-      </div>
-    </div>`).join('');
-
-  const barRenkler = ['linear-gradient(90deg,#1565C0,#42A5F5)','linear-gradient(90deg,#E65100,#FFA726)','linear-gradient(90deg,#6A1B9A,#AB47BC)','linear-gradient(90deg,#2E7D32,#66BB6A)'];
-  const barHtml = sebepSirali.map(([s,d], i) => {
-    const pct = Math.max(8, Math.round((d.dk / maxDk) * 100));
-    return `
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:${i === sebepSirali.length-1 ? 0 : 16}px">
-      <div style="width:170px;font-size:12px;font-weight:600;color:var(--navy);flex-shrink:0">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}</div>
-      <div style="flex:1;height:22px;background:var(--offwhite);border-radius:6px;overflow:hidden;position:relative">
-        <div style="height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;width:${pct}%;background:${barRenkler[i%barRenkler.length]}">
-          <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#fff">${(d.dk/60).toFixed(1)}s</span>
-        </div>
-      </div>
-      <div style="width:70px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);flex-shrink:0">${d.dk} dk</div>
-    </div>`;
-  }).join('');
-
-  wrap.innerHTML = `
-    <div style="font-size:14px;font-weight:700;color:var(--navy);margin:4px 0 14px;display:flex;align-items:center;gap:8px">
-      📦 Sebep Bazında Özet <span style="background:var(--lblue3);color:var(--blue2);font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">${sebepSirali.length} sebep</span>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px">
-      ${sebepKartHtml}
-    </div>
-    <div style="font-size:14px;font-weight:700;color:var(--navy);margin:0 0 14px">📊 Sebep Bazında Bekleme Saati Dağılımı</div>
-    <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:22px 24px;margin-bottom:20px">
-      ${barHtml}
+    <div class="summary-stat">
+      <div class="summary-stat-value">${ekipSayisi}</div>
+      <div class="summary-stat-label">Ekip Yöneticisi</div>
     </div>`;
 }
 
@@ -8317,8 +7900,6 @@ function renderKayipZamanSebepOzetKartlari() {
 let _kzStartDate = '', _kzEndDate = '';
 
 let _kzDetayAcik = {}; // hangi inspector satiri acik
-let _kzDetayPage = 1;
-const KZ_DETAY_PAGE_SIZE = 20;
 
 function renderKayipZamanDetayliTablo() {
   const container = document.getElementById('kz-admin-perf-table');
@@ -8425,13 +8006,7 @@ function renderKayipZamanDetayliTablo() {
   });
 
   // Inspector satirlari - sadece ozet, tiklayinca detay acilir
-  const inspEntriesAll = Object.values(inspMap).sort((a,b)=>b.dk-a.dk);
-  const kzTotalPages = Math.max(1, Math.ceil(inspEntriesAll.length / KZ_DETAY_PAGE_SIZE));
-  if (_kzDetayPage > kzTotalPages) _kzDetayPage = kzTotalPages;
-  if (_kzDetayPage < 1) _kzDetayPage = 1;
-  const inspEntriesPage = inspEntriesAll.slice((_kzDetayPage-1)*KZ_DETAY_PAGE_SIZE, _kzDetayPage*KZ_DETAY_PAGE_SIZE);
-
-  const inspRows = inspEntriesPage.map(({isim, ekip, dk, kayitlar: ks}, idx) => {
+  const inspRows = Object.values(inspMap).sort((a,b)=>b.dk-a.dk).map(({isim, ekip, dk, kayitlar: ks}, idx) => {
     const rowId = 'kzd_' + idx;
     const isOpen = _kzDetayAcik[isim] === true;
     const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
@@ -8482,25 +8057,16 @@ function renderKayipZamanDetayliTablo() {
           <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;width:80px">Kayıt</th>
         </tr></thead>
         <tbody>${inspRows}</tbody>
-      </table>
-      ${kzTotalPages > 1 ? `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px 4px;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border2);margin-top:4px">
-        <span style="font-size:11.5px;color:var(--muted)">${(_kzDetayPage-1)*KZ_DETAY_PAGE_SIZE+1}–${Math.min(_kzDetayPage*KZ_DETAY_PAGE_SIZE, inspEntriesAll.length)} / ${inspEntriesAll.length} inspector</span>
-        <div style="display:flex;gap:4px;align-items:center">
-          <button onclick="_kzDetayPage--;renderKayipZamanDetayliTablo()" ${_kzDetayPage<=1?'disabled':''} style="padding:5px 11px;border-radius:6px;border:1px solid var(--border2);background:#fff;font-size:12px;cursor:${_kzDetayPage<=1?'default':'pointer'};color:${_kzDetayPage<=1?'var(--muted2)':'var(--navy)'};font-weight:600">‹ Önceki</button>
-          <span style="font-size:12px;color:var(--navy);font-weight:700;padding:0 6px">${_kzDetayPage} / ${kzTotalPages}</span>
-          <button onclick="_kzDetayPage++;renderKayipZamanDetayliTablo()" ${_kzDetayPage>=kzTotalPages?'disabled':''} style="padding:5px 11px;border-radius:6px;border:1px solid var(--border2);background:#fff;font-size:12px;cursor:${_kzDetayPage>=kzTotalPages?'default':'pointer'};color:${_kzDetayPage>=kzTotalPages?'var(--muted2)':'var(--navy)'};font-weight:600">Sonraki ›</button>
-        </div>
-      </div>` : ''}`
+      </table>`
     : '<div style="padding:20px;text-align:center;color:var(--muted)">Seçilen aralıkta kayıt yok</div>';
 
   container.innerHTML = `
     <div class="kz-tarih-bar">
       <span class="kz-tarih-label">📅 Tarih Aralığı</span>
-      <input type="date" id="kz-date-start" value="${_kzStartDate}" onchange="_kzStartDate=this.value;_kzDetayPage=1;renderKayipZamanDetayliTablo()" class="kz-date-input">
+      <input type="date" id="kz-date-start" value="${_kzStartDate}" onchange="_kzStartDate=this.value;renderKayipZamanDetayliTablo()" class="kz-date-input">
       <span class="kz-tarih-ayrac">—</span>
-      <input type="date" id="kz-date-end" value="${_kzEndDate}" onchange="_kzEndDate=this.value;_kzDetayPage=1;renderKayipZamanDetayliTablo()" class="kz-date-input">
-      ${(_kzStartDate||_kzEndDate)?`<button onclick="_kzStartDate='';_kzEndDate='';_kzDetayPage=1;renderKayipZamanDetayliTablo()" class="kz-tarih-temizle">✕ Temizle</button>`:''}
+      <input type="date" id="kz-date-end" value="${_kzEndDate}" onchange="_kzEndDate=this.value;renderKayipZamanDetayliTablo()" class="kz-date-input">
+      ${(_kzStartDate||_kzEndDate)?`<button onclick="_kzStartDate='';_kzEndDate='';renderKayipZamanDetayliTablo()" class="kz-tarih-temizle">✕ Temizle</button>`:''}
     </div>
     ${topSebepler.length ? `<div class="kz-sebep-grid">${sebepKartlar}</div>` : ''}
     ${tableHtml}`;
@@ -8663,20 +8229,10 @@ function showKayipZamanRaporGorunumu() {
   const sebepSirali = Object.entries(sebepMap).sort((a,b)=>b[1].dk - a[1].dk);
   const maxDk = sebepSirali.length ? sebepSirali[0][1].dk : 1;
 
-  // Tarih aralığı metni: filtre varsa onu goster, yoksa gercek veri aralığını (ilk-son kayit) goster
-  let tarihMetni;
-  if (_kzStartDate || _kzEndDate) {
-    tarihMetni = `${_kzStartDate ? formatTarihKisa(_kzStartDate) : 'başlangıç'} – ${_kzEndDate ? formatTarihKisa(_kzEndDate) : 'bugün'}`;
-  } else {
-    const tarihler = records.map(r => formatTarihKisaISO(r.tarih)).filter(Boolean).sort();
-    if (tarihler.length) {
-      const ilk = formatTarihKisa(tarihler[0]);
-      const son = formatTarihKisa(tarihler[tarihler.length-1]);
-      tarihMetni = ilk === son ? ilk : `${ilk} – ${son}`;
-    } else {
-      tarihMetni = new Date().toLocaleDateString('tr-TR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-    }
-  }
+  // Tarih aralığı metni
+  const tarihMetni = (_kzStartDate || _kzEndDate)
+    ? `${_kzStartDate ? formatTarihKisa(new Date(_kzStartDate)) || _kzStartDate : 'başlangıç'} – ${_kzEndDate ? formatTarihKisa(new Date(_kzEndDate)) || _kzEndDate : 'bugün'}`
+    : new Date().toLocaleDateString('tr-TR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
   // ── Sebep özet kartları ──
   const sebepKartHtml = sebepSirali.map(([s, d]) => `
@@ -8862,7 +8418,6 @@ async function clearAllKayipZaman() {
   try {
     await jsonpFetch(url, { action: 'clearKayipZaman', token });
     kayipZamanData = [];
-    _kzLastFetchTime = 0;
     renderKayipZamanAdminAll();
     updateKayipNavBadge();
     showSuccessMessage('✅ Kayıp zaman verileri silindi!');
