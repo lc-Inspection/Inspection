@@ -222,10 +222,14 @@
 
       <!-- Ekip Yöneticileri (sadece admin için) -->
       <div id="team-managers-section" style="display:none">
-        <div class="section-label">
-          <span>🧑‍💼</span><span data-i18n="team_managers_label">Ekip Yöneticileri</span>
+        <div id="team-managers-toggle" onclick="toggleTeamManagersSection()" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--lblue3) 0%,#fff 100%);border:1px solid var(--lblue);border-radius:10px;padding:11px 16px;margin:4px 0 12px;transition:background .15s">
+          <span style="font-size:15px">🧑‍💼</span>
+          <span style="font-size:12px;font-weight:700;color:var(--navy);letter-spacing:.3px" data-i18n="team_managers_label">Ekip Yöneticileri</span>
+          <span id="team-managers-count" style="font-size:11px;color:var(--blue2);font-weight:700;background:rgba(33,150,243,.12);padding:1px 8px;border-radius:99px"></span>
+          <span style="font-size:10.5px;color:var(--muted);margin-left:4px">— görmek için tıkla</span>
+          <span id="team-managers-chevron" style="margin-left:auto;font-size:12px;color:var(--blue2);transition:transform .2s">▶</span>
         </div>
-        <div id="team-managers-grid" class="team-managers-grid"></div>
+        <div id="team-managers-grid" class="team-managers-grid" style="display:none"></div>
       </div>
 
       <div class="section-label" id="general-status-label" style="display:none">
@@ -1036,7 +1040,7 @@
           <p>Tüm ekiplerin kayıp zaman kayıtları ve düzeltilmiş performanslar</p>
         </div>
         <div class="ph-buttons">
-          <button class="btn" onclick="loadKayipZamanAdmin()">🔄 Yenile</button>
+          <button class="btn" onclick="forceRefreshKayipZamanAdmin()">🔄 Yenile</button>
           <button class="btn" onclick="showKayipZamanRaporGorunumu()" style="background:var(--lblue3);color:var(--blue2);border-color:var(--lblue)">📄 Rapor Görünümü</button>
           <button class="btn" onclick="showKayipZamanSebepPopup()" style="background:var(--lamber);color:var(--amber);border-color:var(--amber)">⚠️ Sebep Özeti</button>
           <button class="btn" onclick="exportKayipZamanExcel()" style="background:#E8F5E9;color:#2E7D32;border-color:#A5D6A7">📊 Excel</button>
@@ -1044,8 +1048,14 @@
         </div>
       </div>
 
+      <!-- İlk/Son Kayıt Tarihi Şeridi -->
+      <div id="kz-tarih-ozet-bar"></div>
+
       <!-- Özet Kartlar -->
-      <div id="kz-admin-ozet" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px"></div>
+      <div id="kz-admin-ozet" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px"></div>
+
+      <!-- Sebep Bazında Özet + Çubuk Grafik (rapor estetiği) -->
+      <div id="kz-sebep-ozet-wrap"></div>
 
       <!-- Ekip Dashboard Grid (yan yana kutular) -->
       <div id="kz-ekip-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px;margin-bottom:20px"></div>
@@ -1058,13 +1068,13 @@
             Detayli Inspector Tablosu
           </h2>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <select id="kz-admin-filter-ekip" onchange="window._kzAdminPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:140px">
+            <select id="kz-admin-filter-ekip" onchange="_kzDetayPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:140px">
               <option value="">Tum Ekipler</option>
             </select>
-            <select id="kz-admin-filter-inspector" onchange="window._kzAdminPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:160px">
+            <select id="kz-admin-filter-inspector" onchange="_kzDetayPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:160px">
               <option value="">Tum Inspectorler</option>
             </select>
-            <select id="kz-admin-filter-sebep" onchange="window._kzAdminPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:150px">
+            <select id="kz-admin-filter-sebep" onchange="_kzDetayPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:150px">
               <option value="">Tum Sebepler</option>
               <option value="Sistemsel Hata">&#9881; Sistemsel Hata</option>
               <option value="Ürün Olmaması">📦 Ürün Olmaması</option>
@@ -1182,6 +1192,7 @@
 
 </div><!-- /app-shell -->
 
+<script src="panel2.js"></script>
 <script src="panel.js"></script>
 
 <!-- ══════════════════════════════════════════════════════════
@@ -1500,6 +1511,5 @@
 </div><!-- /analiz-overlay -->
 
 
-<script src="panel2.js"></script>
 </body>
 </html>
