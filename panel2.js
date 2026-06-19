@@ -372,7 +372,7 @@ function aoApplyFilters() {
         + '<td style="font-size:11px;color:#5A7FA8;text-align:center;">' + (k.tarihGecerli && k.baslangic ? _aoFmtTarih(k.baslangic) : '—') + '</td>'
         + '<td style="font-size:11px;color:#5A7FA8;text-align:center;">' + (k.tarihGecerli && k.bitis ? _aoFmtTarih(k.bitis) : '—') + '</td>'
         + '<td style="font-family:monospace;font-weight:700;text-align:center;">'
-          + (oran !== null ? (k.is2KalitePerf80 ? '<span style="color:#E65100;font-weight:700;">2. Kalite</span><div style="font-size:9px;font-weight:400;color:#E65100;">↓ ' + (translations[currentLang]||translations.tr).below_target + '</div>' : '<span style="color:' + _aoPerfClass(oran) + ';">' + oran + '%</span><div style="font-size:9px;font-weight:400;color:' + _aoPerfClass(oran) + ';">' + (oran >= 100 ? '✓ ' + (translations[currentLang]||translations.tr).on_target : '↓ ' + (translations[currentLang]||translations.tr).below_target) + '</div>') : '<span style="color:#5A7FA8;">—</span>')
+          + (oran !== null ? ((k.is2KalitePerf80 || (k.inspectionTipi && k.inspectionTipi.toLowerCase().startsWith('2.kalite'))) ? '<span style="color:#E65100;font-weight:700;">2. Kalite</span><div style="font-size:9px;font-weight:400;color:#E65100;">↓ ' + (translations[currentLang]||translations.tr).below_target + '</div>' : '<span style="color:' + _aoPerfClass(oran) + ';">' + oran + '%</span><div style="font-size:9px;font-weight:400;color:' + _aoPerfClass(oran) + ';">' + (oran >= 100 ? '✓ ' + (translations[currentLang]||translations.tr).on_target : '↓ ' + (translations[currentLang]||translations.tr).below_target) + '</div>') : '<span style="color:#5A7FA8;">—</span>')
           + '</td>'
         + '</tr>';
     });
