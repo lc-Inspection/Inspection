@@ -7172,6 +7172,16 @@ function renderEkipAnaliz() {
 // kullanıcı adı, çalışan sayısı, toplam kontrol edilen adet ve performans
 // ortalaması. _usersCache'teki "team" alanına sahip (admin olmayan)
 // kullanıcılar üzerinden çalışır.
+let _teamManagersOpen = false; // default kapali
+
+function toggleTeamManagersSection() {
+  _teamManagersOpen = !_teamManagersOpen;
+  const grid = document.getElementById('team-managers-grid');
+  const chevron = document.getElementById('team-managers-chevron');
+  if (grid) grid.style.display = _teamManagersOpen ? '' : 'none';
+  if (chevron) chevron.style.transform = _teamManagersOpen ? 'rotate(90deg)' : 'rotate(0deg)';
+}
+
 async function renderTeamManagersSection() {
   const section = document.getElementById('team-managers-section');
   const grid = document.getElementById('team-managers-grid');
@@ -7194,6 +7204,14 @@ async function renderTeamManagersSection() {
     section.style.display = 'none';
     return;
   }
+
+  const countLbl = document.getElementById('team-managers-count');
+  if (countLbl) countLbl.textContent = `(${managers.length})`;
+
+  // Mevcut açık/kapalı durumunu koru (varsayılan: kapalı)
+  grid.style.display = _teamManagersOpen ? '' : 'none';
+  const chevron = document.getElementById('team-managers-chevron');
+  if (chevron) chevron.style.transform = _teamManagersOpen ? 'rotate(90deg)' : 'rotate(0deg)';
 
   const t = translations[currentLang] || translations.tr;
 
@@ -7876,7 +7894,20 @@ function renderKayipZamanAdminOzet() {
   const toplamKayit = kayipZamanData.length;
   const toplamDk    = kayipZamanData.reduce((s,r)=>s+(r.sureDk||0),0);
   const inspSayisi  = new Set(kayipZamanData.map(r=>r.inspector)).size;
-  const ekipSayisi  = new Set(kayipZamanData.map(r=>r.ekipYoneticisi)).size;
+
+  function tahminiAdetIcinOzet(insName, dk) {
+    const perfObj = performansData.find(p => (p.ins||'').toLowerCase() === (insName||'').toLowerCase());
+    if (!perfObj) return null;
+    const hiz = getSaatlikAdetHizi(perfObj);
+    if (!hiz) return null;
+    return Math.round(hiz * (dk/60));
+  }
+  let toplamAdet = 0, adetVarMi = false;
+  kayipZamanData.forEach(r => {
+    const a = tahminiAdetIcinOzet(r.inspector, r.sureDk);
+    if (a !== null) { toplamAdet += a; adetVarMi = true; }
+  });
+
   el.innerHTML = `
     <div class="summary-stat" style="border-color:#EF9A9A;background:linear-gradient(135deg,#FFEBEE 0%,#fff 100%)">
       <div class="summary-stat-value" style="color:#C62828">${toplamKayit}</div>
@@ -7890,9 +7921,92 @@ function renderKayipZamanAdminOzet() {
       <div class="summary-stat-value" style="color:var(--blue2)">${inspSayisi}</div>
       <div class="summary-stat-label">Etkilenen Inspector</div>
     </div>
-    <div class="summary-stat">
-      <div class="summary-stat-value">${ekipSayisi}</div>
-      <div class="summary-stat-label">Ekip Yöneticisi</div>
+    <div class="summary-stat" style="border-color:#A5D6A7;background:linear-gradient(135deg,#E8F5E9 0%,#fff 100%)">
+      <div class="summary-stat-value" style="color:#2E7D32">${adetVarMi ? '~'+toplamAdet.toLocaleString('tr-TR') : '—'}</div>
+      <div class="summary-stat-label">Tahmini Kayıp Adet</div>
+    </div>`;
+
+  renderKayipZamanSebepOzetKartlari();
+}
+
+// ─── Sebep Bazında Özet Kartları + Çubuk Grafik (ana sayfada, rapor estetiğiyle) ───
+function renderKayipZamanSebepOzetKartlari() {
+  const wrap = document.getElementById('kz-sebep-ozet-wrap');
+  if (!wrap) return;
+
+  if (!kayipZamanData.length) { wrap.innerHTML = ''; return; }
+
+  function tahminiAdetIcinSebep(insName, dk) {
+    const perfObj = performansData.find(p => (p.ins||'').toLowerCase() === (insName||'').toLowerCase());
+    if (!perfObj) return null;
+    const hiz = getSaatlikAdetHizi(perfObj);
+    if (!hiz) return null;
+    return Math.round(hiz * (dk/60));
+  }
+
+  const sebepMap = {};
+  kayipZamanData.forEach(r => {
+    const s = r.sebep || 'Diğer';
+    if (!sebepMap[s]) sebepMap[s] = { dk: 0, insSet: new Set(), kayit: 0, adet: 0, adetVarMi: false };
+    sebepMap[s].dk += r.sureDk || 0;
+    sebepMap[s].insSet.add(r.inspector || '');
+    sebepMap[s].kayit += 1;
+    const a = tahminiAdetIcinSebep(r.inspector, r.sureDk);
+    if (a !== null) { sebepMap[s].adet += a; sebepMap[s].adetVarMi = true; }
+  });
+  const sebepSirali = Object.entries(sebepMap).sort((a,b)=>b[1].dk - a[1].dk);
+  const maxDk = sebepSirali.length ? sebepSirali[0][1].dk : 1;
+
+  const sebepKartHtml = sebepSirali.map(([s, d]) => `
+    <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px 20px">
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
+        <span style="font-size:24px;line-height:1">${SEBEP_IKONLAR[s]||'📝'}</span>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--navy)">${_escapeHtml(s)}</div>
+          <div style="font-size:10.5px;color:var(--muted2);margin-top:2px">${d.kayit} kayıt · ${d.insSet.size} inspector</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
+          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--red)">${(d.dk/60).toFixed(1)}s</div>
+          <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Bekleme Saati</div>
+        </div>
+        <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
+          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+d.adet.toLocaleString('tr-TR') : '—'}</div>
+          <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Tah. Kayıp Adet</div>
+        </div>
+        <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
+          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.insSet.size}</div>
+          <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Inspector</div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  const barRenkler = ['linear-gradient(90deg,#1565C0,#42A5F5)','linear-gradient(90deg,#E65100,#FFA726)','linear-gradient(90deg,#6A1B9A,#AB47BC)','linear-gradient(90deg,#2E7D32,#66BB6A)'];
+  const barHtml = sebepSirali.map(([s,d], i) => {
+    const pct = Math.max(8, Math.round((d.dk / maxDk) * 100));
+    return `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:${i === sebepSirali.length-1 ? 0 : 16}px">
+      <div style="width:170px;font-size:12px;font-weight:600;color:var(--navy);flex-shrink:0">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}</div>
+      <div style="flex:1;height:22px;background:var(--offwhite);border-radius:6px;overflow:hidden;position:relative">
+        <div style="height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;width:${pct}%;background:${barRenkler[i%barRenkler.length]}">
+          <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#fff">${(d.dk/60).toFixed(1)}s</span>
+        </div>
+      </div>
+      <div style="width:70px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);flex-shrink:0">${d.dk} dk</div>
+    </div>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div style="font-size:14px;font-weight:700;color:var(--navy);margin:4px 0 14px;display:flex;align-items:center;gap:8px">
+      📦 Sebep Bazında Özet <span style="background:var(--lblue3);color:var(--blue2);font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px">${sebepSirali.length} sebep</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px">
+      ${sebepKartHtml}
+    </div>
+    <div style="font-size:14px;font-weight:700;color:var(--navy);margin:0 0 14px">📊 Sebep Bazında Bekleme Saati Dağılımı</div>
+    <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:22px 24px;margin-bottom:20px">
+      ${barHtml}
     </div>`;
 }
 
