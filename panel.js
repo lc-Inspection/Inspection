@@ -528,7 +528,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzWSooeF3d40EbJv7hkD9fFR9HsUjzyVmLU5iwZIzmdBAV8i7oQfg9Rnaqh6EsTyV3Q/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxgTGKDQATXQd_7nkFNR27Lqaqho3VfVsSzIDx2zKgGFclK-UYLGthTisq_UXrMo84d/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -3454,7 +3454,6 @@ function showInspectorDetail(inspectorName) {
           bitis: k.bitis, tarihGecerli: k.tarihGecerli,
           ortalamaKontrolSn: k.adet > 0 && k.kayitFiiliSure > 0 ? Math.round(k.kayitFiiliSure / k.adet) : null,
           talepNo: k.talepNo || '',
-          is2KalitePerf80: k.is2KalitePerf80 || false,
           inspectionTipi: k.inspectionTipi || ''
         });
       });
@@ -3684,7 +3683,7 @@ function exportInspectorDetail() {
         'Standart Süre (sn)':   std,
         'Gerçekleşen Süre':     fmtSnExcel(fiili),
         'Gerçekleşen (sn)':     fiili || '—',
-        'Oran (Std./Ger.)':     (k.is2KalitePerf80 || (k.inspectionTipi && k.inspectionTipi.toLowerCase().startsWith('2.kalite'))) ? '2. Kalite' : (oran !== null ? oran + '%' : '—'),
+        'Oran (Std./Ger.)':     (oran !== null ? oran + '%' : '—'),
         'Ort. Kontrol (sn/ad)': k.adet > 0 && fiili > 0 ? Math.round(fiili / k.adet) : '—',
         'Başlangıç':            fmtTarihExcel(k.baslangic),
         'Bitiş':                fmtTarihExcel(k.bitis),
@@ -4761,12 +4760,7 @@ function performansHesapla(){
   }) || '';
   const yapilanDepoCol = document.getElementById('col-yapilan-depo')?.value || '';
   const sonucCol = document.getElementById('col-sonuc')?.value || '';
-  // 2.Kalite sabit süre kuralı için "Inspection Tipi" sütununu otomatik bul
-  // (panelde ayrı bir seçim alanı yok — sadece Excel sütun adına bakılır)
-  const inspectionTipiCol = excelCols.find(c => {
-    const norm = c.toLowerCase().replace(/[^a-z0-9]/g,'').replace(/ş/g,'s').replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ö/g,'o').replace(/ı/g,'i').replace(/ç/g,'c');
-    return norm.includes('inspectiontipi');
-  }) || '';
+
   const orneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
   const verimlilikHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
 
@@ -4863,107 +4857,6 @@ function performansHesapla(){
     if (yapilanDepoCol) {
       const depoVal = String(row[yapilanDepoCol] ?? '').trim();
       if (!depoVal) return;
-    }
-
-    // ── 2.KALİTE SABİT SÜRE KURALI ─────────────────────────────────────────
-    // "Inspection Tipi" sütunu "2.Kalite" ile BAŞLAYAN bir değer içeriyorsa
-    // (örn. "2.Kalite Inspection-Açık Adet", "2.Kalite Inspection-Koli",
-    // "2.Kalite Takım" veya sade "2.Kalite") bu satır Klasman eşleştirmesine
-    // hiç bakılmaz; standart süre sabit olarak 40sn × adet (örnekleme sonrası)
-    // olarak hesaplanır. Diğer tüm kurallar (örnekleme, tarih, mesai vb.)
-    // olduğu gibi devam eder — sadece klasman/standart süre kaynağı değişir.
-    const inspectionTipiRaw = inspectionTipiCol ? String(row[inspectionTipiCol] || '').trim() : '';
-    const is2Kalite = inspectionTipiRaw.toLocaleLowerCase('tr-TR').startsWith('2.kalite');
-
-    if (is2Kalite) {
-      if (!ins || !adet) return;
-
-      if (!inspectorMap[ins]) {
-        inspectorMap[ins] = {
-          ins: ins,
-          klasmanlar: {},
-          toplamAdet: 0,
-          kayitListesi: [],
-          mesaiSureSn: null
-        };
-      }
-
-      // Mesai süresini parse et
-      if (mesaiHam !== null && mesaiHam !== undefined && mesaiHam !== '') {
-        const parsedMesai = parseMesaiSuresi(mesaiHam);
-        if (parsedMesai && parsedMesai > 0) {
-          if (inspectorMap[ins].mesaiSureSn === null || parsedMesai > inspectorMap[ins].mesaiSureSn) {
-            inspectorMap[ins].mesaiSureSn = parsedMesai;
-          }
-        }
-      }
-
-      if (tarihGecerli) {
-        const zatenVar = inspectorMap[ins].kayitListesi.some(
-          r => r.parsedBaslangic.getTime() === parsedBaslangic.getTime() &&
-               r.parsedBitis.getTime()     === parsedBitis.getTime()
-        );
-        if (!zatenVar) inspectorMap[ins].kayitListesi.push({ parsedBaslangic, parsedBitis });
-        basariliTarihKayitlar++;
-      } else {
-        tarihHataliKayitlar++;
-      }
-
-      // ── 2.Kalite Standart Süre Hesabı ────────────────────────────────────
-      // Kural: 2.Kalite ürünlerde standart süre ve gerçekleşen süreye
-      // bakılmaksızın performans %80 olmalıdır.
-      //
-      // Uygulama: standartSure = kayitFiiliSure × 0.80 olarak ayarlanır.
-      // Böylece bu satırın mesai içindeki payı × 0.80 × 100 = %80 performans
-      // katkısı sağlanmış olur. Gerçekleşen süre yoksa (tarih bilgisi eksik)
-      // 40sn × adet sabit kuralı fallback olarak kullanılmaya devam eder.
-      const kayitFiiliSure2K = tarihGecerli
-        ? hesaplaGerceklesenSure(parsedBaslangic, parsedBitis)
-        : null;
-      const standartSure2K = (kayitFiiliSure2K && kayitFiiliSure2K > 0)
-        ? kayitFiiliSure2K * 0.80   // %80 performans hedefi
-        : 40 * adet;                // Tarih yoksa sabit fallback
-
-      // Grup anahtarı olarak gerçek Klasman adı kullanılmaya çalışılır (varsa);
-      // yoksa "2.Kalite" özel grubu altında toplanır. Standart süre/istasyon
-      // bilgisi klasmana bakılmaksızın sabit kuraldan gelir.
-      const klasmanKey2K = excelKlasman || '2.Kalite';
-      if (!inspectorMap[ins].klasmanlar[klasmanKey2K]) {
-        inspectorMap[ins].klasmanlar[klasmanKey2K] = {
-          kayitlar: [],
-          toplamAdet: 0,
-          toplamStandartSure: 0,
-          toplamKayitFiiliSure: 0
-        };
-      }
-      const kl2K = inspectorMap[ins].klasmanlar[klasmanKey2K];
-      kl2K.toplamAdet += adet;
-      kl2K.toplamStandartSure += standartSure2K;
-      if (kayitFiiliSure2K && kayitFiiliSure2K > 0) {
-        kl2K.toplamKayitFiiliSure += kayitFiiliSure2K;
-      }
-      const kayitNormalSayilir2K = kayitNormalMi(parsedBitis);
-      if (kayitNormalSayilir2K) {
-        kl2K.toplamStandartSureNormal = (kl2K.toplamStandartSureNormal||0) + standartSure2K;
-      } else {
-        kl2K.toplamStandartSureOvertime = (kl2K.toplamStandartSureOvertime||0) + standartSure2K;
-      }
-      kl2K.kayitlar.push({
-        no: kl2K.kayitlar.length + 1, klasman: klasmanKey2K, adet,
-        standartSure: standartSure2K, kayitFiiliSure: kayitFiiliSure2K,
-        kontrolAdetSuresi: (kayitFiiliSure2K && kayitFiiliSure2K > 0)
-          ? Math.round(kayitFiiliSure2K * 0.80 / Math.max(1, adet))
-          : 40,  // Sabit fallback
-        istasyonSuresi: 0, istasyonDetay: [],
-        baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli,
-        normalMesai: kayitNormalSayilir2K,
-        talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '',
-        inspectionTipi: inspectionTipiRaw,
-        is2KalitePerf80: true   // Debug/görsel için işaret
-      });
-
-      inspectorMap[ins].toplamAdet += adet;
-      return; // Bu satır için normal klasman akışına devam edilmez
     }
 
     if(!excelKlasman || !ins || !adet) return;
@@ -5108,26 +5001,6 @@ function performansHesapla(){
     let mesaiSureSn;
     let performans = null;
 
-    // ── 2.Kalite %80 Performans Düzeltmesi ──────────────────────────────────
-    // 2.Kalite satırları için "standartSure = kayitFiiliSure × 0.80" kullandık.
-    // Ancak kayitFiiliSure (satır başına mola-dahil süre) ile mesaiHesap
-    // (günlük 7.5s × gün, mola düşülmüş) farklı tabanlardan geliyor; çok sayıda
-    // kısa satır varsa ya da satırlar çakışıyorsa küçük sapmalar oluşabilir.
-    //
-    // Daha güvenilir düzeltme: tüm inspector standartSure hesaplandıktan SONRA,
-    // "2.Kalite satırlarının mesai içindeki ağırlığı × 0.80" olan bölümü
-    // geriye dönük olarak doğru değere ayarla.
-    //
-    // Adımlar:
-    //  1) 2K klasmanlarının toplam kayitFiiliSure'si → 2K toplamı
-    //  2) Tüm klasmanların toplam kayitFiiliSure'si → genel toplam
-    //  3) Eğer mesai belli ise: 2K_standartSure = mesaiSureSn × (2K_fiili / genel_fiili) × 0.80
-    //     (fiili süre oran olarak kullanılır — mesai içindeki pay tahmini)
-    //  4) Normal klasmanların standartSure'si değişmez; sadece 2K klasmanlarınki güncellenir.
-    //
-    // NOT: Bu adım mesaiSureSn belli olduktan SONRA uygulanabilir, dolayısıyla
-    // aşağıdaki mesai hesabından sonraya taşındı.
-
     // Mesaiyi hesapla
     if (inspectorData.mesaiSureSn && inspectorData.mesaiSureSn > 0) {
       mesaiSureSn = inspectorData.mesaiSureSn;
@@ -5135,50 +5008,6 @@ function performansHesapla(){
       mesaiSureSn = mesaiHesap.toplamMesaiSaniye;
     } else {
       mesaiSureSn = fiiliSureSn;
-    }
-
-    // 2.Kalite klasmanlarını bul
-    const kalite2Klasmanlar = Object.keys(inspectorData.klasmanlar).filter(k => {
-      const kayitlar = inspectorData.klasmanlar[k].kayitlar || [];
-      return kayitlar.length > 0 && kayitlar.every(r => r.is2KalitePerf80);
-    });
-    const normalKlasmanlar = Object.keys(inspectorData.klasmanlar).filter(k => !kalite2Klasmanlar.includes(k));
-
-    if (kalite2Klasmanlar.length > 0 && mesaiSureSn && mesaiSureSn > 0) {
-      // Tüm klasmanların toplamKayitFiiliSure'si (ağırlık tabanı)
-      let toplamFiiliSureTum = 0;
-      let toplamFiiliSure2K  = 0;
-      Object.entries(inspectorData.klasmanlar).forEach(([k, kl]) => {
-        const f = kl.toplamKayitFiiliSure || 0;
-        toplamFiiliSureTum += f;
-        if (kalite2Klasmanlar.includes(k)) toplamFiiliSure2K += f;
-      });
-
-      if (toplamFiiliSureTum > 0 && toplamFiiliSure2K > 0) {
-        // 2K'nın mesai içindeki tahmini payı
-        const pay2K = toplamFiiliSure2K / toplamFiiliSureTum;
-        // 2K için hedeflenen standartSure (%80 performans)
-        const hedeflenen2KStandart = mesaiSureSn * pay2K * 0.80;
-        // Mevcut 2K standartSure toplamı
-        const mevcut2KStandart = kalite2Klasmanlar.reduce((s, k) => s + (inspectorData.klasmanlar[k].toplamStandartSure || 0), 0);
-        const duzeltmeOrani = mevcut2KStandart > 0 ? hedeflenen2KStandart / mevcut2KStandart : 1;
-
-        // 2K klasmanlarının standartSure'sini düzelt
-        kalite2Klasmanlar.forEach(k => {
-          const kl = inspectorData.klasmanlar[k];
-          const eskiStandart = kl.toplamStandartSure || 0;
-          const yeniStandart = eskiStandart * duzeltmeOrani;
-          toplamStandartSure = toplamStandartSure - eskiStandart + yeniStandart;
-          toplamStandartSureNormal   -= (kl.toplamStandartSureNormal || 0);
-          toplamStandartSureOvertime -= (kl.toplamStandartSureOvertime || 0);
-          toplamStandartSureNormal   += (kl.toplamStandartSureNormal || 0) * duzeltmeOrani;
-          toplamStandartSureOvertime += (kl.toplamStandartSureOvertime || 0) * duzeltmeOrani;
-          // klasmanlarObj'yi de güncelle (görüntü için)
-          if (klasmanlarObj[k]) {
-            klasmanlarObj[k].standartSure = yeniStandart;
-          }
-        });
-      }
     }
 
     // Toplam performansı hesapla
