@@ -4861,7 +4861,7 @@ function performansHesapla(){
     // "Inspection Tipi" sütunu "2.Kalite" ile BAŞLAYAN bir değer içeriyorsa
     // (örn. "2.Kalite Inspection-Açık Adet", "2.Kalite Inspection-Koli",
     // "2.Kalite Takım" veya sade "2.Kalite") bu satır Klasman eşleştirmesine
-    // hiç bakılmaz; standart süre sabit olarak 30sn × adet (örnekleme sonrası)
+    // hiç bakılmaz; standart süre sabit olarak 40sn × adet (örnekleme sonrası)
     // olarak hesaplanır. Diğer tüm kurallar (örnekleme, tarih, mesai vb.)
     // olduğu gibi devam eder — sadece klasman/standart süre kaynağı değişir.
     const inspectionTipiRaw = inspectionTipiCol ? String(row[inspectionTipiCol] || '').trim() : '';
@@ -4901,11 +4901,20 @@ function performansHesapla(){
         tarihHataliKayitlar++;
       }
 
-      // 2.Kalite sabit kuralı: standart süre = 30sn × adet, başka ek yok
-      const standartSure2K = 30 * adet;
+      // ── 2.Kalite Standart Süre Hesabı ────────────────────────────────────
+      // Kural: 2.Kalite ürünlerde standart süre ve gerçekleşen süreye
+      // bakılmaksızın performans %80 olmalıdır.
+      //
+      // Uygulama: standartSure = kayitFiiliSure × 0.80 olarak ayarlanır.
+      // Böylece bu satırın mesai içindeki payı × 0.80 × 100 = %80 performans
+      // katkısı sağlanmış olur. Gerçekleşen süre yoksa (tarih bilgisi eksik)
+      // 40sn × adet sabit kuralı fallback olarak kullanılmaya devam eder.
       const kayitFiiliSure2K = tarihGecerli
         ? hesaplaGerceklesenSure(parsedBaslangic, parsedBitis)
         : null;
+      const standartSure2K = (kayitFiiliSure2K && kayitFiiliSure2K > 0)
+        ? kayitFiiliSure2K * 0.80   // %80 performans hedefi
+        : 40 * adet;                // Tarih yoksa sabit fallback
 
       // Grup anahtarı olarak gerçek Klasman adı kullanılmaya çalışılır (varsa);
       // yoksa "2.Kalite" özel grubu altında toplanır. Standart süre/istasyon
@@ -4934,11 +4943,15 @@ function performansHesapla(){
       kl2K.kayitlar.push({
         no: kl2K.kayitlar.length + 1, klasman: klasmanKey2K, adet,
         standartSure: standartSure2K, kayitFiiliSure: kayitFiiliSure2K,
-        kontrolAdetSuresi: 30, istasyonSuresi: 0, istasyonDetay: [],
+        kontrolAdetSuresi: (kayitFiiliSure2K && kayitFiiliSure2K > 0)
+          ? Math.round(kayitFiiliSure2K * 0.80 / Math.max(1, adet))
+          : 40,  // Sabit fallback
+        istasyonSuresi: 0, istasyonDetay: [],
         baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli,
         normalMesai: kayitNormalSayilir2K,
         talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '',
-        inspectionTipi: inspectionTipiRaw
+        inspectionTipi: inspectionTipiRaw,
+        is2KalitePerf80: true   // Debug/görsel için işaret
       });
 
       inspectorMap[ins].toplamAdet += adet;
