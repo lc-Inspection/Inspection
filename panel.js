@@ -3453,7 +3453,8 @@ function showInspectorDetail(inspectorName) {
           kayitFiiliSure: k.kayitFiiliSure || 0, baslangic: k.baslangic,
           bitis: k.bitis, tarihGecerli: k.tarihGecerli,
           ortalamaKontrolSn: k.adet > 0 && k.kayitFiiliSure > 0 ? Math.round(k.kayitFiiliSure / k.adet) : null,
-          talepNo: k.talepNo || ''
+          talepNo: k.talepNo || '',
+          is2KalitePerf80: k.is2KalitePerf80 || false
         });
       });
     });
