@@ -7206,7 +7206,7 @@ async function renderTeamManagersSection() {
   }
 
   const countLbl = document.getElementById('team-managers-count');
-  if (countLbl) countLbl.textContent = `(${managers.length})`;
+  if (countLbl) countLbl.textContent = `${managers.length} ekip`;
 
   // Mevcut açık/kapalı durumunu koru (varsayılan: kapalı)
   grid.style.display = _teamManagersOpen ? '' : 'none';
@@ -7840,14 +7840,35 @@ function renderKayipZamanEkipListe() {
 }
 
 // ─── Admin: Sayfayı Yükle ───
+let _kzLastFetchTime = 0;
+const KZ_CACHE_MS = 20000; // 20 saniye icinde tekrar girilirse network'e gitmeden cache'den goster
+
 async function loadKayipZamanAdmin() {
-  // Loading goster
   const perf = document.getElementById('kz-admin-perf-table');
   const liste = document.getElementById('kz-admin-liste');
+
+  const cacheTaze = kayipZamanData.length > 0 && (Date.now() - _kzLastFetchTime) < KZ_CACHE_MS;
+
+  if (cacheTaze) {
+    // Veri taze (20sn icinde cekilmis) - aninda render et, network'e gitme
+    ['kz-admin-filter-ekip','kz-admin-filter-inspector'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { while(el.options.length > 1) el.remove(1); }
+    });
+    window._kzAdminPage = 1;
+    _kzStartDate = '';
+    _kzEndDate = '';
+    renderKayipZamanAdminAll();
+    updateKayipNavBadge();
+    return;
+  }
+
+  // Loading goster
   if (perf)  perf.innerHTML  = '<div style="padding:30px;text-align:center;color:var(--muted)">\u23F3 Veri çekiliyor...</div>';
   if (liste) liste.innerHTML = '';
 
   await fetchKayipZamanData();
+  _kzLastFetchTime = Date.now();
 
   // Dropdown'lari sifirla
   ['kz-admin-filter-ekip','kz-admin-filter-inspector'].forEach(id => {
@@ -7859,6 +7880,12 @@ async function loadKayipZamanAdmin() {
   _kzEndDate = '';
   renderKayipZamanAdminAll();
   updateKayipNavBadge();
+}
+
+// "Yenile" butonu icin: cache'i atlayip zorla yeniden ceker
+async function forceRefreshKayipZamanAdmin() {
+  _kzLastFetchTime = 0;
+  await loadKayipZamanAdmin();
 }
 
 function updateKayipNavBadge() {
@@ -8532,6 +8559,7 @@ async function clearAllKayipZaman() {
   try {
     await jsonpFetch(url, { action: 'clearKayipZaman', token });
     kayipZamanData = [];
+    _kzLastFetchTime = 0;
     renderKayipZamanAdminAll();
     updateKayipNavBadge();
     showSuccessMessage('✅ Kayıp zaman verileri silindi!');
