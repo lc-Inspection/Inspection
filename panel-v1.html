@@ -1048,6 +1048,9 @@
         </div>
       </div>
 
+      <!-- İlk/Son Kayıt Tarihi Şeridi -->
+      <div id="kz-tarih-ozet-bar"></div>
+
       <!-- Özet Kartlar -->
       <div id="kz-admin-ozet" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px"></div>
 
@@ -1065,13 +1068,13 @@
             Detayli Inspector Tablosu
           </h2>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <select id="kz-admin-filter-ekip" onchange="window._kzAdminPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:140px">
+            <select id="kz-admin-filter-ekip" onchange="_kzDetayPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:140px">
               <option value="">Tum Ekipler</option>
             </select>
-            <select id="kz-admin-filter-inspector" onchange="window._kzAdminPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:160px">
+            <select id="kz-admin-filter-inspector" onchange="_kzDetayPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:160px">
               <option value="">Tum Inspectorler</option>
             </select>
-            <select id="kz-admin-filter-sebep" onchange="window._kzAdminPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:150px">
+            <select id="kz-admin-filter-sebep" onchange="_kzDetayPage=1;renderKayipZamanDetayliTablo()" style="font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border2);background:#fff;color:var(--navy);min-width:150px">
               <option value="">Tum Sebepler</option>
               <option value="Sistemsel Hata">&#9881; Sistemsel Hata</option>
               <option value="Ürün Olmaması">📦 Ürün Olmaması</option>
