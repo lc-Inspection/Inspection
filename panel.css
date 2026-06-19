@@ -1295,3 +1295,6 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 .kz-sebep-list-val { color: var(--red); font-family:'DM Mono',monospace; font-weight: 700; }
 .kz-sebep-list-adet { color: #8E24AA; font-weight: 600; }
 .kz-sebep-more { font-size: 10.5px; color: var(--blue2); font-weight: 600; margin-top: 2px; text-decoration: underline; cursor: pointer; }
+
+/* Ekip Yöneticileri toggle hover */
+#team-managers-toggle:hover { background: linear-gradient(135deg, #D6EBFF 0%, #fff 100%); }
