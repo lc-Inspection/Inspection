@@ -522,7 +522,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwsReUsDzh7nY92tuKgrd8IvNJ5z9TuKqlXhYTIEGKdANY_e8pYRX6rKrdqK3h8XiZa/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycby5CkmVd7nxtUEqToRinG8r-xAsojqJJ3dK3SLScmvZ-FxNWY-Jg0dqra5BNJ2HXLJq1g/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -2004,6 +2004,29 @@ SHEET_NAME = 'Klasmanlar'      ← Sekme adı (değiştirmeye gerek yok)</div>
 // ────────────────────────────────────────────────────────────────────────────
 // PERFORMANS ANALİZİ — MANİFEST GÖNDER (manuel buton)
 // ────────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// PERFORMANS VERİSİ — SENKRON DURUMU (Sheets'e gönderilmedi uyarısı)
+// ────────────────────────────────────────────────────────────────────────────
+// performansHesapla() her çalıştığında (örnekleme modu, tarih, sütun vs.
+// değiştiğinde) çağrılır. Veri artık otomatik Sheets'e gitmediği için
+// kullanıcıya "değişiklikler var, göndermedin" uyarısı gösterir.
+function markPerformansUnsynced() {
+  const btn = document.getElementById('perf-push-btn');
+  if (!btn) return;
+  btn.classList.add('btn-pulse-warning');
+  btn.dataset.unsynced = '1';
+  if (!btn.dataset.origLabel) btn.dataset.origLabel = btn.innerHTML;
+  btn.innerHTML = '📤 Sheets\'e Gönder <span style="background:#fff;color:#E65100;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px">●</span>';
+}
+
+function markPerformansSynced() {
+  const btn = document.getElementById('perf-push-btn');
+  if (!btn) return;
+  btn.classList.remove('btn-pulse-warning');
+  btn.dataset.unsynced = '0';
+  if (btn.dataset.origLabel) btn.innerHTML = btn.dataset.origLabel;
+}
+
 async function pushPerformansManual(ev) {
   window._uploadAborted = false;
   const url   = appConfig.sheetsWebAppUrl;
@@ -2084,6 +2107,7 @@ async function pushPerformansManual(ev) {
     await pushInspectorKayitlarToSheets(performansData, url, token);
 
     showSuccessMessage(`✅ ${performansData.length} ` + (translations[currentLang]||translations.tr).sheets_sent_perf);
+    markPerformansSynced();
   } catch(err) {
     alert('❌ Gönderme hatası: ' + err.message);
   } finally {
@@ -3031,10 +3055,9 @@ function onHedefChange() {
     renderDashboard();
     renderPerfTabloFromData();
     updateSidebar();
-    // Sheets'e de güncelle — Excel yoksa bile hedef değişikliği push edilsin
-    if (!excelRows || excelRows.length === 0) {
-      pushPerformansRawToSheets(performansData);
-    }
+    // NOT: Otomatik Sheets push kaldırıldı — artık sadece "Sheets'e Gönder"
+    // butonuna basıldığında gönderilir (bkz. manualPushPerformansToSheets).
+    markPerformansUnsynced();
   }
   // Tabloda da güncelle (Excel yüklüyse)
   if (excelRows && excelRows.length > 0) performansHesapla();
@@ -3435,13 +3458,18 @@ function showInspectorDetail(inspectorName) {
   openAnalizOverlay(buildTumKayitlar(inspector), inspector, _aoHedefValNow);
 
   // ── ARKA PLAN: Sheets'ten veri çek, gelince tabloyu güncelle ──
-  // Her zaman Sheets'ten taze veriyi çek (kayıtlar memory'de olsa bile)
-const url   = appConfig.sheetsWebAppUrl;
-const token = appConfig.sheetsApiToken;
-if (url && token) {
-    const url   = appConfig.sheetsWebAppUrl;
-    const token = appConfig.sheetsApiToken;
-    if (url && token) {
+  // ÖNEMLİ (v10.1): Performans verisi artık otomatik Sheets'e gönderilmiyor
+  // (sadece "📤 Sheets'e Gönder" butonuna basıldığında). Bu yüzden, eğer
+  // bellekte Excel'den taze hesaplanmış ama henüz gönderilmemiş ("unsynced")
+  // veri varsa, Sheets'ten çekilen eski veriyle ÜZERİNE YAZILMAZ — aksi
+  // halde doğru hesaplanan adet/standart süre gibi değerler eski sheet
+  // verisiyle değişebilir (örnekleme modu hatası buradan kaynaklanıyordu).
+  const perfPushBtn = document.getElementById('perf-push-btn');
+  const isUnsynced = perfPushBtn && perfPushBtn.dataset.unsynced === '1';
+
+  const url   = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (url && token && !isUnsynced) {
       // Loading göstergesi tablo altına ekle
       const loadBanner = document.createElement('div');
       loadBanner.id = 'ao-sheets-loading';
@@ -3485,7 +3513,6 @@ if (url && token) {
         })
         .catch(e => console.warn('getInspectorKayitlar hatası:', e.message))
         .finally(() => { const b = document.getElementById('ao-sheets-loading'); if(b) b.remove(); });
-    }
   }
 }
 
@@ -5047,9 +5074,12 @@ function performansHesapla(){
   // Yeni bir yükleme başlıyor — önceki Temizle iptalini sıfırla
   window._uploadAborted = false;
 
-  // Google Sheets'e otomatik gönder (bağlantı ayarı yapılmışsa)
-  pushPerformansToSheets(liste);
-  pushPerformansRawToSheets(liste); // tam JSON — diğer bilgisayarlardan çekilebilir
+  // NOT: Otomatik Sheets gönderimi KALDIRILDI.
+  // Her hesaplamada (sütun değişimi, örnekleme modu, tarih aralığı vb.)
+  // Google Sheets'e otomatik yazma yapılmaz. Veri sadece "📤 Sheets'e Gönder"
+  // butonuna (pushPerformansManual) basıldığında gönderilir. Bu sayede:
+  //  - Ayar değiştirirken Sheets'e art arda istek atılmaz (race condition önlenir)
+  //  - Detay modalında yanlışlıkla eski/yarım veri görünmesi engellenir
   
   const satirlar=liste.map((row,i)=>{
     const ini=row.ins.split(' ').map(w=>w[0]||'').slice(0,2).join('').toUpperCase();
