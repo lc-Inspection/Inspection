@@ -176,6 +176,10 @@ body {
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 .btn-success { background: var(--green); border-color: var(--green); color: #fff; }
 .btn-success:hover { background: #00695C; border-color: #00695C; }
+
+/* Performans verisi hesaplandı ama henüz Sheets'e gönderilmedi uyarısı */
+@keyframes btnPulseWarning { 0%,100% { box-shadow: 0 0 0 0 rgba(230,81,0,.55); } 50% { box-shadow: 0 0 0 5px rgba(230,81,0,0); } }
+.btn-pulse-warning { animation: btnPulseWarning 1.6s ease-in-out infinite; }
 .btn-warning { background: var(--amber); border-color: var(--amber); color: #fff; }
 .btn-warning:hover { background: #E65100; border-color: #E65100; }
 
