@@ -7172,7 +7172,7 @@ function renderEkipAnaliz() {
 // kullanıcı adı, çalışan sayısı, toplam kontrol edilen adet ve performans
 // ortalaması. _usersCache'teki "team" alanına sahip (admin olmayan)
 // kullanıcılar üzerinden çalışır.
-let _teamManagersOpen = false; // default kapali
+let _teamManagersOpen = true; // default acik
 
 function toggleTeamManagersSection() {
   _teamManagersOpen = !_teamManagersOpen;
@@ -7856,6 +7856,7 @@ async function loadKayipZamanAdmin() {
       if (el) { while(el.options.length > 1) el.remove(1); }
     });
     window._kzAdminPage = 1;
+    _kzDetayPage = 1;
     _kzStartDate = '';
     _kzEndDate = '';
     renderKayipZamanAdminAll();
@@ -7876,6 +7877,7 @@ async function loadKayipZamanAdmin() {
     if (el) { while(el.options.length > 1) el.remove(1); }
   });
   window._kzAdminPage = 1;
+  _kzDetayPage = 1;
   _kzStartDate = '';
   _kzEndDate = '';
   renderKayipZamanAdminAll();
@@ -7911,6 +7913,7 @@ function renderKayipZamanAdminAll() {
 
 // Filtre degisince hem detayli tablo hem liste yenilenir
 function onKzAdminFilterChange() {
+  _kzDetayPage = 1;
   renderKayipZamanDetayliTablo();
 }
 
@@ -7921,6 +7924,13 @@ function renderKayipZamanAdminOzet() {
   const toplamKayit = kayipZamanData.length;
   const toplamDk    = kayipZamanData.reduce((s,r)=>s+(r.sureDk||0),0);
   const inspSayisi  = new Set(kayipZamanData.map(r=>r.inspector)).size;
+
+  // Ilk ve son kayit tarihini bul (YYYY-MM-DD string karsilastirmasi guvenilir siralamadir)
+  const tarihKisaListesi = kayipZamanData.map(r => formatTarihKisaISO(r.tarih)).filter(Boolean).sort();
+  const ilkTarihISO = tarihKisaListesi.length ? tarihKisaListesi[0] : null;
+  const sonTarihISO = tarihKisaListesi.length ? tarihKisaListesi[tarihKisaListesi.length-1] : null;
+  const ilkTarihGorunum = ilkTarihISO ? formatTarihKisa(ilkTarihISO) : '—';
+  const sonTarihGorunum = sonTarihISO ? formatTarihKisa(sonTarihISO) : '—';
 
   function tahminiAdetIcinOzet(insName, dk) {
     const perfObj = performansData.find(p => (p.ins||'').toLowerCase() === (insName||'').toLowerCase());
@@ -7934,6 +7944,20 @@ function renderKayipZamanAdminOzet() {
     const a = tahminiAdetIcinOzet(r.inspector, r.sureDk);
     if (a !== null) { toplamAdet += a; adetVarMi = true; }
   });
+
+  const tarihBarHtml = toplamKayit > 0 ? `
+    <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:#fff;border:1px solid var(--border2);border-radius:10px;padding:11px 16px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:7px">
+        <span style="font-size:14px">📅</span>
+        <span style="font-size:11.5px;color:var(--muted);font-weight:600">İlk Kayıt Tarihi:</span>
+        <span style="font-size:12.5px;color:var(--navy);font-weight:700;font-family:'DM Mono',monospace">${ilkTarihGorunum}</span>
+      </div>
+      <span style="color:var(--border2)">|</span>
+      <div style="display:flex;align-items:center;gap:7px">
+        <span style="font-size:11.5px;color:var(--muted);font-weight:600">Son Kayıt Tarihi:</span>
+        <span style="font-size:12.5px;color:var(--navy);font-weight:700;font-family:'DM Mono',monospace">${sonTarihGorunum}</span>
+      </div>
+    </div>` : '';
 
   el.innerHTML = `
     <div class="summary-stat" style="border-color:#EF9A9A;background:linear-gradient(135deg,#FFEBEE 0%,#fff 100%)">
@@ -7953,7 +7977,27 @@ function renderKayipZamanAdminOzet() {
       <div class="summary-stat-label">Tahmini Kayıp Adet</div>
     </div>`;
 
+  const tarihBarContainer = document.getElementById('kz-tarih-ozet-bar');
+  if (tarihBarContainer) tarihBarContainer.innerHTML = tarihBarHtml;
+
   renderKayipZamanSebepOzetKartlari();
+}
+
+// formatTarihKisa'nin YYYY-MM-DD string'e cevirebilen versiyonu - siralama icin guvenilir
+function formatTarihKisaISO(tarih) {
+  if (!tarih) return '';
+  const s = String(tarih);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  try {
+    const d = new Date(s);
+    if (!isNaN(d)) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  } catch(e) {}
+  return '';
 }
 
 // ─── Sebep Bazında Özet Kartları + Çubuk Grafik (ana sayfada, rapor estetiğiyle) ───
@@ -8041,6 +8085,8 @@ function renderKayipZamanSebepOzetKartlari() {
 let _kzStartDate = '', _kzEndDate = '';
 
 let _kzDetayAcik = {}; // hangi inspector satiri acik
+let _kzDetayPage = 1;
+const KZ_DETAY_PAGE_SIZE = 20;
 
 function renderKayipZamanDetayliTablo() {
   const container = document.getElementById('kz-admin-perf-table');
@@ -8147,7 +8193,13 @@ function renderKayipZamanDetayliTablo() {
   });
 
   // Inspector satirlari - sadece ozet, tiklayinca detay acilir
-  const inspRows = Object.values(inspMap).sort((a,b)=>b.dk-a.dk).map(({isim, ekip, dk, kayitlar: ks}, idx) => {
+  const inspEntriesAll = Object.values(inspMap).sort((a,b)=>b.dk-a.dk);
+  const kzTotalPages = Math.max(1, Math.ceil(inspEntriesAll.length / KZ_DETAY_PAGE_SIZE));
+  if (_kzDetayPage > kzTotalPages) _kzDetayPage = kzTotalPages;
+  if (_kzDetayPage < 1) _kzDetayPage = 1;
+  const inspEntriesPage = inspEntriesAll.slice((_kzDetayPage-1)*KZ_DETAY_PAGE_SIZE, _kzDetayPage*KZ_DETAY_PAGE_SIZE);
+
+  const inspRows = inspEntriesPage.map(({isim, ekip, dk, kayitlar: ks}, idx) => {
     const rowId = 'kzd_' + idx;
     const isOpen = _kzDetayAcik[isim] === true;
     const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
@@ -8198,16 +8250,25 @@ function renderKayipZamanDetayliTablo() {
           <th style="padding:10px 14px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;width:80px">Kayıt</th>
         </tr></thead>
         <tbody>${inspRows}</tbody>
-      </table>`
+      </table>
+      ${kzTotalPages > 1 ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px 4px;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border2);margin-top:4px">
+        <span style="font-size:11.5px;color:var(--muted)">${(_kzDetayPage-1)*KZ_DETAY_PAGE_SIZE+1}–${Math.min(_kzDetayPage*KZ_DETAY_PAGE_SIZE, inspEntriesAll.length)} / ${inspEntriesAll.length} inspector</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button onclick="_kzDetayPage--;renderKayipZamanDetayliTablo()" ${_kzDetayPage<=1?'disabled':''} style="padding:5px 11px;border-radius:6px;border:1px solid var(--border2);background:#fff;font-size:12px;cursor:${_kzDetayPage<=1?'default':'pointer'};color:${_kzDetayPage<=1?'var(--muted2)':'var(--navy)'};font-weight:600">‹ Önceki</button>
+          <span style="font-size:12px;color:var(--navy);font-weight:700;padding:0 6px">${_kzDetayPage} / ${kzTotalPages}</span>
+          <button onclick="_kzDetayPage++;renderKayipZamanDetayliTablo()" ${_kzDetayPage>=kzTotalPages?'disabled':''} style="padding:5px 11px;border-radius:6px;border:1px solid var(--border2);background:#fff;font-size:12px;cursor:${_kzDetayPage>=kzTotalPages?'default':'pointer'};color:${_kzDetayPage>=kzTotalPages?'var(--muted2)':'var(--navy)'};font-weight:600">Sonraki ›</button>
+        </div>
+      </div>` : ''}`
     : '<div style="padding:20px;text-align:center;color:var(--muted)">Seçilen aralıkta kayıt yok</div>';
 
   container.innerHTML = `
     <div class="kz-tarih-bar">
       <span class="kz-tarih-label">📅 Tarih Aralığı</span>
-      <input type="date" id="kz-date-start" value="${_kzStartDate}" onchange="_kzStartDate=this.value;renderKayipZamanDetayliTablo()" class="kz-date-input">
+      <input type="date" id="kz-date-start" value="${_kzStartDate}" onchange="_kzStartDate=this.value;_kzDetayPage=1;renderKayipZamanDetayliTablo()" class="kz-date-input">
       <span class="kz-tarih-ayrac">—</span>
-      <input type="date" id="kz-date-end" value="${_kzEndDate}" onchange="_kzEndDate=this.value;renderKayipZamanDetayliTablo()" class="kz-date-input">
-      ${(_kzStartDate||_kzEndDate)?`<button onclick="_kzStartDate='';_kzEndDate='';renderKayipZamanDetayliTablo()" class="kz-tarih-temizle">✕ Temizle</button>`:''}
+      <input type="date" id="kz-date-end" value="${_kzEndDate}" onchange="_kzEndDate=this.value;_kzDetayPage=1;renderKayipZamanDetayliTablo()" class="kz-date-input">
+      ${(_kzStartDate||_kzEndDate)?`<button onclick="_kzStartDate='';_kzEndDate='';_kzDetayPage=1;renderKayipZamanDetayliTablo()" class="kz-tarih-temizle">✕ Temizle</button>`:''}
     </div>
     ${topSebepler.length ? `<div class="kz-sebep-grid">${sebepKartlar}</div>` : ''}
     ${tableHtml}`;
@@ -8370,10 +8431,20 @@ function showKayipZamanRaporGorunumu() {
   const sebepSirali = Object.entries(sebepMap).sort((a,b)=>b[1].dk - a[1].dk);
   const maxDk = sebepSirali.length ? sebepSirali[0][1].dk : 1;
 
-  // Tarih aralığı metni
-  const tarihMetni = (_kzStartDate || _kzEndDate)
-    ? `${_kzStartDate ? formatTarihKisa(new Date(_kzStartDate)) || _kzStartDate : 'başlangıç'} – ${_kzEndDate ? formatTarihKisa(new Date(_kzEndDate)) || _kzEndDate : 'bugün'}`
-    : new Date().toLocaleDateString('tr-TR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  // Tarih aralığı metni: filtre varsa onu goster, yoksa gercek veri aralığını (ilk-son kayit) goster
+  let tarihMetni;
+  if (_kzStartDate || _kzEndDate) {
+    tarihMetni = `${_kzStartDate ? formatTarihKisa(_kzStartDate) : 'başlangıç'} – ${_kzEndDate ? formatTarihKisa(_kzEndDate) : 'bugün'}`;
+  } else {
+    const tarihler = records.map(r => formatTarihKisaISO(r.tarih)).filter(Boolean).sort();
+    if (tarihler.length) {
+      const ilk = formatTarihKisa(tarihler[0]);
+      const son = formatTarihKisa(tarihler[tarihler.length-1]);
+      tarihMetni = ilk === son ? ilk : `${ilk} – ${son}`;
+    } else {
+      tarihMetni = new Date().toLocaleDateString('tr-TR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    }
+  }
 
   // ── Sebep özet kartları ──
   const sebepKartHtml = sebepSirali.map(([s, d]) => `
