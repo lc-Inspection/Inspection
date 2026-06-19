@@ -5099,18 +5099,84 @@ function performansHesapla(){
     // Tek Performans Metriği - Mesai Bazlı
     let mesaiSureSn;
     let performans = null;
-    
+
+    // ── 2.Kalite %80 Performans Düzeltmesi ──────────────────────────────────
+    // 2.Kalite satırları için "standartSure = kayitFiiliSure × 0.80" kullandık.
+    // Ancak kayitFiiliSure (satır başına mola-dahil süre) ile mesaiHesap
+    // (günlük 7.5s × gün, mola düşülmüş) farklı tabanlardan geliyor; çok sayıda
+    // kısa satır varsa ya da satırlar çakışıyorsa küçük sapmalar oluşabilir.
+    //
+    // Daha güvenilir düzeltme: tüm inspector standartSure hesaplandıktan SONRA,
+    // "2.Kalite satırlarının mesai içindeki ağırlığı × 0.80" olan bölümü
+    // geriye dönük olarak doğru değere ayarla.
+    //
+    // Adımlar:
+    //  1) 2K klasmanlarının toplam kayitFiiliSure'si → 2K toplamı
+    //  2) Tüm klasmanların toplam kayitFiiliSure'si → genel toplam
+    //  3) Eğer mesai belli ise: 2K_standartSure = mesaiSureSn × (2K_fiili / genel_fiili) × 0.80
+    //     (fiili süre oran olarak kullanılır — mesai içindeki pay tahmini)
+    //  4) Normal klasmanların standartSure'si değişmez; sadece 2K klasmanlarınki güncellenir.
+    //
+    // NOT: Bu adım mesaiSureSn belli olduktan SONRA uygulanabilir, dolayısıyla
+    // aşağıdaki mesai hesabından sonraya taşındı.
+
+    // Mesaiyi hesapla
     if (inspectorData.mesaiSureSn && inspectorData.mesaiSureSn > 0) {
-      // Excel'den mesai sütunu var
       mesaiSureSn = inspectorData.mesaiSureSn;
-      performans = Math.round((toplamStandartSure / mesaiSureSn) * 100);
     } else if (mesaiHesap && mesaiHesap.toplamMesaiSaniye > 0) {
-      // Günlük 7.5 saat × gün sayısı
       mesaiSureSn = mesaiHesap.toplamMesaiSaniye;
+    } else {
+      mesaiSureSn = fiiliSureSn;
+    }
+
+    // 2.Kalite klasmanlarını bul
+    const kalite2Klasmanlar = Object.keys(inspectorData.klasmanlar).filter(k => {
+      const kayitlar = inspectorData.klasmanlar[k].kayitlar || [];
+      return kayitlar.length > 0 && kayitlar.every(r => r.is2KalitePerf80);
+    });
+    const normalKlasmanlar = Object.keys(inspectorData.klasmanlar).filter(k => !kalite2Klasmanlar.includes(k));
+
+    if (kalite2Klasmanlar.length > 0 && mesaiSureSn && mesaiSureSn > 0) {
+      // Tüm klasmanların toplamKayitFiiliSure'si (ağırlık tabanı)
+      let toplamFiiliSureTum = 0;
+      let toplamFiiliSure2K  = 0;
+      Object.entries(inspectorData.klasmanlar).forEach(([k, kl]) => {
+        const f = kl.toplamKayitFiiliSure || 0;
+        toplamFiiliSureTum += f;
+        if (kalite2Klasmanlar.includes(k)) toplamFiiliSure2K += f;
+      });
+
+      if (toplamFiiliSureTum > 0 && toplamFiiliSure2K > 0) {
+        // 2K'nın mesai içindeki tahmini payı
+        const pay2K = toplamFiiliSure2K / toplamFiiliSureTum;
+        // 2K için hedeflenen standartSure (%80 performans)
+        const hedeflenen2KStandart = mesaiSureSn * pay2K * 0.80;
+        // Mevcut 2K standartSure toplamı
+        const mevcut2KStandart = kalite2Klasmanlar.reduce((s, k) => s + (inspectorData.klasmanlar[k].toplamStandartSure || 0), 0);
+        const duzeltmeOrani = mevcut2KStandart > 0 ? hedeflenen2KStandart / mevcut2KStandart : 1;
+
+        // 2K klasmanlarının standartSure'sini düzelt
+        kalite2Klasmanlar.forEach(k => {
+          const kl = inspectorData.klasmanlar[k];
+          const eskiStandart = kl.toplamStandartSure || 0;
+          const yeniStandart = eskiStandart * duzeltmeOrani;
+          toplamStandartSure = toplamStandartSure - eskiStandart + yeniStandart;
+          toplamStandartSureNormal   -= (kl.toplamStandartSureNormal || 0);
+          toplamStandartSureOvertime -= (kl.toplamStandartSureOvertime || 0);
+          toplamStandartSureNormal   += (kl.toplamStandartSureNormal || 0) * duzeltmeOrani;
+          toplamStandartSureOvertime += (kl.toplamStandartSureOvertime || 0) * duzeltmeOrani;
+          // klasmanlarObj'yi de güncelle (görüntü için)
+          if (klasmanlarObj[k]) {
+            klasmanlarObj[k].standartSure = yeniStandart;
+          }
+        });
+      }
+    }
+
+    // Toplam performansı hesapla
+    if (mesaiSureSn && mesaiSureSn > fiiliSureSn * 0.1) {
       performans = Math.round((toplamStandartSure / mesaiSureSn) * 100);
     } else {
-      // Hiçbiri yoksa null
-      mesaiSureSn = fiiliSureSn; // Gösterim için
       performans = null;
     }
 
