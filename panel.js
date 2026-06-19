@@ -4861,7 +4861,7 @@ function performansHesapla(){
     // "Inspection Tipi" sütunu "2.Kalite" ile BAŞLAYAN bir değer içeriyorsa
     // (örn. "2.Kalite Inspection-Açık Adet", "2.Kalite Inspection-Koli",
     // "2.Kalite Takım" veya sade "2.Kalite") bu satır Klasman eşleştirmesine
-    // hiç bakılmaz; standart süre sabit olarak 40sn × adet (örnekleme sonrası)
+    // hiç bakılmaz; standart süre sabit olarak 30sn × adet (örnekleme sonrası)
     // olarak hesaplanır. Diğer tüm kurallar (örnekleme, tarih, mesai vb.)
     // olduğu gibi devam eder — sadece klasman/standart süre kaynağı değişir.
     const inspectionTipiRaw = inspectionTipiCol ? String(row[inspectionTipiCol] || '').trim() : '';
@@ -4901,8 +4901,8 @@ function performansHesapla(){
         tarihHataliKayitlar++;
       }
 
-      // 2.Kalite sabit kuralı: standart süre = 40sn × adet, başka ek yok
-      const standartSure2K = 40 * adet;
+      // 2.Kalite sabit kuralı: standart süre = 30sn × adet, başka ek yok
+      const standartSure2K = 30 * adet;
       const kayitFiiliSure2K = tarihGecerli
         ? hesaplaGerceklesenSure(parsedBaslangic, parsedBitis)
         : null;
@@ -4934,7 +4934,7 @@ function performansHesapla(){
       kl2K.kayitlar.push({
         no: kl2K.kayitlar.length + 1, klasman: klasmanKey2K, adet,
         standartSure: standartSure2K, kayitFiiliSure: kayitFiiliSure2K,
-        kontrolAdetSuresi: 40, istasyonSuresi: 0, istasyonDetay: [],
+        kontrolAdetSuresi: 30, istasyonSuresi: 0, istasyonDetay: [],
         baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli,
         normalMesai: kayitNormalSayilir2K,
         talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '',
