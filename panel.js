@@ -4753,6 +4753,12 @@ function performansHesapla(){
   }) || '';
   const yapilanDepoCol = document.getElementById('col-yapilan-depo')?.value || '';
   const sonucCol = document.getElementById('col-sonuc')?.value || '';
+  // 2.Kalite sabit süre kuralı için "Inspection Tipi" sütununu otomatik bul
+  // (panelde ayrı bir seçim alanı yok — sadece Excel sütun adına bakılır)
+  const inspectionTipiCol = excelCols.find(c => {
+    const norm = c.toLowerCase().replace(/[^a-z0-9]/g,'').replace(/ş/g,'s').replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ö/g,'o').replace(/ı/g,'i').replace(/ç/g,'c');
+    return norm.includes('inspectiontipi');
+  }) || '';
   const orneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
   const verimlilikHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
 
@@ -4850,7 +4856,95 @@ function performansHesapla(){
       const depoVal = String(row[yapilanDepoCol] ?? '').trim();
       if (!depoVal) return;
     }
-    
+
+    // ── 2.KALİTE SABİT SÜRE KURALI ─────────────────────────────────────────
+    // "Inspection Tipi" sütunu "2.Kalite" ile BAŞLAYAN bir değer içeriyorsa
+    // (örn. "2.Kalite Inspection-Açık Adet", "2.Kalite Inspection-Koli",
+    // "2.Kalite Takım" veya sade "2.Kalite") bu satır Klasman eşleştirmesine
+    // hiç bakılmaz; standart süre sabit olarak 40sn × adet (örnekleme sonrası)
+    // olarak hesaplanır. Diğer tüm kurallar (örnekleme, tarih, mesai vb.)
+    // olduğu gibi devam eder — sadece klasman/standart süre kaynağı değişir.
+    const inspectionTipiRaw = inspectionTipiCol ? String(row[inspectionTipiCol] || '').trim() : '';
+    const is2Kalite = inspectionTipiRaw.toLocaleLowerCase('tr-TR').startsWith('2.kalite');
+
+    if (is2Kalite) {
+      if (!ins || !adet) return;
+
+      if (!inspectorMap[ins]) {
+        inspectorMap[ins] = {
+          ins: ins,
+          klasmanlar: {},
+          toplamAdet: 0,
+          kayitListesi: [],
+          mesaiSureSn: null
+        };
+      }
+
+      // Mesai süresini parse et
+      if (mesaiHam !== null && mesaiHam !== undefined && mesaiHam !== '') {
+        const parsedMesai = parseMesaiSuresi(mesaiHam);
+        if (parsedMesai && parsedMesai > 0) {
+          if (inspectorMap[ins].mesaiSureSn === null || parsedMesai > inspectorMap[ins].mesaiSureSn) {
+            inspectorMap[ins].mesaiSureSn = parsedMesai;
+          }
+        }
+      }
+
+      if (tarihGecerli) {
+        const zatenVar = inspectorMap[ins].kayitListesi.some(
+          r => r.parsedBaslangic.getTime() === parsedBaslangic.getTime() &&
+               r.parsedBitis.getTime()     === parsedBitis.getTime()
+        );
+        if (!zatenVar) inspectorMap[ins].kayitListesi.push({ parsedBaslangic, parsedBitis });
+        basariliTarihKayitlar++;
+      } else {
+        tarihHataliKayitlar++;
+      }
+
+      // 2.Kalite sabit kuralı: standart süre = 40sn × adet, başka ek yok
+      const standartSure2K = 40 * adet;
+      const kayitFiiliSure2K = tarihGecerli
+        ? hesaplaGerceklesenSure(parsedBaslangic, parsedBitis)
+        : null;
+
+      // Grup anahtarı olarak gerçek Klasman adı kullanılmaya çalışılır (varsa);
+      // yoksa "2.Kalite" özel grubu altında toplanır. Standart süre/istasyon
+      // bilgisi klasmana bakılmaksızın sabit kuraldan gelir.
+      const klasmanKey2K = excelKlasman || '2.Kalite';
+      if (!inspectorMap[ins].klasmanlar[klasmanKey2K]) {
+        inspectorMap[ins].klasmanlar[klasmanKey2K] = {
+          kayitlar: [],
+          toplamAdet: 0,
+          toplamStandartSure: 0,
+          toplamKayitFiiliSure: 0
+        };
+      }
+      const kl2K = inspectorMap[ins].klasmanlar[klasmanKey2K];
+      kl2K.toplamAdet += adet;
+      kl2K.toplamStandartSure += standartSure2K;
+      if (kayitFiiliSure2K && kayitFiiliSure2K > 0) {
+        kl2K.toplamKayitFiiliSure += kayitFiiliSure2K;
+      }
+      const kayitNormalSayilir2K = kayitNormalMi(parsedBitis);
+      if (kayitNormalSayilir2K) {
+        kl2K.toplamStandartSureNormal = (kl2K.toplamStandartSureNormal||0) + standartSure2K;
+      } else {
+        kl2K.toplamStandartSureOvertime = (kl2K.toplamStandartSureOvertime||0) + standartSure2K;
+      }
+      kl2K.kayitlar.push({
+        no: kl2K.kayitlar.length + 1, klasman: klasmanKey2K, adet,
+        standartSure: standartSure2K, kayitFiiliSure: kayitFiiliSure2K,
+        kontrolAdetSuresi: 40, istasyonSuresi: 0, istasyonDetay: [],
+        baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli,
+        normalMesai: kayitNormalSayilir2K,
+        talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '',
+        inspectionTipi: inspectionTipiRaw
+      });
+
+      inspectorMap[ins].toplamAdet += adet;
+      return; // Bu satır için normal klasman akışına devam edilmez
+    }
+
     if(!excelKlasman || !ins || !adet) return;
     
     const klasmanKey = normalize(excelKlasman);
