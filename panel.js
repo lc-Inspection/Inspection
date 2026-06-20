@@ -3270,12 +3270,32 @@ function showKlasmanSureOnerisi(klasmanId) {
   const mevcutKabul = parseFloat(k.urunKabulSuresi) || 0;
   const istasyonSuresi = k.istasyonlar.reduce((s, i) => s + (parseFloat(i.sure) || 0), 0);
 
-  // Mevcut formülün adet başına diğer bileşenleri (32 adetlik tipik bir parti
-  // varsayımıyla — getOlcuAdet/getUrunKabulKat fonksiyonlarıyla aynı eşikler).
-  // Bu sadece SENARYO hesaplamak için kullanılan bir referans parti büyüklüğüdür.
-  const refAdet = 32;
-  const olcuKat = refAdet <= 32 ? 6 : refAdet <= 80 ? 9 : refAdet <= 125 ? 9 : 12;
-  const kabulKat = refAdet <= 32 ? 0.5 : refAdet <= 80 ? 1.1 : refAdet <= 125 ? 1.2 : 1.3;
+  // Mevcut formülün adet başına diğer bileşenleri — ARTIK SABİT 32 ADET DEĞİL,
+  // bu klasmanın GERÇEK kayıtlarından hesaplanan ortalama parti büyüklüğü kullanılır.
+  // (Önceki sürümde sabit 32 varsayımı, partileri daha büyük olan klasmanlarda
+  // Ölçü/Ürün Kabul katsayılarının gerçekte daha yüksek çıkmasına rağmen düşük
+  // hesaplanmasına, dolayısıyla önerilen hedefin yanlışlıkla gerçekleşenden
+  // daha "gevşek" çıkmasına yol açıyordu.)
+  const adetListesi = veri.adetListesi || [];
+  const refAdet = adetListesi.length
+    ? Math.round(adetListesi.reduce((s, a) => s + a, 0) / adetListesi.length)
+    : Math.round(veri.toplamAdet / Math.max(1, veri.kayitSayisi || 1)) || 32;
+
+  function getOlcuAdetOneri(adet) {
+    if (adet <= 32)  return 6;
+    if (adet <= 50)  return 9;
+    if (adet <= 80)  return 9;
+    if (adet <= 125) return 9;
+    return 12;
+  }
+  function getUrunKabulKatOneri(adet) {
+    if (adet <= 32)  return 0.5;
+    if (adet <= 80)  return 1.1;
+    if (adet <= 125) return 1.2;
+    return 1.3;
+  }
+  const olcuKat = getOlcuAdetOneri(refAdet);
+  const kabulKat = getUrunKabulKatOneri(refAdet);
 
   // Senaryo A: Sadece "1 Birim Muayene Süresi"ni ayarla, Ölçü ve Ürün Kabul SIFIR kabul edilip
   // hedefin tamamı kontrol süresine yüklenir (basit, tek değişkenli öneri).
@@ -3344,7 +3364,7 @@ function showKlasmanSureOnerisi(klasmanId) {
     ${senaryoHtml('C) Dengeli — %70 / %15 / %15 Pay', 'Hedefin %70\'i Kontrol Süresi\'ne, %15\'i Ölçü\'ye, %15\'i Ürün Kabul\'e dağıtılır. Üç bileşen de hedefe katkı verir.', '#E65100', senaryoC_kontrol, senaryoC_olcu, senaryoC_kabul)}
 
     <div style="font-size:10px;color:var(--muted2);margin-top:4px;line-height:1.6">
-      💡 Senaryolar <strong>${refAdet} adetlik tipik bir parti</strong> referans alınarak hesaplanmıştır (Ölçü/Ürün Kabul katsayıları parti büyüklüğüne göre değiştiğinden tam kesinlik garanti edilmez). Bir öneriyi uyguladıktan sonra istediğiniz gibi elle ince ayar yapabilirsiniz.
+      💡 Senaryolar bu klasmanın <strong>gerçek kayıtlarından hesaplanan ortalama parti büyüklüğü (${refAdet} adet)</strong> referans alınarak hesaplanmıştır. Tek tek partilerin büyüklüğü farklılık gösterebileceğinden, uygulama sonrası "Hesaplamayı Göster" ile gerçek toplam oranı kontrol edip gerekirse elle ince ayar yapın.
     </div>
   `;
 
