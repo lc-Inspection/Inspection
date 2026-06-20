@@ -351,6 +351,11 @@ function aoApplyFilters() {
     kayitlar.forEach(function(k, i) {
       idx++;
       var oran    = k.kayitFiiliSure && k.standartSure ? Math.round((k.standartSure / k.kayitFiiliSure) * 100) : null;
+      // Gerçekleşen süre ≤ 10dk (600sn) ise oran maksimum %100 (genel performansı
+      // yapay şişiren aşırı yüksek oranlar gösterilmez — hesaplama sistemi değişmez,
+      // sadece gösterim tavanlanır; standartSure zaten kaynak tarafında aynı kuralla
+      // tavanlanmış olduğundan burada zaten ~100 çıkar, bu satır ek güvenlik amaçlıdır)
+      if (oran !== null && k.kayitFiiliSure <= 600 && k.kayitFiiliSure < k.standartSure) oran = Math.min(oran, 100);
       // 15 adet ve altında gerçekleşen < standart ise oran maksimum %100
       if (oran !== null && k.adet <= 15 && k.kayitFiiliSure < k.standartSure) oran = Math.min(oran, 100);
       var ortSn   = k.ortalamaKontrolSn;
