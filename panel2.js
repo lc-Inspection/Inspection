@@ -341,7 +341,7 @@ function aoApplyFilters() {
     var gFiili = kayitlar.reduce(function(s,k){ return s+k.kayitFiiliSure; }, 0);
     var gOrt   = gAdet > 0 && gFiili > 0 ? Math.round(gFiili / gAdet) : null;
 
-    html += '<tr style="background:#0B1F3A;color:#fff;"><td colspan="11" style="padding:8px 14px;font-size:12px;font-weight:700;">'
+    html += '<tr style="background:#0B1F3A;color:#fff;"><td colspan="12" style="padding:8px 14px;font-size:12px;font-weight:700;">'
       + '📦 ' + kAd + ' <span style="font-weight:400;opacity:.7;font-size:11px;">'
       + kayitlar.length + ' ' + (translations[currentLang]||translations.tr).records_word + ' · ' + gAdet + ' ' + (translations[currentLang]||translations.tr).units_short + ' · ' + _aoFmtSn(gStd)
       + (gFiili > 0 ? ' · ' + _aoFmtSn(gFiili) + ' gerçekleşen' : '')
@@ -372,14 +372,15 @@ function aoApplyFilters() {
         + '<td style="font-size:11px;color:#5A7FA8;text-align:center;">' + (k.tarihGecerli && k.baslangic ? _aoFmtTarih(k.baslangic) : '—') + '</td>'
         + '<td style="font-size:11px;color:#5A7FA8;text-align:center;">' + (k.tarihGecerli && k.bitis ? _aoFmtTarih(k.bitis) : '—') + '</td>'
         + '<td style="font-family:monospace;font-weight:700;text-align:center;">'
-          + (oran !== null ? ((k.is2KalitePerf80 || (k.inspectionTipi && k.inspectionTipi.toLowerCase().startsWith('2.kalite'))) ? '<span style="color:#E65100;font-weight:700;">2. Kalite</span><div style="font-size:9px;font-weight:400;color:#E65100;">↓ ' + (translations[currentLang]||translations.tr).below_target + '</div>' : '<span style="color:' + _aoPerfClass(oran) + ';">' + oran + '%</span><div style="font-size:9px;font-weight:400;color:' + _aoPerfClass(oran) + ';">' + (oran >= 100 ? '✓ ' + (translations[currentLang]||translations.tr).on_target : '↓ ' + (translations[currentLang]||translations.tr).below_target) + '</div>') : '<span style="color:#5A7FA8;">—</span>')
+          + (oran !== null ? '<span style="color:' + _aoPerfClass(oran) + ';">' + oran + '%</span><div style="font-size:9px;font-weight:400;color:' + _aoPerfClass(oran) + ';">' + (oran >= 100 ? '✓ ' + (translations[currentLang]||translations.tr).on_target : '↓ ' + (translations[currentLang]||translations.tr).below_target) + '</div>' : '<span style="color:#5A7FA8;">—</span>')
           + '</td>'
+        + '<td style="font-size:9px;color:' + (k.is2Kalite ? '#7C3AED;font-weight:700;' : '#A9BBD0;') + 'text-align:center;white-space:nowrap;">' + (k.inspectionTipi ? (k.is2Kalite ? '🏷️ ' : '') + k.inspectionTipi : '—') + '</td>'
         + '</tr>';
     });
   });
 
   var _noRec = (translations[currentLang]||translations.tr).no_records_found;
-  document.getElementById('ao-tablo-body').innerHTML = html || '<tr><td colspan="11" style="padding:24px;text-align:center;color:#5A7FA8;">' + _noRec + '</td></tr>';
+  document.getElementById('ao-tablo-body').innerHTML = html || '<tr><td colspan="12" style="padding:24px;text-align:center;color:#5A7FA8;">' + _noRec + '</td></tr>';
 }
 
 function aoResetFilters() {
