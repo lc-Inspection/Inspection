@@ -3203,6 +3203,100 @@ function updateSummaryStats(inspectors) {
 // ────────────────────────────
 // HEDEF VERİMLİLİK DEĞİŞİNCE
 // ────────────────────────────
+// ─────────────────────────────────────────────
+// PERFORMANS SEVİYESİ DETAY POPUP
+// Genel Durum'daki 5 seviye kartına (Mükemmel/İyi/Orta/Zayıf/Çok Zayıf) tıklanınca
+// o seviyedeki inspectorleri; gün sayısı, toplam adet, overtime ve performans
+// oranı ile birlikte tablo halinde gösterir.
+// ─────────────────────────────────────────────
+const PERF_SEVIYE_TANIM = {
+  excellent: { label: 'Mükemmel (≥95%)',  icon: '🏆', min: 95,  max: Infinity, color: 'var(--green)' },
+  good:      { label: 'İyi (85-94%)',     icon: '👍', min: 85,  max: 95,       color: 'var(--blue)'  },
+  average:   { label: 'Orta (70-84%)',    icon: '⚠️', min: 70,  max: 85,       color: 'var(--amber)' },
+  weak:      { label: 'Zayıf (50-69%)',   icon: '🔻', min: 50,  max: 70,       color: '#EF5350'      },
+  verypoor:  { label: 'Çok Zayıf (<50%)', icon: '📉', min: -Infinity, max: 50, color: '#B71C1C'      }
+};
+
+function showPerfSeviyeDetay(seviyeKey) {
+  const tanim = PERF_SEVIYE_TANIM[seviyeKey];
+  const popup = document.getElementById('perf-seviye-popup');
+  const content = document.getElementById('perf-seviye-popup-content');
+  const titleEl = document.getElementById('perf-seviye-popup-title');
+  const subEl = document.getElementById('perf-seviye-popup-sub');
+  if (!tanim || !popup || !content) return;
+
+  if (titleEl) titleEl.textContent = `${tanim.icon} ${tanim.label} — Inspector Listesi`;
+
+  if (!performansData || !performansData.length) {
+    content.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted)">Henüz performans verisi yok</div>`;
+    popup.style.display = 'flex';
+    return;
+  }
+
+  // Bu seviyeye giren inspectorleri filtrele (getDispPerf: verimlilikPerf varsa onu, yoksa genelHizPerf'i kullanır)
+  const liste = performansData
+    .filter(i => {
+      const p = getDispPerf(i);
+      return p >= tanim.min && p < tanim.max;
+    })
+    .sort((a, b) => getDispPerf(b) - getDispPerf(a));
+
+  if (subEl) subEl.textContent = `${liste.length} inspector bu seviyede`;
+
+  if (!liste.length) {
+    content.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted)">Bu seviyede inspector bulunamadı</div>`;
+    popup.style.display = 'flex';
+    return;
+  }
+
+  const rows = liste.map(insp => {
+    const perf = getDispPerf(insp);
+    const perfColor = getProgressColor(perf);
+    const otDk = Math.round((insp.toplamMesaistiSaniye || 0) / 60);
+    const otHtml = otDk > 0
+      ? `<span style="color:#E65100;font-weight:600">🌙 ${otDk}dk</span>`
+      : `<span style="color:var(--muted2)">—</span>`;
+    return `
+      <tr style="border-bottom:1px solid var(--border2)">
+        <td style="padding:9px 10px;font-weight:600;color:var(--navy);cursor:pointer" onclick="document.getElementById('perf-seviye-popup').style.display='none'; showInspectorDetail('${insp.ins.replace(/'/g, "\\'")}')">${_escapeHtml(_formatDisplayName(insp.ins))}</td>
+        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${insp.gunSayisi || 0} gün</td>
+        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${(insp.adet || 0).toLocaleString('tr-TR')}</td>
+        <td style="padding:9px 10px;text-align:center">${otHtml}</td>
+        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${perfColor}">${perf}%</td>
+      </tr>`;
+  }).join('');
+
+  const toplamAdet = liste.reduce((s, i) => s + (i.adet || 0), 0);
+  const ortGun = Math.round(liste.reduce((s, i) => s + (i.gunSayisi || 0), 0) / liste.length);
+  const ortPerf = Math.round(liste.reduce((s, i) => s + getDispPerf(i), 0) / liste.length);
+
+  content.innerHTML = `
+    <div style="max-height:50vh;overflow-y:auto;border:1px solid var(--border2);border-radius:10px">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead style="position:sticky;top:0;background:var(--navy);color:#fff;z-index:1">
+          <tr>
+            <th style="padding:9px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px">Inspector</th>
+            <th style="padding:9px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px">Çalışma Günü</th>
+            <th style="padding:9px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px">Toplam Ürün</th>
+            <th style="padding:9px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px">Overtime</th>
+            <th style="padding:9px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px">Performans</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:14px;padding-top:12px;border-top:2px solid var(--border2);font-size:12px">
+      <span style="color:var(--muted)">Toplam <strong style="color:var(--navy)">${liste.length}</strong> inspector</span>
+      <span style="color:var(--muted)">Toplam Ürün: <strong style="color:var(--navy);font-family:'DM Mono',monospace">${toplamAdet.toLocaleString('tr-TR')}</strong></span>
+      <span style="color:var(--muted)">Ort. Çalışma Günü: <strong style="color:var(--navy);font-family:'DM Mono',monospace">${ortGun} gün</strong></span>
+      <span style="color:var(--muted)">Ort. Performans: <strong style="color:${tanim.color};font-family:'DM Mono',monospace">${ortPerf}%</strong></span>
+    </div>
+    <div style="font-size:10px;color:var(--muted2);margin-top:8px">💡 Bir inspector adına tıklayarak detaylı analizini açabilirsiniz.</div>
+  `;
+
+  popup.style.display = 'flex';
+}
+
 function on2KaliteDahilChange() {
   const checkbox = document.getElementById('inp-2kalite-dahil');
   _2KaliteDahil = !!(checkbox && checkbox.checked);
