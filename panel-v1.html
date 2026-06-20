@@ -1122,6 +1122,18 @@
   </div>
 </div>
 
+<!-- Klasman Süre Önerisi Popup (Admin) -->
+<div class="modal-overlay" id="klasman-sure-onerisi-popup" onclick="if(event.target===this)document.getElementById('klasman-sure-onerisi-popup').style.display='none'">
+  <div class="modal-box" style="max-width:640px;width:94vw;max-height:88vh;overflow-y:auto">
+    <div class="modal-title" id="klasman-sure-onerisi-title">📊 Süre Önerisi</div>
+    <div class="modal-sub" id="klasman-sure-onerisi-sub">Gerçekleşen veriye göre hedef süre önerileri</div>
+    <div id="klasman-sure-onerisi-content" style="margin:16px 0"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('klasman-sure-onerisi-popup').style.display='none'">Kapat</button>
+    </div>
+  </div>
+</div>
+
 <!-- Performans Seviyesi Detay Popup -->
 <div class="modal-overlay" id="perf-seviye-popup" onclick="if(event.target===this)document.getElementById('perf-seviye-popup').style.display='none'">
   <div class="modal-box" style="max-width:760px;width:94vw;max-height:88vh;overflow-y:auto">
