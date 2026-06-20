@@ -3277,13 +3277,15 @@ function renderInspectorCards() {
     const ini = inspector.ins.split(' ').map(w => w[0] || '').slice(0, 2).join('').toUpperCase();
     const klasmanCount = Object.keys(inspector.klasmanlar).length;
 
-    // Kayip zaman rozeti - performans degismez, sadece not
+    // Kayip zaman rozeti - performans degismez, sadece not. Simetri bozulmasin diye veri yoksa da gösterilir.
     const kayipDkCard = getKayipDakikaForInspector(inspector.ins);
     const kayipRozetHtml = kayipDkCard > 0
       ? `<div style="display:inline-flex;align-items:center;gap:3px;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;margin-top:4px;line-height:1.4">
            &#9208; ${(kayipDkCard/60).toFixed(1)}s de&#287;erlendirme d&#305;&#351;&#305;
          </div>`
-      : '';
+      : `<div style="display:inline-flex;align-items:center;gap:3px;background:#F4F6F8;color:var(--muted2);border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-size:9px;font-weight:600;margin-top:4px;line-height:1.4">
+           &#9208; De&#287;erlendirme d&#305;&#351;&#305; yok
+         </div>`;
 
     const performansAciklama = (() => {
       if (performansVal === null || performansVal === undefined) {
@@ -3396,7 +3398,9 @@ function renderInspectorCards() {
                   ? `<span style="font-size:13px;font-weight:700;color:#7C3AED">· ${inspector.perf2Kalite}%</span>`
                   : ''}
               </div>`
-            : ''}
+            : `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(0,0,0,.03);border-radius:7px">
+                <span style="font-size:11px;color:var(--muted2)">🏷️ 2.Kalite kontrolü yok</span>
+              </div>`}
           <div style="text-align:center">
             <span style="font-size:11px;color:var(--muted2)">📊 </span>
             <span style="font-size:12px;font-weight:600;color:var(--navy)">${klasmanCount} ${(translations[currentLang]||translations.tr).klasman_word}</span>
