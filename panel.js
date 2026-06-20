@@ -514,6 +514,12 @@ let _editingUsername = null; // null => yeni kullanıcı, string => düzenleniyo
 let _kzLastFetchTime = 0;
 const KZ_CACHE_MS = 20000; // 20 saniye icinde tekrar girilirse network'e gitmeden cache'den goster
 
+// 2.Kalite ürünlerinin Genel Performans hesabına dahil edilip edilmeyeceğini
+// kontrol eden toggle. VARSAYILAN: false (kapalı) — mevcut/eski davranış birebir
+// korunur: 2.Kalite kayıtları genel performansa hiç karışmaz, ayrı gösterilir.
+// true olursa: 2.Kalite kayıtları diğer kayıtlarla aynı akıştan geçer (ayrım kalkar).
+let _2KaliteDahil = false;
+
 // ─── Kayıp Zaman localStorage cache ───
 // Sayfa yenilendiğinde (F5) JS state sıfırlanır; bu yüzden son çekilen veriyi
 // localStorage'da tutup açılışta anında gösteriyoruz, arkaplanda Sheets'ten tazeliyoruz.
@@ -3197,6 +3203,27 @@ function updateSummaryStats(inspectors) {
 // ────────────────────────────
 // HEDEF VERİMLİLİK DEĞİŞİNCE
 // ────────────────────────────
+function on2KaliteDahilChange() {
+  const checkbox = document.getElementById('inp-2kalite-dahil');
+  _2KaliteDahil = !!(checkbox && checkbox.checked);
+
+  // Excel verisi (ham satırlar) elimizdeyse en güvenilir yol: sıfırdan yeniden hesapla.
+  // Bu, is2Kalite ayrımının her aşamada (klasman toplamları, overtime, vb.) doğru
+  // uygulanmasını garanti eder — performansData üzerinde parça parça düzeltme
+  // yapmak yerine performansHesapla() tüm zinciri baştan, tutarlı şekilde kurar.
+  if (typeof excelRows !== 'undefined' && excelRows && excelRows.length > 0) {
+    performansHesapla();
+    return;
+  }
+
+  // Excel verisi yoksa (örn. localStorage'dan/Sheets'ten yüklenmiş performansData
+  // var ama ham Excel satırları yok) yeniden hesaplama mümkün değil — kullanıcıyı
+  // bilgilendir ve checkbox'ı eski haline döndür.
+  if (performansData && performansData.length > 0) {
+    showFileStatus('⚠️ Bu ayarın uygulanabilmesi için Excel dosyasını tekrar yükleyin (ham veri gerekiyor).', 'var(--amber)');
+  }
+}
+
 function onHedefChange() {
   // Veri varsa tablo + kartları yeniden çiz; yoksa sadece tabloyu yenile
   if (performansData && performansData.length > 0) {
@@ -3496,7 +3523,7 @@ function renderInspectorCards() {
             : `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(0,0,0,.03);border-radius:7px">
                 <span style="font-size:11px;color:var(--muted2)">⏱ Overtime Yok</span>
               </div>`}
-          ${inspector.toplam2KaliteAdet > 0
+          ${_2KaliteDahil ? '' : (inspector.toplam2KaliteAdet > 0
             ? `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(124,58,237,.08);border-radius:7px">
                 <span style="font-size:11px;color:#7C3AED">🏷️ 2.Kalite kontrolü:</span>
                 <span style="font-size:13px;font-weight:700;color:#7C3AED">${inspector.toplam2KaliteAdet.toLocaleString('tr-TR')} adet</span>
@@ -3506,7 +3533,7 @@ function renderInspectorCards() {
               </div>`
             : `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(0,0,0,.03);border-radius:7px">
                 <span style="font-size:11px;color:var(--muted2)">🏷️ 2.Kalite kontrolü yok</span>
-              </div>`}
+              </div>`)}
           <div style="text-align:center">
             <span style="font-size:11px;color:var(--muted2)">📊 </span>
             <span style="font-size:12px;font-weight:600;color:var(--navy)">${klasmanCount} ${(translations[currentLang]||translations.tr).klasman_word}</span>
@@ -5110,10 +5137,15 @@ function performansHesapla(){
     }
     const kl = inspectorMap[ins].klasmanlar[klasmanKey2];
 
-    // 2.Kalite kayıtları genel performans hesabından TAMAMEN hariç tutulur
-    // (ne adet/standart süre payına, ne mesai/overtime paydasına dahil edilir).
-    // Sadece kendi ayrı toplamlarında (toplam2Kalite*) izlenir — yalnızca gösterim içindir.
-    if (is2Kalite) {
+    // 2.Kalite kayıtları VARSAYILAN OLARAK genel performans hesabından TAMAMEN
+    // hariç tutulur (ne adet/standart süre payına, ne mesai/overtime paydasına
+    // dahil edilir) — sadece kendi ayrı toplamlarında (toplam2Kalite*) izlenir.
+    // KULLANICI TOGGLE'I: "2.Kalite ürünleri Genel Performansa dahil et" işaretliyse
+    // (_2KaliteDahil === true) 2.Kalite kayıtları da DİĞER KAYITLARLA AYNI ŞEKİLDE
+    // normal akışa girer — bu durumda mevcut davranış hiç değişmez (her şey tek
+    // bir akıştan geçer, ayrım yapılmaz). Varsayılan (false) durumda eski/mevcut
+    // çalışan mantık birebir korunur.
+    if (is2Kalite && !_2KaliteDahil) {
       kl.toplam2KaliteAdet = (kl.toplam2KaliteAdet || 0) + adet;
       kl.toplam2KaliteStandartSure = (kl.toplam2KaliteStandartSure || 0) + standartSure;
       if (kayitFiiliSure && kayitFiiliSure > 0) {
@@ -5136,7 +5168,9 @@ function performansHesapla(){
     const kayitNormalSayilir = kayitNormalMi(parsedBitis);
     kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '', inspectionTipi: inspectionTipiRaw, is2Kalite });
 
-    if (!is2Kalite) {
+    if (is2Kalite && !_2KaliteDahil) {
+      // toplamAdet'e eklenmedi (yukarıda hariç tutuldu)
+    } else {
       inspectorMap[ins].toplamAdet += adet;
     }
   });
