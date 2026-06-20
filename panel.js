@@ -5050,12 +5050,23 @@ function performansHesapla(){
     const urunKabulKat = getUrunKabulKat(adet);
     const olcuEk = olcuAdet * (klasmanInfo.olcuSuresi || 0);
     const urunKabulEk = urunKabulKat * (klasmanInfo.urunKabulSuresi || 0);
-    const standartSure = (klasmanInfo.urunKontrolSuresi * adet) + olcuEk + urunKabulEk + klasmanInfo.istasyonSuresi;
+    let standartSure = (klasmanInfo.urunKontrolSuresi * adet) + olcuEk + urunKabulEk + klasmanInfo.istasyonSuresi;
 
     // Bu kaydın fiili süresi = başlangıç-bitiş farkı (mola düşümlü)
     const kayitFiiliSure = tarihGecerli
       ? hesaplaGerceklesenSure(parsedBaslangic, parsedBitis)
       : null;
+
+    // ── KISA KAYIT TAVANLAMASI ──────────────────────────────────────────
+    // Gerçekleşen süresi ≤ 10dk (600sn) olan kayıtlarda standart süre bazen
+    // çok yüksek çıkıp (ör. küçük partide ölçü/ürün kabul ekleri orantısız
+    // büyüyünce) oran %500+ gibi gerçekçi olmayan değerlere ulaşabiliyor.
+    // Hesaplama sistemi DEĞİŞMİYOR — yalnızca bu kaydın genel performansa
+    // (toplamStandartSure'a) giren payı, kendi gerçekleşen süresiyle tavanlanır
+    // ki oran hiçbir zaman %100'ü geçerek genel ortalamayı yapay şişirmesin.
+    if (kayitFiiliSure !== null && kayitFiiliSure > 0 && kayitFiiliSure <= 600 && standartSure > kayitFiiliSure) {
+      standartSure = kayitFiiliSure;
+    }
 
     // "Inspection Tipi" sütunu — sadece izleme/raporlama amaçlı okunur.
     // Standart süre / performans hesabını ETKİLEMEZ; tüm kayıtlar aynı
