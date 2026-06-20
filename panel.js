@@ -3217,6 +3217,155 @@ const PERF_SEVIYE_TANIM = {
   verypoor:  { label: 'Çok Zayıf (<50%)', icon: '📉', min: -Infinity, max: 50, color: '#B71C1C'      }
 };
 
+// ─────────────────────────────────────────────
+// KLASMAN SÜRE ÖNERİSİ (Sadece Admin)
+// Klasman Yönetimi'nde "Analiz Et" butonuna basınca, o klasmanın GERÇEK
+// performans verisinden (Performans Analizi'nde işlenmiş Excel verisi) adet
+// başına gerçekleşen ortalama süreyi bulur ve bunun %80'i kadar bir hedef
+// önerir (gerçekleşen 100sn ise hedef 80sn — performansı zorlayan bir hedef).
+// Üç bilinmeyen (1 Birim Muayene + Ölçü + Ürün Kabul) olduğundan tek bir doğru
+// cevap yok; üç farklı dağıtım senaryosu sunulur, admin elle seçip uygular.
+// SADECE ÖNERİ sunar — hiçbir değeri otomatik kaydetmez/değiştirmez.
+// ─────────────────────────────────────────────
+function showKlasmanSureOnerisi(klasmanId) {
+  const k = klasmanlar.find(x => x.id === klasmanId);
+  const popup = document.getElementById('klasman-sure-onerisi-popup');
+  const content = document.getElementById('klasman-sure-onerisi-content');
+  const titleEl = document.getElementById('klasman-sure-onerisi-title');
+  const subEl = document.getElementById('klasman-sure-onerisi-sub');
+  if (!k || !popup || !content) return;
+
+  titleEl.textContent = `📊 ${k.ad} — Süre Önerisi`;
+
+  // _klAnalizTumListe, Klasman Analizi sayfasında zaten hesaplanan klasman bazlı
+  // toplamları içerir (toplamAdet, toplamFiiliSure, toplamStandartSure...).
+  // Excel hiç yüklenmediyse bu liste boş olur.
+  const veri = (typeof _klAnalizTumListe !== 'undefined' ? _klAnalizTumListe : [])
+    .find(x => x.ad === k.ad);
+
+  if (!veri || !veri.toplamAdet || !veri.toplamFiiliSure) {
+    subEl.textContent = 'Bu klasman için gerçekleşen veri bulunamadı';
+    content.innerHTML = `
+      <div style="text-align:center;padding:24px;color:var(--muted)">
+        <div style="font-size:32px;margin-bottom:10px">📭</div>
+        <div style="font-weight:600;margin-bottom:6px">Gerçekleşen veri yok</div>
+        <div style="font-size:12px;line-height:1.6">
+          Bu klasman için Performans Analizi sayfasında Excel yüklenmiş ve
+          en az bir kayıt bu klasmana ait olmalı. Excel yükleyip tekrar deneyin.
+        </div>
+      </div>`;
+    popup.style.display = 'flex';
+    return;
+  }
+
+  // Gerçekleşen ortalama (adet başına, klasman geneli — toplam fiili / toplam adet)
+  const gerceklesenAdetBasi = veri.toplamFiiliSure / veri.toplamAdet;
+  const hedefAdetBasi = gerceklesenAdetBasi * 0.80; // %20 fark hedefi
+
+  subEl.textContent = `Gerçekleşen ${gerceklesenAdetBasi.toFixed(2)}sn/adet → Hedef ${hedefAdetBasi.toFixed(2)}sn/adet (%20 zorlayıcı pay)`;
+
+  // Mevcut değerler (referans için)
+  const mevcutKontrol = parseFloat(k.urunKontrolSuresi) || 0;
+  const mevcutOlcu = parseFloat(k.olcuSuresi) || 0;
+  const mevcutKabul = parseFloat(k.urunKabulSuresi) || 0;
+  const istasyonSuresi = k.istasyonlar.reduce((s, i) => s + (parseFloat(i.sure) || 0), 0);
+
+  // Mevcut formülün adet başına diğer bileşenleri (32 adetlik tipik bir parti
+  // varsayımıyla — getOlcuAdet/getUrunKabulKat fonksiyonlarıyla aynı eşikler).
+  // Bu sadece SENARYO hesaplamak için kullanılan bir referans parti büyüklüğüdür.
+  const refAdet = 32;
+  const olcuKat = refAdet <= 32 ? 6 : refAdet <= 80 ? 9 : refAdet <= 125 ? 9 : 12;
+  const kabulKat = refAdet <= 32 ? 0.5 : refAdet <= 80 ? 1.1 : refAdet <= 125 ? 1.2 : 1.3;
+
+  // Senaryo A: Sadece "1 Birim Muayene Süresi"ni ayarla, Ölçü ve Ürün Kabul SIFIR kabul edilip
+  // hedefin tamamı kontrol süresine yüklenir (basit, tek değişkenli öneri).
+  const senaryoA_kontrol = Math.max(0, hedefAdetBasi - (istasyonSuresi / refAdet));
+  const senaryoA_olcu = 0;
+  const senaryoA_kabul = 0;
+
+  // Senaryo B: Mevcut 3 bileşenin ORANI korunarak hep birlikte aynı katsayıyla küçültülür/büyütülür.
+  const mevcutToplamAdetBasi = mevcutKontrol + (olcuKat * mevcutOlcu / refAdet) + (kabulKat * mevcutKabul / refAdet) + (istasyonSuresi / refAdet);
+  const oranKatsayi = mevcutToplamAdetBasi > 0 ? hedefAdetBasi / mevcutToplamAdetBasi : 1;
+  const senaryoB_kontrol = Math.max(0, mevcutKontrol * oranKatsayi);
+  const senaryoB_olcu = Math.max(0, mevcutOlcu * oranKatsayi);
+  const senaryoB_kabul = Math.max(0, mevcutKabul * oranKatsayi);
+
+  // Senaryo C: Hedefi 3'e eşit/dengeli pay et — kontrol %70, ölçü %15, kabul %15 ağırlıkla
+  // (ürün kontrolü her zaman en büyük bileşen olsun mantığıyla, daha "dengeli" bir dağılım).
+  const senaryoC_kontrolPay = hedefAdetBasi * 0.70;
+  const senaryoC_olcuPay = hedefAdetBasi * 0.15;
+  const senaryoC_kabulPay = hedefAdetBasi * 0.15;
+  const senaryoC_kontrol = Math.max(0, senaryoC_kontrolPay - (istasyonSuresi / refAdet));
+  const senaryoC_olcu = olcuKat > 0 ? Math.max(0, (senaryoC_olcuPay * refAdet) / olcuKat) : 0;
+  const senaryoC_kabul = kabulKat > 0 ? Math.max(0, (senaryoC_kabulPay * refAdet) / kabulKat) : 0;
+
+  const senaryoHtml = (baslik, aciklama, renk, kontrol, olcu, kabul) => `
+    <div style="border:1.5px solid ${renk}33;border-radius:10px;padding:14px;margin-bottom:12px;background:linear-gradient(135deg,${renk}0D,transparent)">
+      <div style="font-weight:700;font-size:13px;color:${renk};margin-bottom:4px">${baslik}</div>
+      <div style="font-size:11px;color:var(--muted2);margin-bottom:10px;line-height:1.5">${aciklama}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:7px;padding:8px 10px;text-align:center">
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">1 Birim Muayene</div>
+          <div style="font-size:16px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${kontrol.toFixed(1)}<span style="font-size:10px;color:var(--muted2)">sn</span></div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:7px;padding:8px 10px;text-align:center">
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Ölçü Süresi</div>
+          <div style="font-size:16px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${olcu.toFixed(1)}<span style="font-size:10px;color:var(--muted2)">sn</span></div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:7px;padding:8px 10px;text-align:center">
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Ürün Kabul</div>
+          <div style="font-size:16px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${kabul.toFixed(1)}<span style="font-size:10px;color:var(--muted2)">sn</span></div>
+        </div>
+      </div>
+      <button onclick="applyKlasmanSureOnerisi(${k.id}, ${kontrol.toFixed(1)}, ${olcu.toFixed(1)}, ${kabul.toFixed(1)})"
+        style="width:100%;margin-top:10px;padding:7px;border-radius:7px;border:1.5px solid ${renk};background:#fff;color:${renk};font-size:11.5px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">
+        ✓ Bu Öneriyi Uygula
+      </button>
+    </div>`;
+
+  content.innerHTML = `
+    <div style="background:var(--lblue3);border:1px solid var(--border2);border-radius:9px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--navy);line-height:1.7">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:var(--muted)">Gerçekleşen (adet başı, ortalama)</span>
+        <strong style="font-family:'DM Mono',monospace">${gerceklesenAdetBasi.toFixed(2)} sn</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:var(--muted)">Hedef (%20 zorlayıcı pay ile, = gerçekleşen × 0.80)</span>
+        <strong style="font-family:'DM Mono',monospace;color:#5E35B1">${hedefAdetBasi.toFixed(2)} sn</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted2)">
+        <span>Veri kaynağı</span>
+        <span>${veri.toplamAdet.toLocaleString('tr-TR')} adet · ${veri.inspectorSayisi || 0} inspector</span>
+      </div>
+    </div>
+
+    ${senaryoHtml('A) Basit — Sadece Kontrol Süresini Ayarla', 'Ölçü ve Ürün Kabul süreleri 0 kabul edilir, hedefin tamamı 1 Birim Muayene Süresi\'ne yüklenir. En kolay uygulanan seçenek.', '#1565C0', senaryoA_kontrol, senaryoA_olcu, senaryoA_kabul)}
+    ${senaryoHtml('B) Orantılı — Mevcut Dağılımı Koru', 'Şu anki 3 değerin birbirine oranı korunarak hepsi aynı katsayıyla küçültülür/büyütülür. Klasmanın mevcut yapısını bozmadan hedefe ulaşır.', '#00897B', senaryoB_kontrol, senaryoB_olcu, senaryoB_kabul)}
+    ${senaryoHtml('C) Dengeli — %70 / %15 / %15 Pay', 'Hedefin %70\'i Kontrol Süresi\'ne, %15\'i Ölçü\'ye, %15\'i Ürün Kabul\'e dağıtılır. Üç bileşen de hedefe katkı verir.', '#E65100', senaryoC_kontrol, senaryoC_olcu, senaryoC_kabul)}
+
+    <div style="font-size:10px;color:var(--muted2);margin-top:4px;line-height:1.6">
+      💡 Senaryolar <strong>${refAdet} adetlik tipik bir parti</strong> referans alınarak hesaplanmıştır (Ölçü/Ürün Kabul katsayıları parti büyüklüğüne göre değiştiğinden tam kesinlik garanti edilmez). Bir öneriyi uyguladıktan sonra istediğiniz gibi elle ince ayar yapabilirsiniz.
+    </div>
+  `;
+
+  popup.style.display = 'flex';
+}
+
+// Öneriyi tek tıkla 3 input alanına uygular (kaydetmez — input'lara yazar,
+// mevcut onchange="updateX(...)" mantığı zaten devreye girer).
+function applyKlasmanSureOnerisi(klasmanId, kontrol, olcu, kabul) {
+  // Not: her updateX() çağrısı kendi içinde renderEditor() tetikleyip DOM'u
+  // yeniden oluşturduğundan, DOM elementine önceden referans tutmak yerine
+  // doğrudan veri katmanını (klasmanlar dizisini) güncelleyen fonksiyonları
+  // sırayla çağırıyoruz — her biri zaten klasmanlar dizisine yazıp kaydeder.
+  updateUrunKontrol(klasmanId, kontrol);
+  updateOlcuSuresi(klasmanId, olcu);
+  updateUrunKabulSuresi(klasmanId, kabul);
+
+  document.getElementById('klasman-sure-onerisi-popup').style.display = 'none';
+  showFileStatus('✅ Süre önerisi uygulandı — istediğiniz gibi elle ince ayar yapabilirsiniz.', 'var(--green)');
+}
+
 function showPerfSeviyeDetay(seviyeKey) {
   const tanim = PERF_SEVIYE_TANIM[seviyeKey];
   const popup = document.getElementById('perf-seviye-popup');
@@ -4265,6 +4414,14 @@ function renderEditor(){
           ${iconGridHtml}
         </div>
       </div>
+      ${(!currentUser || currentUser.isAdmin) ? `
+      <div style="margin-bottom:8px">
+        <button onclick="showKlasmanSureOnerisi(${k.id})"
+          style="width:100%;padding:10px 14px;background:linear-gradient(135deg,#EDE7F6,#F3E5F5);border:1.5px solid #B39DDB;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12.5px;font-weight:700;color:#5E35B1;font-family:'DM Sans',sans-serif">
+          📊 Analiz Et — Gerçekleşen Süreye Göre Süre Önerisi Al
+        </button>
+      </div>
+      ` : ''}
       <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--lgreen);border:1px solid var(--green);border-radius:8px;margin-bottom:8px">
         <div style="width:32px;height:32px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px">⏱</div>
         <div style="flex:1">
@@ -4272,7 +4429,7 @@ function renderEditor(){
           <span style="font-size:11px;color:var(--muted2)" data-i18n="unit_check_hint">Ürün başına harcanan standart süre</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" value="${urunKontrolSuresi}" min="0" step="1" 
+          <input type="number" value="${urunKontrolSuresi}" min="0" step="1" id="inp-urunkontrol-${k.id}"
             onchange="updateUrunKontrol(${k.id},this.value)" style="width:80px;text-align:right;padding:6px 8px;border:1px solid var(--border);border-radius:6px">
           <span style="font-size:12px;color:var(--muted);white-space:nowrap">saniye</span>
         </div>
@@ -4286,7 +4443,7 @@ function renderEditor(){
           <span style="font-size:11px;color:var(--muted2)">Adet başına ölçüm süresi — BakilacakMiktar'a göre ölçülecek adet × bu süre eklenir</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" value="${parseFloat(k.olcuSuresi)||0}" min="0" step="1"
+          <input type="number" value="${parseFloat(k.olcuSuresi)||0}" min="0" step="1" id="inp-olcu-${k.id}"
             onchange="updateOlcuSuresi(${k.id},this.value)" style="width:80px;text-align:right;padding:6px 8px;border:1px solid var(--border);border-radius:6px">
           <span style="font-size:12px;color:var(--muted);white-space:nowrap">saniye</span>
         </div>
@@ -4300,7 +4457,7 @@ function renderEditor(){
           <span style="font-size:11px;color:var(--muted2)">Parti başına sabit ek süre — miktar arttıkça kademeli artar (1-32→1x, 33-80→2x, 81-125→3x, 125+→4x)</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" value="${parseFloat(k.urunKabulSuresi)||0}" min="0" step="1"
+          <input type="number" value="${parseFloat(k.urunKabulSuresi)||0}" min="0" step="1" id="inp-kabul-${k.id}"
             onchange="updateUrunKabulSuresi(${k.id},this.value)" style="width:80px;text-align:right;padding:6px 8px;border:1px solid var(--border);border-radius:6px">
           <span style="font-size:12px;color:var(--muted);white-space:nowrap">saniye</span>
         </div>
