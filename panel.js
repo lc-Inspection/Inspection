@@ -505,6 +505,12 @@ let excelRows = [];
 let excelCols = [];
 let performansData = [];
 let kayipZamanData = []; // { id, inspector, tarih, gun, baslangic, bitis, sebep, aciklama, ekipYoneticisi, sureDk }
+
+// Kullanıcı yönetimi (Users sekmesi) için global cache — sayfa açılışında
+// renderDashboard() → renderTeamManagersSection() zinciri tarafından erken
+// kullanıldığından, TDZ hatasını önlemek için burada (dosyanın başında) tanımlanır.
+let _usersCache = [];
+let _editingUsername = null; // null => yeni kullanıcı, string => düzenleniyor
 let _kzLastFetchTime = 0;
 const KZ_CACHE_MS = 20000; // 20 saniye icinde tekrar girilirse network'e gitmeden cache'den goster
 
@@ -3177,7 +3183,6 @@ function updateSummaryStats(inspectors) {
 
   const totalProducts = inspectors.reduce((sum, i) => sum + (i.adet || 0), 0);
 
-  document.getElementById('total-inspectors').textContent = total;
   document.getElementById('excellent-count').textContent = excellent;
   document.getElementById('good-count').textContent = good;
   document.getElementById('average-count').textContent = average;
@@ -7010,8 +7015,11 @@ async function pullKlasmanAnalizFromSheets() {
 // _usersCache: Users sekmesinden çekilen [{username, tabs:[...]}] listesi (admin
 // hariç). Şifreler güvenlik nedeniyle sunucudan geri okunmaz; sadece admin yeni
 // bir şifre belirlediğinde sunucuya gönderilir, aksi halde mevcut şifre korunur.
-let _usersCache = [];
-let _editingUsername = null; // null => yeni kullanıcı, string => düzenleniyor
+// NOT: _usersCache ve _editingUsername artık dosyanın ÜSTÜNDE (global değişkenler
+// bölümünde) tanımlanıyor — bu fonksiyonlar dosyanın altında olsa da, sayfa açılışında
+// üst seviyede çağrılan renderDashboard() → renderTeamManagersSection() zinciri bu
+// değişkene erişiyor; let ile alttaki bir tanım kullanılırsa TDZ (Temporal Dead Zone)
+// ReferenceError'a yol açar.
 
 // Kullanıcı adını ("fatma.dogan", "ali_kirna" gibi) okunabilir bir görünen
 // ada çevirir: noktalar/alt çizgiler boşluğa dönüştürülür ve her kelimenin
