@@ -48,7 +48,8 @@ const translations = {
     stat_excellent:       'Mükemmel (≥95%)',
     stat_good:            'İyi (85-94%)',
     stat_average:         'Orta (70-84%)',
-    stat_poor:            'Düşük (<70%)',
+    stat_poor:            'Zayıf (50-69%)',
+    stat_verypoor:        'Çok Zayıf (<50%)',
     stat_avg_perf:        '📅 Ortalama Performans',
     stat_avg_days:        '⏰ Ortalama Çalışma Günü',
     stat_total_product:   '📦 Toplam Ürün',
@@ -125,7 +126,9 @@ const translations = {
     perf_excellent:       'Mükemmel',
     perf_good:            'İyi',
     perf_average:         'Orta',
-    perf_poor:            'Düşük',
+    perf_poor:            'Zayıf',
+    perf_weak:            'Zayıf',
+    perf_verypoor:        'Çok Zayıf',
     stat_total_product2:  'TOPLAM ADET',
     std_duration_label:   'STANDART SÜRE',
     adj_perf_label_upper: 'DÜZ. PERFORMANS',
@@ -3089,7 +3092,8 @@ function getPerformanceClass(performans) {
   if (performans >= 95) return 'perf-excellent';
   if (performans >= 85) return 'perf-good';
   if (performans >= 70) return 'perf-average';
-  return 'perf-poor';
+  if (performans >= 50) return 'perf-weak';
+  return 'perf-verypoor';
 }
 
 // Gösterim için kullanılacak performans değeri:
@@ -3104,7 +3108,18 @@ function getProgressColor(performans) {
   if (performans >= 95) return '#00897B';
   if (performans >= 85) return '#1565C0';
   if (performans >= 70) return '#F57F17';
-  return '#C62828';
+  if (performans >= 50) return '#EF5350';
+  return '#B71C1C';
+}
+
+// Performans seviyesi etiketini döner (5 seviye): Mükemmel/İyi/Orta/Zayıf/Çok Zayıf
+function getPerformanceLevelLabel(performans) {
+  const t = translations[currentLang] || translations.tr;
+  if (performans >= 95) return t.perf_excellent;
+  if (performans >= 85) return t.perf_good;
+  if (performans >= 70) return t.perf_average;
+  if (performans >= 50) return t.perf_weak;
+  return t.perf_verypoor;
 }
 
 function fmtSnKisa(sn) {
@@ -3143,7 +3158,11 @@ function updateSummaryStats(inspectors) {
     const p = getPerfVal(i);
     return p >= 70 && p < 85;
   }).length;
-  const poor = inspectors.filter(i => getPerfVal(i) < 70).length;
+  const poor = inspectors.filter(i => {
+    const p = getPerfVal(i);
+    return p >= 50 && p < 70;
+  }).length;
+  const veryPoor = inspectors.filter(i => getPerfVal(i) < 50).length;
 
   const validPerformances = inspectors.filter(i => 
     i.verimlilikPerf !== null && i.verimlilikPerf !== undefined || i.genelHizPerf !== null && i.genelHizPerf !== undefined
@@ -3163,6 +3182,7 @@ function updateSummaryStats(inspectors) {
   document.getElementById('good-count').textContent = good;
   document.getElementById('average-count').textContent = average;
   document.getElementById('poor-count').textContent = poor;
+  if (document.getElementById('verypoor-count')) document.getElementById('verypoor-count').textContent = veryPoor;
   document.getElementById('avg-performance').textContent = avgPerformans + '%';
   document.getElementById('avg-working-days').textContent = avgWorkingDays + ' ' + (translations[currentLang]||translations.tr).days_suffix;
   document.getElementById('total-products').textContent = totalProducts.toLocaleString('tr-TR');
@@ -3271,7 +3291,8 @@ function filterInspectors() {
         case 'excellent': return inspector.performans >= 95;
         case 'good': return inspector.performans >= 85 && inspector.performans < 95;
         case 'average': return inspector.performans >= 70 && inspector.performans < 85;
-        case 'poor': return inspector.performans < 70;
+        case 'poor': return inspector.performans >= 50 && inspector.performans < 70;
+        case 'verypoor': return inspector.performans < 50;
         default: return true;
       }
     });
@@ -3383,12 +3404,7 @@ function renderInspectorCards() {
       return `${gunSayisi} ${(translations[currentLang]||translations.tr).days_x_formula.replace('{h}', mesaiSaat)}${overtimeStr}`;
     })();
 
-    const performansSeviyesi = (() => {
-      if (performansVal >= 95) return (translations[currentLang]||translations.tr).perf_excellent;
-      if (performansVal >= 85) return (translations[currentLang]||translations.tr).perf_good;
-      if (performansVal >= 70) return (translations[currentLang]||translations.tr).perf_average;
-      return (translations[currentLang]||translations.tr).perf_poor; // "Geliştirilmeli" yerine "Düşük"
-    })();
+    const performansSeviyesi = getPerformanceLevelLabel(performansVal);
 
     const klasmanRowsHtml = Object.entries(inspector.klasmanlar).map(([klasman, data]) => {
       const hizPerf = (data.hizPerf !== null && data.hizPerf !== undefined) ? data.hizPerf : null;
@@ -4522,7 +4538,7 @@ function renderPerfTabloFromData(page) {
   const vOrtEl = document.getElementById('verimlilik-ort');
   if (vOrtEl) {
     vOrtEl.textContent = ortVPerf + '%';
-    vOrtEl.style.color = ortVPerf >= 95 ? 'var(--green)' : ortVPerf >= 85 ? 'var(--blue)' : ortVPerf >= 70 ? 'var(--amber)' : 'var(--red)';
+    vOrtEl.style.color = getProgressColor(ortVPerf);
   }
 
   // Sayfalama
@@ -4536,7 +4552,9 @@ function renderPerfTabloFromData(page) {
     'perf-excellent': { bg: 'linear-gradient(135deg,#E8F5E9,#F1F8E9)', accent: '#00897B', badge: '#00897B', badgeTxt: '#fff', label: 'MÜKEMMEL' },
     'perf-good':      { bg: 'linear-gradient(135deg,#E3F2FD,#EEF7FF)', accent: '#1565C0', badge: '#1565C0', badgeTxt: '#fff', label: 'İYİ' },
     'perf-average':   { bg: 'linear-gradient(135deg,#FFF8E1,#FFFDE7)', accent: '#F57F17', badge: '#F57F17', badgeTxt: '#fff', label: 'ORTA' },
-    'perf-poor':      { bg: 'linear-gradient(135deg,#FFEBEE,#FFF3F3)', accent: '#C62828', badge: '#C62828', badgeTxt: '#fff', label: 'DÜŞÜK' },
+    'perf-weak':      { bg: 'linear-gradient(135deg,#FFEBEE,#FFF3F3)', accent: '#EF5350', badge: '#EF5350', badgeTxt: '#fff', label: 'ZAYIF' },
+    'perf-verypoor':  { bg: 'linear-gradient(135deg,#FFCDD2,#FFEBEE)', accent: '#B71C1C', badge: '#B71C1C', badgeTxt: '#fff', label: 'ÇOK ZAYIF' },
+    'perf-poor':      { bg: 'linear-gradient(135deg,#FFCDD2,#FFEBEE)', accent: '#B71C1C', badge: '#B71C1C', badgeTxt: '#fff', label: 'ÇOK ZAYIF' }, // geriye dönük uyumluluk
   };
 
   const kartlar = pageData.map((row, idx) => {
@@ -4544,7 +4562,7 @@ function renderPerfTabloFromData(page) {
     const ini = row.ins.split(' ').map(w => w[0] || '').slice(0, 2).join('').toUpperCase();
     const performans = row.genelHizPerf ?? 0;
     const performansClass = getPerformanceClass(performans);
-    const cm = perfColorMap[performansClass] || perfColorMap['perf-poor'];
+    const cm = perfColorMap[performansClass] || perfColorMap['perf-verypoor'];
     const vPerfDisplay = row.genelHizPerf !== null && row.genelHizPerf !== undefined
       ? Math.round(row.genelHizPerf * (100 / hedef)) : null;
     const vPerfClass = vPerfDisplay === null ? '' : getPerformanceClass(vPerfDisplay);
@@ -4555,7 +4573,7 @@ function renderPerfTabloFromData(page) {
     const klasmanEntries = Object.entries(row.klasmanlar || {}).slice(0, 4);
     const klasmanBars = klasmanEntries.map(([k, v]) => {
       const kp = Math.round(v.hizPerf || 0);
-      const kc = kp >= 95 ? '#00897B' : kp >= 85 ? '#1565C0' : kp >= 70 ? '#F57F17' : '#C62828';
+      const kc = getProgressColor(kp);
       return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
         <div style="font-size:10px;color:var(--muted);width:70px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;">${k}</div>
         <div style="flex:1;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;">
@@ -4684,7 +4702,8 @@ function renderPerfTabloFromData(page) {
             ['🏆',(translations[currentLang]||translations.tr).perf_excellent,performansData.filter(r=>(r.genelHizPerf??0)>=95).length,'var(--green)','var(--lgreen)'],
             ['👍','İyi',performansData.filter(r=>{const p=r.genelHizPerf??0;return p>=85&&p<95}).length,'var(--blue)','var(--lblue2)'],
             ['⚠️',(translations[currentLang]||translations.tr).perf_average,performansData.filter(r=>{const p=r.genelHizPerf??0;return p>=70&&p<85}).length,'var(--amber)','var(--lamber)'],
-            ['📉',(translations[currentLang]||translations.tr).perf_poor,performansData.filter(r=>(r.genelHizPerf??0)<70).length,'var(--red)','var(--lred)']
+            ['🔻',(translations[currentLang]||translations.tr).perf_weak,performansData.filter(r=>{const p=r.genelHizPerf??0;return p>=50&&p<70}).length,'#EF5350','#FFEBEE'],
+            ['📉',(translations[currentLang]||translations.tr).perf_verypoor,performansData.filter(r=>(r.genelHizPerf??0)<50).length,'#B71C1C','#FFCDD2']
           ].map(([ic,lb,cnt,col,bg])=>`
             <div style="background:${bg};border:1px solid ${col}33;border-radius:10px;padding:10px 14px;text-align:center;min-width:54px;">
               <div style="font-size:16px;">${ic}</div>
@@ -5308,7 +5327,7 @@ function performansHesapla(){
     
     const tarihDurumu = row.tarihBasariliKayit > 0 ? `✅ ${row.tarihBasariliKayit}/${row.kayit}` : `⚠️ Tarih yok`;
     const vPerf = row.verimlilikPerf;
-    const vPerfClass = vPerf === null ? '' : vPerf >= 95 ? 'perf-excellent' : vPerf >= 85 ? 'perf-good' : vPerf >= 70 ? 'perf-average' : 'perf-poor';
+    const vPerfClass = vPerf === null ? '' : getPerformanceClass(vPerf);
     const verimlilikHedef3 = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
     
     return `<tr>
@@ -5362,7 +5381,7 @@ function performansHesapla(){
   const vOrtEl = document.getElementById('verimlilik-ort');
   if (vOrtEl) {
     vOrtEl.textContent = ortVPerf + '%';
-    vOrtEl.style.color = ortVPerf >= 95 ? 'var(--green)' : ortVPerf >= 85 ? 'var(--blue)' : ortVPerf >= 70 ? 'var(--amber)' : 'var(--red)';
+    vOrtEl.style.color = getProgressColor(ortVPerf);
   }
 
   const verimlilikHedef2 = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
@@ -5605,13 +5624,15 @@ function renderTopInspectors() {
     const perfColor = performans >= 95 ? '#4DB6AC'
       : performans >= 85 ? '#64B5F6'
       : performans >= 70 ? '#FFB74D'
-      : '#EF9A9A';
+      : performans >= 50 ? '#EF9A9A'
+      : '#FF8A80';
 
     const performanceLevel = (() => {
       if (performans >= 95) return { text: 'MÜKEMMEL', cls: 'badge-excellent' };
       if (performans >= 85) return { text: 'İYİ', cls: 'badge-good' };
       if (performans >= 70) return { text: 'ORTA', cls: 'badge-average' };
-      return { text: 'DÜŞÜK', cls: 'badge-poor' };
+      if (performans >= 50) return { text: 'ZAYIF', cls: 'badge-weak' };
+      return { text: 'ÇOK ZAYIF', cls: 'badge-verypoor' };
     })();
 
     return `
@@ -5676,12 +5697,7 @@ function showSlide(index) {
   const hamPerf = Math.round(inspector.genelHizPerf ?? 0);
   const performansClass = getPerformanceClass(performans);
   
-  const performansLevel = (() => {
-    if (performans >= 95) return t.perf_excellent;
-    if (performans >= 85) return t.perf_good;
-    if (performans >= 70) return t.perf_average;
-    return t.perf_poor;
-  })();
+  const performansLevel = getPerformanceLevelLabel(performans);
   
   const ini = inspector.ins.split(' ').map(w => w[0] || '').slice(0, 2).join('').toUpperCase();
   
@@ -5698,7 +5714,7 @@ function showSlide(index) {
 
   const klasmanRows = klasmanEntries.length ? klasmanEntries.map(([kName, kData]) => {
     const kPerf = Math.round(kData.hizPerf || 0);
-    const kColor = kPerf >= 95 ? '#4CAF50' : kPerf >= 85 ? '#2196F3' : kPerf >= 70 ? '#FF9800' : '#ef5350';
+    const kColor = getProgressColor(kPerf);
     const barW = Math.min(100, kPerf);
     return `<div class="slide-klasman-card">
       <div class="slide-klasman-card-top">
@@ -5721,7 +5737,7 @@ function showSlide(index) {
     otAdetTahmini = Math.round((inspector.adet || 0) * (otStdSn / inspector.standartSure));
   }
   const otColor = otPerf === null || otPerf === undefined ? 'rgba(255,255,255,.4)'
-    : otPerf >= 95 ? '#4CAF50' : otPerf >= 85 ? '#2196F3' : otPerf >= 70 ? '#FF9800' : '#ef5350';
+    : getProgressColor(otPerf);
 
   const overtimeBlockHtml = hasOvertime ? `
     <div class="slide-overtime-block">
@@ -7290,14 +7306,16 @@ function renderEkipAnaliz() {
     excellent: { key: 'excellent', label: t.perf_excellent, color: 'var(--green)', bg: 'var(--lgreen)', count: 0 },
     good:      { key: 'good',      label: t.perf_good,      color: 'var(--blue)',  bg: 'var(--lblue3)', count: 0 },
     average:   { key: 'average',   label: t.perf_average,   color: 'var(--amber)', bg: 'var(--lamber)', count: 0 },
-    poor:      { key: 'poor',      label: t.perf_poor,      color: 'var(--red)',   bg: 'var(--lred)',   count: 0 }
+    weak:      { key: 'weak',      label: t.perf_weak,      color: '#EF5350',      bg: '#FFEBEE',       count: 0 },
+    verypoor:  { key: 'verypoor',  label: t.perf_verypoor,  color: '#B71C1C',      bg: '#FFCDD2',       count: 0 }
   };
   teamInspectors.forEach(ins => {
     const p = ins.performans || 0;
     if (p >= 95) bantlar.excellent.count++;
     else if (p >= 85) bantlar.good.count++;
     else if (p >= 70) bantlar.average.count++;
-    else bantlar.poor.count++;
+    else if (p >= 50) bantlar.weak.count++;
+    else bantlar.verypoor.count++;
   });
   const maxBantSayisi = Math.max(1, ...Object.values(bantlar).map(b => b.count));
 
@@ -7355,7 +7373,7 @@ function renderEkipAnaliz() {
         <div class="summary-stat-label">${t.team_manager_member_count}</div>
       </div>
       <div class="summary-stat" style="background:linear-gradient(135deg,var(--lgreen) 0%,#fff 100%);border-color:#B2DFDB">
-        <div class="summary-stat-value" style="color:${ortPerf>=95?'var(--green)':ortPerf>=85?'var(--blue)':ortPerf>=70?'var(--amber)':'var(--red)'}">${ortPerf}%</div>
+        <div class="summary-stat-value" style="color:${getProgressColor(ortPerf)}">${ortPerf}%</div>
         <div class="summary-stat-label">${t.team_avg_perf}</div>
       </div>
       <div class="summary-stat" style="background:linear-gradient(135deg,var(--lamber) 0%,#fff 100%);border-color:#FFE082">
@@ -7460,10 +7478,7 @@ async function renderTeamManagersSection() {
       ? Math.round(teamInspectors.reduce((s, i) => s + (i.performans || 0), 0) / total)
       : 0;
 
-    const perfColor = avgPerf >= 95 ? 'var(--green)'
-      : avgPerf >= 85 ? 'var(--blue)'
-      : avgPerf >= 70 ? 'var(--amber)'
-      : 'var(--red)';
+    const perfColor = getProgressColor(avgPerf);
 
     return `
       <div class="card team-manager-card" style="margin-bottom:0;overflow:hidden">
@@ -7649,11 +7664,7 @@ async function toggleDigerEkipler(e) {
     const avgPerf = members.length
       ? Math.round(members.reduce((s, i) => s + (i.performans || 0), 0) / members.length)
       : null;
-    const perfColor = avgPerf === null ? 'var(--muted)'
-      : avgPerf >= 95 ? 'var(--green)'
-      : avgPerf >= 85 ? 'var(--blue)'
-      : avgPerf >= 70 ? 'var(--amber)'
-      : 'var(--red)';
+    const perfColor = avgPerf === null ? 'var(--muted)' : getProgressColor(avgPerf);
     const perfStr = avgPerf !== null
       ? `<span style="font-weight:700;color:${perfColor};font-family:'DM Mono',monospace">${avgPerf}%</span>`
       : `<span style="color:var(--muted);font-size:11px">—</span>`;
@@ -8938,7 +8949,7 @@ function renderKayipZamanEkipGrid() {
     ekipler[ey].push(r);
   });
 
-  const perfColor = p => p >= 95 ? '#2E7D32' : p >= 85 ? '#1565C0' : p >= 70 ? '#E65100' : '#C62828';
+  const perfColor = p => p >= 95 ? '#2E7D32' : p >= 85 ? '#1565C0' : p >= 70 ? '#E65100' : p >= 50 ? '#EF5350' : '#B71C1C';
 
   grid.innerHTML = Object.entries(ekipler)
     .sort(([a],[b]) => a.localeCompare(b,'tr'))
