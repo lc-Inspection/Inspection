@@ -200,14 +200,10 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 
 /* ─── SUMMARY STATS ─── */
 .summary-stats {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
   gap: 14px;
   margin-bottom: 20px;
-}
-.summary-stats > .summary-stat {
-  flex: 1 1 150px;
-  min-width: 150px;
 }
 
 /* Ekibim kartı içindeki özet istatistikler — 4 sütun */
@@ -1046,7 +1042,7 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   }
 }
 @media (max-width: 768px) {
-  .summary-stats > .summary-stat { flex: 1 1 calc(50% - 7px); min-width: 130px; }
+  .summary-stats { grid-template-columns: repeat(2, 1fr); }
   .summary-stat { padding: 12px 10px; }
   .summary-stat-value { font-size: 18px; }
   .summary-stat-label { font-size: 9px; }
@@ -1076,7 +1072,7 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   }
 }
 @media (max-width: 600px) {
-  .summary-stats > .summary-stat { flex: 1 1 calc(50% - 7px); min-width: 120px; }
+  .summary-stats { grid-template-columns: repeat(2, 1fr); }
   .summary-stat { padding: 12px 10px; }
   .summary-stat-value { font-size: 18px; }
   .summary-stat-label { font-size: 9px; }
