@@ -354,7 +354,8 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 .inspector-card.perf-excellent::before { background: linear-gradient(90deg, #00897B, #26A69A); }
 .inspector-card.perf-good::before { background: linear-gradient(90deg, var(--blue), var(--blue3)); }
 .inspector-card.perf-average::before { background: linear-gradient(90deg, var(--amber), #FFB74D); }
-.inspector-card.perf-poor::before { background: linear-gradient(90deg, var(--red), #E57373); }
+.inspector-card.perf-weak::before { background: linear-gradient(90deg, #EF5350, #E57373); }
+.inspector-card.perf-verypoor::before { background: linear-gradient(90deg, #B71C1C, var(--red)); }
 .inspector-card:hover { box-shadow: var(--shadow2); transform: translateY(-2px); }
 
 .inspector-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -363,7 +364,9 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 .perf-excellent { color: var(--green); }
 .perf-good { color: var(--blue); }
 .perf-average { color: var(--amber); }
-.perf-poor { color: var(--red); }
+.perf-weak { color: #EF5350; }
+.perf-verypoor { color: #B71C1C; }
+.perf-poor { color: #B71C1C; } /* geriye dönük uyumluluk */
 
 .inspector-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
 .inspector-stat { text-align: center; }
@@ -626,7 +629,9 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 .badge-excellent { background: rgba(0,137,123,.3); color:#4DB6AC; border: 1px solid rgba(0,137,123,.3); }
 .badge-good      { background: rgba(21,101,192,.3); color:#90CAF9; border: 1px solid rgba(33,150,243,.25); }
 .badge-average   { background: rgba(230,81,0,.3);   color:#FFB74D; border: 1px solid rgba(255,152,0,.25); }
-.badge-poor      { background: rgba(183,28,28,.3);  color:#EF9A9A; border: 1px solid rgba(198,40,40,.25); }
+.badge-weak      { background: rgba(239,83,80,.3);  color:#FFCDD2; border: 1px solid rgba(239,83,80,.25); }
+.badge-verypoor  { background: rgba(183,28,28,.35); color:#FF8A80; border: 1px solid rgba(183,28,28,.3); }
+.badge-poor      { background: rgba(183,28,28,.35);  color:#FF8A80; border: 1px solid rgba(183,28,28,.3); } /* geriye dönük uyumluluk */
 
 /* ─── MAIN WRAPPER ─── */
 .slideshow-main-wrapper {
@@ -921,6 +926,16 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 .perf-poor .performance-circle-progress { stroke: #EF5350; }
 .perf-poor .inspector-slide-stat::before { background: linear-gradient(90deg, #B71C1C, #EF5350); }
 .perf-poor .performance-level { background: rgba(183,28,28,.18); color: #EF9A9A; border: 1px solid rgba(198,40,40,.22); }
+
+.perf-weak .inspector-slide-stat-value, .perf-weak .performance-circle-value { color: #EF9A9A; }
+.perf-weak .performance-circle-progress { stroke: #EF5350; }
+.perf-weak .inspector-slide-stat::before { background: linear-gradient(90deg, #EF5350, #E57373); }
+.perf-weak .performance-level { background: rgba(239,83,80,.18); color: #FFCDD2; border: 1px solid rgba(239,83,80,.25); }
+
+.perf-verypoor .inspector-slide-stat-value, .perf-verypoor .performance-circle-value { color: #FF8A80; }
+.perf-verypoor .performance-circle-progress { stroke: #B71C1C; }
+.perf-verypoor .inspector-slide-stat::before { background: linear-gradient(90deg, #7A0000, #B71C1C); }
+.perf-verypoor .performance-level { background: rgba(183,28,28,.28); color: #FF8A80; border: 1px solid rgba(183,28,28,.35); }
 
 /* ─── FOOTER ─── */
 .slideshow-footer {
