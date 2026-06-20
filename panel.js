@@ -562,7 +562,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzWSooeF3d40EbJv7hkD9fFR9HsUjzyVmLU5iwZIzmdBAV8i7oQfg9Rnaqh6EsTyV3Q/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyGBu5D7Qb5aHBuB21xAtVogeOkFNlavzOjXg5mUTZqOksZOiJZcZrvEnGT9ugWn6CL/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -1889,7 +1889,9 @@ async function pushInspectorKayitlarToSheets(liste, url, token) {
             kayitFiiliSure: r.kayitFiiliSure,
             baslangic: r.baslangic ? (r.baslangic instanceof Date ? r.baslangic.toISOString() : r.baslangic) : null,
             bitis: r.bitis ? (r.bitis instanceof Date ? r.bitis.toISOString() : r.bitis) : null,
-            tarihGecerli: r.tarihGecerli || false
+            tarihGecerli: r.tarihGecerli || false,
+            inspectionTipi: r.inspectionTipi || '',
+            is2Kalite: r.is2Kalite || false
           }));
         }
       });
@@ -4983,29 +4985,36 @@ function performansHesapla(){
       };
     }
     const kl = inspectorMap[ins].klasmanlar[klasmanKey2];
-    kl.toplamAdet += adet;
-    kl.toplamStandartSure += standartSure;
-    if (kayitFiiliSure && kayitFiiliSure > 0) {
-      kl.toplamKayitFiiliSure += kayitFiiliSure;
-    }
-    // 2.Kalite kontrollerinin adet/süre toplamını ayrıca tutuyoruz (yalnızca gösterim için)
+
+    // 2.Kalite kayıtları genel performans hesabından TAMAMEN hariç tutulur
+    // (ne adet/standart süre payına, ne mesai/overtime paydasına dahil edilir).
+    // Sadece kendi ayrı toplamlarında (toplam2Kalite*) izlenir — yalnızca gösterim içindir.
     if (is2Kalite) {
       kl.toplam2KaliteAdet = (kl.toplam2KaliteAdet || 0) + adet;
       kl.toplam2KaliteStandartSure = (kl.toplam2KaliteStandartSure || 0) + standartSure;
       if (kayitFiiliSure && kayitFiiliSure > 0) {
         kl.toplam2KaliteFiiliSure = (kl.toplam2KaliteFiiliSure || 0) + kayitFiiliSure;
       }
-    }
-    // Normal mesai / overtime ayrımı - bitiş saatine göre (16:45 sınırı)
-    const kayitNormalSayilir = kayitNormalMi(parsedBitis);
-    if (kayitNormalSayilir) {
-      kl.toplamStandartSureNormal = (kl.toplamStandartSureNormal||0) + standartSure;
     } else {
-      kl.toplamStandartSureOvertime = (kl.toplamStandartSureOvertime||0) + standartSure;
+      kl.toplamAdet += adet;
+      kl.toplamStandartSure += standartSure;
+      if (kayitFiiliSure && kayitFiiliSure > 0) {
+        kl.toplamKayitFiiliSure += kayitFiiliSure;
+      }
+      // Normal mesai / overtime ayrımı - bitiş saatine göre (16:45 sınırı)
+      const kayitNormalSayilir = kayitNormalMi(parsedBitis);
+      if (kayitNormalSayilir) {
+        kl.toplamStandartSureNormal = (kl.toplamStandartSureNormal||0) + standartSure;
+      } else {
+        kl.toplamStandartSureOvertime = (kl.toplamStandartSureOvertime||0) + standartSure;
+      }
     }
+    const kayitNormalSayilir = kayitNormalMi(parsedBitis);
     kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '', inspectionTipi: inspectionTipiRaw, is2Kalite });
 
-    inspectorMap[ins].toplamAdet += adet;
+    if (!is2Kalite) {
+      inspectorMap[ins].toplamAdet += adet;
+    }
   });
 
   // Kaldı özet göstergesi güncelle
