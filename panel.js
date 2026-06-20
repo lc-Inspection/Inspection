@@ -502,6 +502,40 @@ let excelRows = [];
 let excelCols = [];
 let performansData = [];
 let kayipZamanData = []; // { id, inspector, tarih, gun, baslangic, bitis, sebep, aciklama, ekipYoneticisi, sureDk }
+let _kzLastFetchTime = 0;
+const KZ_CACHE_MS = 20000; // 20 saniye icinde tekrar girilirse network'e gitmeden cache'den goster
+
+// ─── Kayıp Zaman localStorage cache ───
+// Sayfa yenilendiğinde (F5) JS state sıfırlanır; bu yüzden son çekilen veriyi
+// localStorage'da tutup açılışta anında gösteriyoruz, arkaplanda Sheets'ten tazeliyoruz.
+const KZ_LS_KEY = 'lc_kayip_zaman_cache';
+
+function saveKayipZamanToLocalStorage() {
+  try {
+    localStorage.setItem(KZ_LS_KEY, JSON.stringify({
+      kayitlar: kayipZamanData,
+      savedAt: Date.now()
+    }));
+  } catch (err) {
+    console.warn('Kayıp zaman localStorage kaydetme hatası:', err);
+  }
+}
+
+function loadKayipZamanFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(KZ_LS_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.kayitlar)) {
+      kayipZamanData = parsed.kayitlar;
+      _kzLastFetchTime = parsed.savedAt || 0;
+      return true;
+    }
+  } catch (err) {
+    console.warn('Kayıp zaman localStorage okuma hatası:', err);
+  }
+  return false;
+}
 
 // Dashboard
 let filteredInspectors = [];
@@ -2911,6 +2945,10 @@ function toggleSection(bodyId, chevronId) {
 }
 
 function showPage(id, navEl){
+  // Kayıp Zaman Analizi sayfasından çıkılıyorsa arkaplan otomatik yenilemeyi durdur
+  if (id !== 'kayip-zaman-admin' && typeof stopKayipZamanAutoRefresh === 'function') {
+    stopKayipZamanAutoRefresh();
+  }
   // ── Yetki kontrolü ──────────────────────────────────────────────────────
   // Admin olmayan kullanıcılar için: kendilerine atanmayan sekmelere ve
   // her zaman admin'e özel olan klasmanlar/kullanıcılar sayfalarına erişimi engelle.
@@ -3348,6 +3386,15 @@ function renderInspectorCards() {
             : `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(0,0,0,.03);border-radius:7px">
                 <span style="font-size:11px;color:var(--muted2)">⏱ Overtime Yok</span>
               </div>`}
+          ${inspector.toplam2KaliteAdet > 0
+            ? `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(124,58,237,.08);border-radius:7px">
+                <span style="font-size:11px;color:#7C3AED">🏷️ 2.Kalite kontrolü:</span>
+                <span style="font-size:13px;font-weight:700;color:#7C3AED">${inspector.toplam2KaliteAdet.toLocaleString('tr-TR')} adet</span>
+                ${inspector.perf2Kalite !== null && inspector.perf2Kalite !== undefined
+                  ? `<span style="font-size:13px;font-weight:700;color:#7C3AED">· ${inspector.perf2Kalite}%</span>`
+                  : ''}
+              </div>`
+            : ''}
           <div style="text-align:center">
             <span style="font-size:11px;color:var(--muted2)">📊 </span>
             <span style="font-size:12px;font-weight:600;color:var(--navy)">${klasmanCount} ${(translations[currentLang]||translations.tr).klasman_word}</span>
@@ -3687,7 +3734,8 @@ function exportInspectorDetail() {
         'Ort. Kontrol (sn/ad)': k.adet > 0 && fiili > 0 ? Math.round(fiili / k.adet) : '—',
         'Başlangıç':            fmtTarihExcel(k.baslangic),
         'Bitiş':                fmtTarihExcel(k.bitis),
-        'Tarih Geçerli':        k.tarihGecerli ? 'Evet' : 'Hayır'
+        'Tarih Geçerli':        k.tarihGecerli ? 'Evet' : 'Hayır',
+        'Inspection Tipi':      k.inspectionTipi || '—'
       });
     });
   });
@@ -4760,6 +4808,11 @@ function performansHesapla(){
   }) || '';
   const yapilanDepoCol = document.getElementById('col-yapilan-depo')?.value || '';
   const sonucCol = document.getElementById('col-sonuc')?.value || '';
+  // "Inspection Tipi" sütununu otomatik bul (panelde ayrı seçim alanı yok)
+  const inspectionTipiCol = excelCols.find(c => {
+    const norm = c.toLowerCase().replace(/[^a-z0-9]/g,'').replace(/ş/g,'s').replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ö/g,'o').replace(/ı/g,'i').replace(/ç/g,'c');
+    return norm.includes('inspectiontipi');
+  }) || '';
 
   const orneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
   const verimlilikHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
@@ -4913,6 +4966,13 @@ function performansHesapla(){
       ? hesaplaGerceklesenSure(parsedBaslangic, parsedBitis)
       : null;
 
+    // "Inspection Tipi" sütunu — sadece izleme/raporlama amaçlı okunur.
+    // Standart süre / performans hesabını ETKİLEMEZ; tüm kayıtlar aynı
+    // formülden geçer (kalite ayrımı yok). "2.Kalite" ile başlayan değerler
+    // sadece UI'da ayrıca işaretlenmesi için bayraklanır.
+    const inspectionTipiRaw = inspectionTipiCol ? String(row[inspectionTipiCol] || '').trim() : '';
+    const is2Kalite = inspectionTipiRaw.toLocaleLowerCase('tr-TR').startsWith('2.kalite');
+
     const klasmanKey2 = excelKlasman;
     if (!inspectorMap[ins].klasmanlar[klasmanKey2]) {
       inspectorMap[ins].klasmanlar[klasmanKey2] = {
@@ -4928,6 +4988,14 @@ function performansHesapla(){
     if (kayitFiiliSure && kayitFiiliSure > 0) {
       kl.toplamKayitFiiliSure += kayitFiiliSure;
     }
+    // 2.Kalite kontrollerinin adet/süre toplamını ayrıca tutuyoruz (yalnızca gösterim için)
+    if (is2Kalite) {
+      kl.toplam2KaliteAdet = (kl.toplam2KaliteAdet || 0) + adet;
+      kl.toplam2KaliteStandartSure = (kl.toplam2KaliteStandartSure || 0) + standartSure;
+      if (kayitFiiliSure && kayitFiiliSure > 0) {
+        kl.toplam2KaliteFiiliSure = (kl.toplam2KaliteFiiliSure || 0) + kayitFiiliSure;
+      }
+    }
     // Normal mesai / overtime ayrımı - bitiş saatine göre (16:45 sınırı)
     const kayitNormalSayilir = kayitNormalMi(parsedBitis);
     if (kayitNormalSayilir) {
@@ -4935,7 +5003,7 @@ function performansHesapla(){
     } else {
       kl.toplamStandartSureOvertime = (kl.toplamStandartSureOvertime||0) + standartSure;
     }
-    kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '' });
+    kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '', inspectionTipi: inspectionTipiRaw, is2Kalite });
 
     inspectorMap[ins].toplamAdet += adet;
   });
@@ -4968,6 +5036,9 @@ function performansHesapla(){
     let toplamKayitFiiliSure = 0; 
     let toplamStandartSureNormal = 0;   // Sadece normal mesai (08:00-16:45) icindeki standart sure
     let toplamStandartSureOvertime = 0; // Sadece overtime (16:45-20:00) icindeki standart sure
+    let toplam2KaliteAdet = 0;          // 2.Kalite kontrollerinin toplam adedi (yalnızca gösterim)
+    let toplam2KaliteStandartSure = 0;  // 2.Kalite kontrollerinin toplam standart süresi (yalnızca gösterim)
+    let toplam2KaliteFiiliSure = 0;     // 2.Kalite kontrollerinin toplam gerçekleşen süresi (yalnızca gösterim)
 
     Object.entries(inspectorData.klasmanlar).forEach(([klasman, kl]) => {
       toplamStandartSure += kl.toplamStandartSure;
@@ -4975,6 +5046,9 @@ function performansHesapla(){
       toplamKayitFiiliSure += (kl.toplamKayitFiiliSure || 0);
       toplamStandartSureNormal   += (kl.toplamStandartSureNormal || 0);
       toplamStandartSureOvertime += (kl.toplamStandartSureOvertime || 0);
+      toplam2KaliteAdet         += (kl.toplam2KaliteAdet || 0);
+      toplam2KaliteStandartSure += (kl.toplam2KaliteStandartSure || 0);
+      toplam2KaliteFiiliSure    += (kl.toplam2KaliteFiiliSure || 0);
 
       // Klasman bazında hızPerf: bu klasmanın standart süresi / tüm inspector standart süresi × genel performans
       // (Genel performans henüz hesaplanmadığından burada geçici saklarız, aşağıda düzeltiriz)
@@ -4986,7 +5060,10 @@ function performansHesapla(){
         kayitFiiliSure: kl.toplamKayitFiiliSure || 0,
         hizPerf,
         hacimPerf: null,
-        kayitlar: kl.kayitlar  // Kayıt bazlı detay için
+        kayitlar: kl.kayitlar,  // Kayıt bazlı detay için
+        toplam2KaliteAdet: kl.toplam2KaliteAdet || 0,
+        toplam2KaliteStandartSure: kl.toplam2KaliteStandartSure || 0,
+        toplam2KaliteFiiliSure: kl.toplam2KaliteFiiliSure || 0
       };
     });
 
@@ -5025,6 +5102,13 @@ function performansHesapla(){
       ? Math.round((toplamStandartSureOvertime / overtimeMesaiSn) * 100)
       : null;
 
+    // 2.Kalite kontrollerinin KENDİ performansı — yalnızca gösterim amaçlı.
+    // Genel "Düz. Performans" (mesai bazlı) hesabına dahil EDİLMEZ; sadece
+    // 2.Kalite satırlarının standart süresi / gerçekleşen süresi oranı olarak hesaplanır.
+    const perf2Kalite = (toplam2KaliteFiiliSure > 0)
+      ? Math.round((toplam2KaliteStandartSure / toplam2KaliteFiiliSure) * 100)
+      : null;
+
     map[ins] = {
       ins: ins,
       adet: toplamAdet,
@@ -5050,7 +5134,12 @@ function performansHesapla(){
       gunSayisi: mesaiHesap ? mesaiHesap.gunSayisi : 0,
       gunlukDetay: mesaiHesap ? mesaiHesap.gunlukDetay : [],
       toplamMesaistiSaniye: mesaiHesap ? (mesaiHesap.toplamMesaistiSaniye || 0) : 0,
-      gunlukOvertimeDetay: mesaiHesap ? (mesaiHesap.gunlukOvertimeDetay || {}) : {}
+      gunlukOvertimeDetay: mesaiHesap ? (mesaiHesap.gunlukOvertimeDetay || {}) : {},
+      // 2.Kalite — yalnızca gösterim, genel performansa dahil değil
+      toplam2KaliteAdet: toplam2KaliteAdet,
+      toplam2KaliteStandartSure: toplam2KaliteStandartSure,
+      toplam2KaliteFiiliSure: toplam2KaliteFiiliSure,
+      perf2Kalite: perf2Kalite
     };
 
     
@@ -5993,6 +6082,8 @@ function handleGesture() {
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 _teamManagersOpen = false; // Sayfa yuklenirken kesin olarak kapali baslat (guvenlik onlemi)
 loadData();
+loadKayipZamanFromLocalStorage();
+if (typeof updateKayipNavBadge === 'function') updateKayipNavBadge();
 loadConfig();
 renderListe();
 renderEditor();
@@ -7667,6 +7758,7 @@ async function fetchKayipZamanData() {
     const data = await jsonpFetch(url, { action: 'getKayipZaman', token });
     if (data?.status === 'ok' && Array.isArray(data.kayitlar)) {
       kayipZamanData = data.kayitlar;
+      saveKayipZamanToLocalStorage();
     }
   } catch(e) {
     console.warn('Kayıp zaman verisi çekilemedi:', e);
@@ -7874,17 +7966,19 @@ function renderKayipZamanEkipListe() {
 }
 
 // ─── Admin: Sayfayı Yükle ───
-let _kzLastFetchTime = 0;
-const KZ_CACHE_MS = 20000; // 20 saniye icinde tekrar girilirse network'e gitmeden cache'den goster
-
 async function loadKayipZamanAdmin() {
   const perf = document.getElementById('kz-admin-perf-table');
   const liste = document.getElementById('kz-admin-liste');
 
+  // Bellekte veri yoksa (örn. F5 sonrası ilk açılış) localStorage'dan anında doldur
+  if (kayipZamanData.length === 0) {
+    loadKayipZamanFromLocalStorage();
+  }
+
   const cacheTaze = kayipZamanData.length > 0 && (Date.now() - _kzLastFetchTime) < KZ_CACHE_MS;
 
-  if (cacheTaze) {
-    // Veri taze (20sn icinde cekilmis) - aninda render et, network'e gitme
+  if (kayipZamanData.length > 0) {
+    // Elde veri var (bellek veya localStorage) - aninda render et, kullanici bos ekran gormesin
     ['kz-admin-filter-ekip','kz-admin-filter-inspector'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { while(el.options.length > 1) el.remove(1); }
@@ -7895,10 +7989,23 @@ async function loadKayipZamanAdmin() {
     _kzEndDate = '';
     renderKayipZamanAdminAll();
     updateKayipNavBadge();
+
+    if (cacheTaze) {
+      // Veri zaten taze (20sn icinde cekilmis) - arkaplanda tekrar cekmeye gerek yok
+      startKayipZamanAutoRefresh();
+      return;
+    }
+    // Veri var ama bayat - ekranı bozmadan arkaplanda sessizce tazele
+    fetchKayipZamanData().then(() => {
+      _kzLastFetchTime = Date.now();
+      renderKayipZamanAdminAll();
+      updateKayipNavBadge();
+    });
+    startKayipZamanAutoRefresh();
     return;
   }
 
-  // Loading goster
+  // Hiç veri yok (ilk kullanım, localStorage da boş) - loading göster ve bekle
   if (perf)  perf.innerHTML  = '<div style="padding:30px;text-align:center;color:var(--muted)">\u23F3 Veri çekiliyor...</div>';
   if (liste) liste.innerHTML = '';
 
@@ -7916,6 +8023,34 @@ async function loadKayipZamanAdmin() {
   _kzEndDate = '';
   renderKayipZamanAdminAll();
   updateKayipNavBadge();
+  startKayipZamanAutoRefresh();
+}
+
+// ─── Arkaplanda 1 dakikada bir otomatik yenileme ───
+// Yalnızca Kayıp Zaman Analizi sayfası açıkken çalışır; başka sayfaya geçilince durur.
+let _kzAutoRefreshTimer = null;
+const KZ_AUTO_REFRESH_MS = 60000; // 1 dakika
+
+function startKayipZamanAutoRefresh() {
+  stopKayipZamanAutoRefresh();
+  _kzAutoRefreshTimer = setInterval(async () => {
+    const pageEl = document.getElementById('page-kayip-zaman-admin');
+    if (!pageEl || !pageEl.classList.contains('active')) {
+      stopKayipZamanAutoRefresh();
+      return;
+    }
+    await fetchKayipZamanData();
+    _kzLastFetchTime = Date.now();
+    renderKayipZamanAdminAll();
+    updateKayipNavBadge();
+  }, KZ_AUTO_REFRESH_MS);
+}
+
+function stopKayipZamanAutoRefresh() {
+  if (_kzAutoRefreshTimer) {
+    clearInterval(_kzAutoRefreshTimer);
+    _kzAutoRefreshTimer = null;
+  }
 }
 
 // "Yenile" butonu icin: cache'i atlayip zorla yeniden ceker
@@ -8665,6 +8800,7 @@ async function clearAllKayipZaman() {
     await jsonpFetch(url, { action: 'clearKayipZaman', token });
     kayipZamanData = [];
     _kzLastFetchTime = 0;
+    saveKayipZamanToLocalStorage();
     renderKayipZamanAdminAll();
     updateKayipNavBadge();
     showSuccessMessage('✅ Kayıp zaman verileri silindi!');
