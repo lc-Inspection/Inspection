@@ -3277,9 +3277,14 @@ function showKlasmanSureOnerisi(klasmanId) {
   // hesaplanmasına, dolayısıyla önerilen hedefin yanlışlıkla gerçekleşenden
   // daha "gevşek" çıkmasına yol açıyordu.)
   const adetListesi = veri.adetListesi || [];
-  const refAdet = adetListesi.length
+  const refAdetHam = adetListesi.length
     ? Math.round(adetListesi.reduce((s, a) => s + a, 0) / adetListesi.length)
     : Math.round(veri.toplamAdet / Math.max(1, veri.kayitSayisi || 1)) || 32;
+  // Güvenlik sınırı: gerçek bir partinin adedi makul aralıkta olmalı (1-2000).
+  // adetListesi boş gelip kayitSayisi de yanlışlıkla çok düşükse (örn. eski/eksik
+  // formatta yüklenmiş veri), refAdet'in mantıksız büyük çıkıp öneriyi
+  // bozmasını engeller.
+  const refAdet = Math.min(2000, Math.max(1, refAdetHam));
 
   function getOlcuAdetOneri(adet) {
     if (adet <= 32)  return 6;
@@ -3297,48 +3302,45 @@ function showKlasmanSureOnerisi(klasmanId) {
   const olcuKat = getOlcuAdetOneri(refAdet);
   const kabulKat = getUrunKabulKatOneri(refAdet);
 
-  // Senaryo A: Sadece "1 Birim Muayene Süresi"ni ayarla, Ölçü ve Ürün Kabul SIFIR kabul edilip
-  // hedefin tamamı kontrol süresine yüklenir (basit, tek değişkenli öneri).
-  const senaryoA_kontrol = Math.max(0, hedefAdetBasi - (istasyonSuresi / refAdet));
-  const senaryoA_olcu = 0;
-  const senaryoA_kabul = 0;
-
-  // Senaryo B: Mevcut 3 bileşenin ORANI korunarak hep birlikte aynı katsayıyla küçültülür/büyütülür.
+  // TEK ÖNERİ: Mevcut 3 bileşenin (1 Birim Muayene + Ölçü + Ürün Kabul) birbirine
+  // oranı korunarak hepsi aynı katsayıyla küçültülür/büyütülür. Klasmanın mevcut
+  // yapısını bozmadan, üç alanı da dolduran tek ve sağlam bir öneri sunar.
   const mevcutToplamAdetBasi = mevcutKontrol + (olcuKat * mevcutOlcu / refAdet) + (kabulKat * mevcutKabul / refAdet) + (istasyonSuresi / refAdet);
-  const oranKatsayi = mevcutToplamAdetBasi > 0 ? hedefAdetBasi / mevcutToplamAdetBasi : 1;
-  const senaryoB_kontrol = Math.max(0, mevcutKontrol * oranKatsayi);
-  const senaryoB_olcu = Math.max(0, mevcutOlcu * oranKatsayi);
-  const senaryoB_kabul = Math.max(0, mevcutKabul * oranKatsayi);
 
-  // Senaryo C: Hedefi 3'e eşit/dengeli pay et — kontrol %70, ölçü %15, kabul %15 ağırlıkla
-  // (ürün kontrolü her zaman en büyük bileşen olsun mantığıyla, daha "dengeli" bir dağılım).
-  const senaryoC_kontrolPay = hedefAdetBasi * 0.70;
-  const senaryoC_olcuPay = hedefAdetBasi * 0.15;
-  const senaryoC_kabulPay = hedefAdetBasi * 0.15;
-  const senaryoC_kontrol = Math.max(0, senaryoC_kontrolPay - (istasyonSuresi / refAdet));
-  const senaryoC_olcu = olcuKat > 0 ? Math.max(0, (senaryoC_olcuPay * refAdet) / olcuKat) : 0;
-  const senaryoC_kabul = kabulKat > 0 ? Math.max(0, (senaryoC_kabulPay * refAdet) / kabulKat) : 0;
+  let oneriKontrol, oneriOlcu, oneriKabul;
+  if (mevcutToplamAdetBasi > 0) {
+    const oranKatsayi = hedefAdetBasi / mevcutToplamAdetBasi;
+    oneriKontrol = Math.max(0, mevcutKontrol * oranKatsayi);
+    oneriOlcu = Math.max(0, mevcutOlcu * oranKatsayi);
+    oneriKabul = Math.max(0, mevcutKabul * oranKatsayi);
+  } else {
+    // Mevcut 3 değer de sıfırsa (klasman hiç doldurulmamışsa) oranlama mümkün
+    // değildir; bu özel durumda hedefin tamamı Kontrol Süresi'ne atanır.
+    oneriKontrol = Math.max(0, hedefAdetBasi - (istasyonSuresi / refAdet));
+    oneriOlcu = 0;
+    oneriKabul = 0;
+  }
 
-  const senaryoHtml = (baslik, aciklama, renk, kontrol, olcu, kabul) => `
-    <div style="border:1.5px solid ${renk}33;border-radius:10px;padding:14px;margin-bottom:12px;background:linear-gradient(135deg,${renk}0D,transparent)">
-      <div style="font-weight:700;font-size:13px;color:${renk};margin-bottom:4px">${baslik}</div>
-      <div style="font-size:11px;color:var(--muted2);margin-bottom:10px;line-height:1.5">${aciklama}</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        <div style="background:#fff;border:1px solid var(--border2);border-radius:7px;padding:8px 10px;text-align:center">
-          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">1 Birim Muayene</div>
-          <div style="font-size:16px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${kontrol.toFixed(1)}<span style="font-size:10px;color:var(--muted2)">sn</span></div>
+  const oneriHtml = `
+    <div style="border:1.5px solid #00897B33;border-radius:10px;padding:16px;margin-bottom:8px;background:linear-gradient(135deg,#00897B0D,transparent)">
+      <div style="font-weight:700;font-size:13.5px;color:#00897B;margin-bottom:4px">✓ Önerilen Süreler</div>
+      <div style="font-size:11.5px;color:var(--muted2);margin-bottom:12px;line-height:1.5">Mevcut 3 değerin birbirine oranı korunarak hedefe göre ölçeklendi. Klasmanın mevcut yapısı bozulmuyor, sadece tüm değerler aynı oranda küçültülüyor/büyütülüyor.</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;text-align:center">
+          <div style="font-size:9.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">1 Birim Muayene</div>
+          <div style="font-size:19px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${oneriKontrol.toFixed(1)}<span style="font-size:11px;color:var(--muted2)">sn</span></div>
         </div>
-        <div style="background:#fff;border:1px solid var(--border2);border-radius:7px;padding:8px 10px;text-align:center">
-          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Ölçü Süresi</div>
-          <div style="font-size:16px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${olcu.toFixed(1)}<span style="font-size:10px;color:var(--muted2)">sn</span></div>
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;text-align:center">
+          <div style="font-size:9.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Ölçü Süresi</div>
+          <div style="font-size:19px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${oneriOlcu.toFixed(1)}<span style="font-size:11px;color:var(--muted2)">sn</span></div>
         </div>
-        <div style="background:#fff;border:1px solid var(--border2);border-radius:7px;padding:8px 10px;text-align:center">
-          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Ürün Kabul</div>
-          <div style="font-size:16px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${kabul.toFixed(1)}<span style="font-size:10px;color:var(--muted2)">sn</span></div>
+        <div style="background:#fff;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;text-align:center">
+          <div style="font-size:9.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Ürün Kabul</div>
+          <div style="font-size:19px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${oneriKabul.toFixed(1)}<span style="font-size:11px;color:var(--muted2)">sn</span></div>
         </div>
       </div>
-      <button onclick="applyKlasmanSureOnerisi(${k.id}, ${kontrol.toFixed(1)}, ${olcu.toFixed(1)}, ${kabul.toFixed(1)})"
-        style="width:100%;margin-top:10px;padding:7px;border-radius:7px;border:1.5px solid ${renk};background:#fff;color:${renk};font-size:11.5px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">
+      <button onclick="applyKlasmanSureOnerisi(${k.id}, ${oneriKontrol.toFixed(1)}, ${oneriOlcu.toFixed(1)}, ${oneriKabul.toFixed(1)})"
+        style="width:100%;margin-top:12px;padding:9px;border-radius:8px;border:none;background:#00897B;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">
         ✓ Bu Öneriyi Uygula
       </button>
     </div>`;
@@ -3359,12 +3361,10 @@ function showKlasmanSureOnerisi(klasmanId) {
       </div>
     </div>
 
-    ${senaryoHtml('A) Basit — Sadece Kontrol Süresini Ayarla', 'Ölçü ve Ürün Kabul süreleri 0 kabul edilir, hedefin tamamı 1 Birim Muayene Süresi\'ne yüklenir. En kolay uygulanan seçenek.', '#1565C0', senaryoA_kontrol, senaryoA_olcu, senaryoA_kabul)}
-    ${senaryoHtml('B) Orantılı — Mevcut Dağılımı Koru', 'Şu anki 3 değerin birbirine oranı korunarak hepsi aynı katsayıyla küçültülür/büyütülür. Klasmanın mevcut yapısını bozmadan hedefe ulaşır.', '#00897B', senaryoB_kontrol, senaryoB_olcu, senaryoB_kabul)}
-    ${senaryoHtml('C) Dengeli — %70 / %15 / %15 Pay', 'Hedefin %70\'i Kontrol Süresi\'ne, %15\'i Ölçü\'ye, %15\'i Ürün Kabul\'e dağıtılır. Üç bileşen de hedefe katkı verir.', '#E65100', senaryoC_kontrol, senaryoC_olcu, senaryoC_kabul)}
+    ${oneriHtml}
 
     <div style="font-size:10px;color:var(--muted2);margin-top:4px;line-height:1.6">
-      💡 Senaryolar bu klasmanın <strong>gerçek kayıtlarından hesaplanan ortalama parti büyüklüğü (${refAdet} adet)</strong> referans alınarak hesaplanmıştır. Tek tek partilerin büyüklüğü farklılık gösterebileceğinden, uygulama sonrası "Hesaplamayı Göster" ile gerçek toplam oranı kontrol edip gerekirse elle ince ayar yapın.
+      💡 Öneri, bu klasmanın <strong>gerçek kayıtlarından hesaplanan ortalama parti büyüklüğü (${refAdet} adet)</strong> referans alınarak hesaplanmıştır. Tek tek partilerin büyüklüğü farklılık gösterebileceğinden, uyguladıktan sonra "Hesaplamayı Göster" ile gerçek toplam oranı kontrol edip gerekirse elle ince ayar yapın.
     </div>
   `;
 
