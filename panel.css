@@ -200,10 +200,14 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 
 /* ─── SUMMARY STATS ─── */
 .summary-stats {
-  display: grid; 
-  grid-template-columns: repeat(7, 1fr); 
+  display: flex;
+  flex-wrap: wrap;
   gap: 14px;
   margin-bottom: 20px;
+}
+.summary-stats > .summary-stat {
+  flex: 1 1 150px;
+  min-width: 150px;
 }
 
 /* Ekibim kartı içindeki özet istatistikler — 4 sütun */
@@ -1012,7 +1016,6 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 /* RESPONSIVE ─── */
 @media (max-width: 1400px) {
   .dashboard-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-  .summary-stats { grid-template-columns: repeat(4, 1fr); }
 }
 @media (max-width: 1200px) {
   .inspector-slide-main {
@@ -1030,7 +1033,6 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   }
 }
 @media (max-width: 900px) {
-  .summary-stats { grid-template-columns: repeat(3, 1fr); }
   .filter-bar { flex-direction: column; align-items: stretch; }
   .dashboard-grid { grid-template-columns: 1fr; }
   
@@ -1044,7 +1046,7 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   }
 }
 @media (max-width: 768px) {
-  .summary-stats { grid-template-columns: repeat(2, 1fr); }
+  .summary-stats > .summary-stat { flex: 1 1 calc(50% - 7px); min-width: 130px; }
   .summary-stat { padding: 12px 10px; }
   .summary-stat-value { font-size: 18px; }
   .summary-stat-label { font-size: 9px; }
@@ -1074,7 +1076,7 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
   }
 }
 @media (max-width: 600px) {
-  .summary-stats { grid-template-columns: repeat(2, 1fr); }
+  .summary-stats > .summary-stat { flex: 1 1 calc(50% - 7px); min-width: 120px; }
   .summary-stat { padding: 12px 10px; }
   .summary-stat-value { font-size: 18px; }
   .summary-stat-label { font-size: 9px; }
