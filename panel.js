@@ -3316,9 +3316,22 @@ function showKlasmanSureOnerisi(klasmanId) {
   // her zaman doğru ve tutarlı kalır.
   const mevcutToplamAdetBasi = veri.toplamStandartSure / veri.toplamAdet;
 
+  // Eğer mevcut standart süre ZATEN hedeften (gerçekleşen × 0.80) düşükse,
+  // klasman zaten yeterince zorlayıcı demektir (standart, gerçekleşenden daha
+  // da düşük bir hedefi bile karşılıyor). Bu durumda oranKatsayi 1'i geçer ve
+  // "öneri" aslında değerleri ARTIRIR — bu, zorlayıcı hedef isteğinin TAM TERSİ
+  // bir etki olur. Bu yüzden oranKatsayi >= 1 ise hiçbir değişiklik önerilmez,
+  // sadece klasmanın zaten hedefi karşıladığı bilgisi gösterilir.
+  const oranKatsayi = mevcutToplamAdetBasi > 0 ? (hedefAdetBasi / mevcutToplamAdetBasi) : 0;
+  const zatenYeterliZorlayici = mevcutToplamAdetBasi > 0 && oranKatsayi >= 1;
+
   let oneriKontrol, oneriOlcu, oneriKabul;
-  if (mevcutToplamAdetBasi > 0) {
-    const oranKatsayi = hedefAdetBasi / mevcutToplamAdetBasi;
+  if (zatenYeterliZorlayici) {
+    // Mevcut değerleri olduğu gibi öner (değişiklik yok) — bilgilendirme amaçlı.
+    oneriKontrol = mevcutKontrol;
+    oneriOlcu = mevcutOlcu;
+    oneriKabul = mevcutKabul;
+  } else if (mevcutToplamAdetBasi > 0) {
     oneriKontrol = Math.max(0, mevcutKontrol * oranKatsayi);
     oneriOlcu = Math.max(0, mevcutOlcu * oranKatsayi);
     oneriKabul = Math.max(0, mevcutKabul * oranKatsayi);
@@ -3330,10 +3343,19 @@ function showKlasmanSureOnerisi(klasmanId) {
     oneriKabul = 0;
   }
 
-  const oneriHtml = `
+  const oneriHtml = zatenYeterliZorlayici ? `
+    <div style="border:1.5px solid #1565C033;border-radius:10px;padding:16px;margin-bottom:8px;background:linear-gradient(135deg,#1565C00D,transparent)">
+      <div style="font-weight:700;font-size:13.5px;color:#1565C0;margin-bottom:4px">✅ Bu klasman zaten yeterince zorlayıcı</div>
+      <div style="font-size:12px;color:var(--navy);line-height:1.6">
+        Mevcut standart süre (<strong>${mevcutToplamAdetBasi.toFixed(2)}sn/adet</strong>), hedeflenen
+        <strong>${hedefAdetBasi.toFixed(2)}sn/adet</strong>'den zaten daha düşük — yani klasman gerçekleşen
+        süreyi istediğinizden de fazla zorluyor. Değerleri büyütmek bu zorlayıcılığı azaltacağından
+        herhangi bir değişiklik önerilmiyor; mevcut 3 değeri olduğu gibi bırakabilirsiniz.
+      </div>
+    </div>` : `
     <div style="border:1.5px solid #00897B33;border-radius:10px;padding:16px;margin-bottom:8px;background:linear-gradient(135deg,#00897B0D,transparent)">
       <div style="font-weight:700;font-size:13.5px;color:#00897B;margin-bottom:4px">✓ Önerilen Süreler</div>
-      <div style="font-size:11.5px;color:var(--muted2);margin-bottom:12px;line-height:1.5">Mevcut 3 değerin birbirine oranı korunarak hedefe göre ölçeklendi. Klasmanın mevcut yapısı bozulmuyor, sadece tüm değerler aynı oranda küçültülüyor/büyütülüyor.</div>
+      <div style="font-size:11.5px;color:var(--muted2);margin-bottom:12px;line-height:1.5">Mevcut 3 değerin birbirine oranı korunarak hedefe göre ölçeklendi. Klasmanın mevcut yapısı bozulmuyor, sadece tüm değerler aynı oranda küçültülüyor.</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
         <div style="background:#fff;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;text-align:center">
           <div style="font-size:9.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">1 Birim Muayene</div>
