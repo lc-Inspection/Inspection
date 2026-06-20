@@ -3305,7 +3305,16 @@ function showKlasmanSureOnerisi(klasmanId) {
   // TEK ÖNERİ: Mevcut 3 bileşenin (1 Birim Muayene + Ölçü + Ürün Kabul) birbirine
   // oranı korunarak hepsi aynı katsayıyla küçültülür/büyütülür. Klasmanın mevcut
   // yapısını bozmadan, üç alanı da dolduran tek ve sağlam bir öneri sunar.
-  const mevcutToplamAdetBasi = mevcutKontrol + (olcuKat * mevcutOlcu / refAdet) + (kabulKat * mevcutKabul / refAdet) + (istasyonSuresi / refAdet);
+  //
+  // ÖNEMLİ: "mevcut adet başına standart süre" burada TAHMİNİ bir formülle
+  // (refAdet varsayımıyla) değil, klasmanın GERÇEK işlenmiş verisinden alınır:
+  // veri.toplamStandartSure / veri.toplamAdet — bu, ekranda zaten "STANDART
+  // (ADET BAŞI)" olarak gösterilen, her partinin kendi gerçek adediyle hesaplanmış
+  // doğru değerdir. refAdet sadece klasmanın parti büyüklük profilini özetlemek
+  // (ekranda göstermek) için kullanılır, asıl oran hesabını ETKİLEMEZ — böylece
+  // adetListesi eksik/boş gelse veya refAdet yanlış tahmin edilse bile öneri
+  // her zaman doğru ve tutarlı kalır.
+  const mevcutToplamAdetBasi = veri.toplamStandartSure / veri.toplamAdet;
 
   let oneriKontrol, oneriOlcu, oneriKabul;
   if (mevcutToplamAdetBasi > 0) {
