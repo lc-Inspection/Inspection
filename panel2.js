@@ -202,7 +202,7 @@ function _aoRenderStats() {
   var duzPerf    = Math.round(hamPerf * (100 / _aoHedef));
   var overtimeDk = Math.round((_aoInspector.toplamMesaistiSaniye || 0) / 60);
 
-  function perfColor(p){ return p >= 95 ? '#00897B' : p >= 85 ? '#1565C0' : p >= 70 ? '#F57F17' : '#C62828'; }
+  function perfColor(p){ return p >= 95 ? '#00897B' : p >= 85 ? '#1565C0' : p >= 70 ? '#F57F17' : p >= 50 ? '#EF5350' : '#B71C1C'; }
 
   var cards = [
     ['📦',(translations[currentLang]||translations.tr).stat_total_product,   String(totalAdet), 'var(--navy)'],
