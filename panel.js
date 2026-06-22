@@ -3754,12 +3754,13 @@ function renderInspectorCards() {
 
     // Kayip zaman rozeti - performans degismez, sadece not. Simetri bozulmasin diye veri yoksa da gösterilir.
     const kayipDkCard = getKayipDakikaForInspector(inspector.ins);
+    const _safeIns = inspector.ins.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const kayipRozetHtml = kayipDkCard > 0
-      ? `<div style="display:inline-flex;align-items:center;gap:3px;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;margin-top:4px;line-height:1.4">
-           &#9208; ${(kayipDkCard/60).toFixed(1)}s de&#287;erlendirme d&#305;&#351;&#305;
+      ? `<div onclick="showKayipDetayPopup('${_safeIns}')" style="display:inline-flex;align-items:center;gap:3px;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;margin-top:4px;line-height:1.4;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#FFE0B2'" onmouseout="this.style.background='#FFF3E0'" title="Detay için tıklayın">
+           &#9208; ${(kayipDkCard/60).toFixed(1)}s değerlendirme dışı &#9432;
          </div>`
-      : `<div style="display:inline-flex;align-items:center;gap:3px;background:#F4F6F8;color:var(--muted2);border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-size:9px;font-weight:600;margin-top:4px;line-height:1.4">
-           &#9208; De&#287;erlendirme d&#305;&#351;&#305; yok
+      : `<div style="display:inline-flex;align-items:center;gap:3px;background:#F4F6F8;color:var(--muted2);border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-size:9px;font-weight:600;margin-top:4px;line-height:1.4;">
+           &#9208; Değerlendirme dışı yok
          </div>`;
 
     const performansAciklama = (() => {
@@ -3921,6 +3922,36 @@ function renderInspectorCards() {
     document.getElementById('dash-page-info').textContent = `${currentDashboardPage} / ${totalPages}`;
     document.getElementById('dash-btn-prev').disabled = currentDashboardPage <= 1;
     document.getElementById('dash-btn-next').disabled = currentDashboardPage >= totalPages;
+
+    // Sayfa numarası butonlarını oluştur
+    const pageNumsEl = document.getElementById('dash-page-numbers');
+    if (pageNumsEl) {
+      // Hangi sayfa numaralarını göstereceğimizi hesapla (max 7 buton)
+      let pages = [];
+      if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        if (currentDashboardPage > 3) pages.push('...');
+        for (let i = Math.max(2, currentDashboardPage - 1); i <= Math.min(totalPages - 1, currentDashboardPage + 1); i++) pages.push(i);
+        if (currentDashboardPage < totalPages - 2) pages.push('...');
+        pages.push(totalPages);
+      }
+
+      pageNumsEl.innerHTML = pages.map(p => {
+        if (p === '...') {
+          return `<span style="padding:0 4px;color:var(--muted);font-size:12px;line-height:30px">…</span>`;
+        }
+        const isActive = p === currentDashboardPage;
+        return `<button onclick="goToDashboardPage(${p})" style="
+          min-width:30px;height:30px;border-radius:6px;border:1px solid ${isActive ? 'var(--blue2)' : 'var(--border2)'};
+          background:${isActive ? 'var(--blue2)' : '#fff'};
+          color:${isActive ? '#fff' : 'var(--navy)'};
+          font-size:12px;font-weight:${isActive ? '700' : '500'};
+          cursor:pointer;padding:0 6px;transition:all .15s;font-family:'DM Sans',sans-serif;
+        ">${p}</button>`;
+      }).join('');
+    }
   } else {
     pagination.style.display = 'none';
   }
@@ -3929,6 +3960,13 @@ function renderInspectorCards() {
 function changeDashboardPage(direction) {
   const totalPages = Math.ceil(filteredInspectors.length / DASHBOARD_PER_PAGE);
   currentDashboardPage = Math.max(1, Math.min(totalPages, currentDashboardPage + direction));
+  renderInspectorCards();
+  document.getElementById('inspector-grid').scrollIntoView({ behavior: 'smooth' });
+}
+
+function goToDashboardPage(page) {
+  const totalPages = Math.ceil(filteredInspectors.length / DASHBOARD_PER_PAGE);
+  currentDashboardPage = Math.max(1, Math.min(totalPages, page));
   renderInspectorCards();
   document.getElementById('inspector-grid').scrollIntoView({ behavior: 'smooth' });
 }
@@ -8282,6 +8320,69 @@ function getKayipDakikaForInspector(inspectorName) {
   return kayipZamanData
     .filter(r => String(r.inspector || '').toLowerCase().trim() === nameNorm)
     .reduce((sum, r) => sum + (r.sureDk || 0), 0);
+}
+
+// ── Değerlendirme Dışı Detay Popup'ı ──────────────────────────────────────
+function showKayipDetayPopup(inspectorName) {
+  const nameNorm = String(inspectorName || '').toLowerCase().trim();
+  const kayitlar = kayipZamanData.filter(r => String(r.inspector || '').toLowerCase().trim() === nameNorm);
+  const toplamDk = kayitlar.reduce((s, r) => s + (r.sureDk || 0), 0);
+
+  if (kayitlar.length === 0) return;
+
+  const satirlar = kayitlar.map(r => {
+    const tarih = r.tarih ? new Date(r.tarih).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+    const gun = r.gun ? ` (${r.gun})` : '';
+    const sure = (r.sureDk / 60).toFixed(1) + 's';
+    const sebep = r.sebep || '—';
+    const aciklama = r.aciklama || '';
+    return `
+      <div style="display:grid;grid-template-columns:1fr 80px 1fr;gap:8px;align-items:start;padding:10px 14px;border-bottom:1px solid #f0f4f8;">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--navy)">${tarih}${gun}</div>
+          <div style="font-size:11px;color:var(--muted2);margin-top:2px">${r.baslangic ? r.baslangic.substring(0,5) : ''}${r.bitis ? ' – ' + r.bitis.substring(0,5) : ''}</div>
+        </div>
+        <div style="text-align:center">
+          <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace">${sure}</span>
+        </div>
+        <div>
+          <div style="font-size:12px;color:#E65100;font-weight:600">${SEBEP_IKONLAR && SEBEP_IKONLAR[sebep] ? SEBEP_IKONLAR[sebep] + ' ' : '⏸ '}${sebep}</div>
+          ${aciklama ? `<div style="font-size:11px;color:var(--muted2);margin-top:2px">${_escapeHtml(aciklama)}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  const modal = document.createElement('div');
+  modal.id = 'kayip-detay-popup-overlay';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(11,31,58,.65);z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;width:min(600px,92vw);max-height:80vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+      <!-- Başlık -->
+      <div style="background:var(--navy);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div>
+          <div style="font-size:15px;font-weight:700;color:#fff">⏸ Değerlendirme Dışı Kayıtlar</div>
+          <div style="font-size:12px;color:#9FACC9;margin-top:3px">${_escapeHtml(inspectorName)} · Toplam: <strong style="color:#FFA726">${(toplamDk/60).toFixed(1)} saat</strong> (${kayitlar.length} kayıt)</div>
+        </div>
+        <button onclick="document.getElementById('kayip-detay-popup-overlay').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.25)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">✕</button>
+      </div>
+      <!-- Kolon başlıkları -->
+      <div style="display:grid;grid-template-columns:1fr 80px 1fr;gap:8px;padding:8px 14px;background:#F4F7FC;border-bottom:1px solid #E3E8F0;flex-shrink:0;">
+        <div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Tarih / Saat</div>
+        <div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:center">Süre</div>
+        <div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Sebep / Açıklama</div>
+      </div>
+      <!-- Kayıtlar -->
+      <div style="overflow-y:auto;flex:1;">${satirlar}</div>
+      <!-- Alt not -->
+      <div style="padding:12px 16px;background:#FFFDE7;border-top:1px solid #FFF59D;flex-shrink:0;">
+        <div style="font-size:11.5px;color:#5D4037;">
+          ℹ️ Bu süreler performans hesabına dahil edilmez — inspector değerlendirmesini etkilemez, sadece belgeleme amaçlıdır.
+        </div>
+      </div>
+    </div>`;
+
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
 }
 
 // Düzeltilmiş mesai saatini hesapla: orijinal mesai - kayıp zaman
