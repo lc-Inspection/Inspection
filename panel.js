@@ -577,7 +577,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyGBu5D7Qb5aHBuB21xAtVogeOkFNlavzOjXg5mUTZqOksZOiJZcZrvEnGT9ugWn6CL/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzZZXRZ1jU_kcul5wXkYPzJZQb9hD46j_QF-YuY_SlgrtssEI3pw8cE5nDB-g7jBZFv/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -759,19 +759,11 @@ async function autoFetchOnStartup() {
   }
 
   // ── Performans verisini her zaman çek (tüm kullanıcılar güncel görsün) ──
-let perfData = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      perfData = await jsonpFetch(url, { action: 'getPerformansRaw', token });
-      if (perfData?.status === 'ok' && perfData?.performansData?.length > 0) break;
-      await new Promise(r => setTimeout(r, 2000));
-    } catch(e) { await new Promise(r => setTimeout(r, 2000)); }
-  }
   try {
-    if (perfData && perfData.status === 'ok' && Array.isArray(perfData.performansData) && perfData.performansData.length > 0) {
-      performansData = fixVerimlilikPerf(restorePerformansDateObjects(perfData.performansData));
+    const { performansData: pd } = await fetchPerformansRawPaginated(url, token);
+    if (pd && pd.length > 0) {
+      performansData = fixVerimlilikPerf(restorePerformansDateObjects(pd));
       console.log('✅ Performans verisi yüklendi:', performansData.length, 'inspector');
-      // verimlilikPerf hedefVerimlilik'e göre yeniden hesaplandı
     }
   } catch(e) {
     console.warn('Performans otomatik çekme hatası:', e.message);
@@ -1837,11 +1829,11 @@ async function pullFromSheets() {
       updateSidebar();
       updateKlasmanFilter();   // dashboard klasman filtresi dropdown'ı güncelle
 
-      // Performans verisini de Sheets'ten çek
+      // Performans verisini de Sheets'ten çek (sayfalandırmalı)
       try {
-        const perfData = await gsFetch('getPerformansRaw');
-        if (perfData.status === 'ok' && Array.isArray(perfData.performansData) && perfData.performansData.length > 0) {
-          performansData = fixVerimlilikPerf(restorePerformansDateObjects(perfData.performansData));
+        const { performansData: pd } = await fetchPerformansRawPaginated(url, token);
+        if (pd && pd.length > 0) {
+          performansData = fixVerimlilikPerf(restorePerformansDateObjects(pd));
           saveData();
           console.log('✅ Performans verisi Sheets\'ten çekildi:', performansData.length, 'inspector');
         }
@@ -2026,6 +2018,39 @@ async function pushInspectorKayitlarToSheets(liste, url, token) {
 // PERFORMANS VERİSİNİ SHEETS'TEN ÇEK
 // Dashboard "📥 Sheets'ten Çek" butonu + otomatik açılış
 // ─────────────────────────────────────────────
+// ── Sayfalandırmalı Performans Veri Çekici ──────────────────────────────────
+// Büyük veri setlerinde Google Apps Script'in ~450KB HTML yanıt sınırı aşılır
+// ve "Unterminated string in JSON" hatası oluşur.  Bu yardımcı fonksiyon
+// veriyi page/pageSize ile parça parça çekip birleştirir.
+async function fetchPerformansRawPaginated(url, token, onProgress) {
+  const PAGE_SIZE = 20;
+  // 1. Toplam kayıt sayısını al (hafif istek)
+  const countResp = await jsonpFetch(url, { action: 'getPerformansRaw', token, countOnly: 'true' });
+  if (!countResp || countResp.status !== 'ok') {
+    throw new Error(countResp?.message || 'countOnly isteği başarısız');
+  }
+  const totalCount = countResp.totalCount || 0;
+  const totalPages = countResp.totalPages || Math.ceil(totalCount / PAGE_SIZE) || 1;
+  if (totalCount === 0) return { performansData: [], savedAt: null, totalCount: 0 };
+
+  let allData = [];
+  let savedAt = countResp.savedAt || null;
+  for (let page = 0; page < totalPages; page++) {
+    if (onProgress) onProgress(page + 1, totalPages);
+    const resp = await jsonpFetch(url, {
+      action: 'getPerformansRaw', token,
+      page: String(page), pageSize: String(PAGE_SIZE)
+    });
+    if (resp?.status === 'ok' && Array.isArray(resp.performansData)) {
+      allData = allData.concat(resp.performansData);
+      if (!savedAt && resp.savedAt) savedAt = resp.savedAt;
+    } else {
+      console.warn(`⚠️ Sayfa ${page}/${totalPages} hatası:`, resp?.message || 'bilinmiyor');
+    }
+  }
+  return { performansData: allData, savedAt, totalCount };
+}
+
 async function pullPerformansFromSheets(silent = false) {
   const url   = appConfig.sheetsWebAppUrl;
   const token = appConfig.sheetsApiToken;
@@ -2039,8 +2064,18 @@ async function pullPerformansFromSheets(silent = false) {
   if (btn) { btn.innerHTML = (translations[currentLang]||translations.tr).pulling; btn.disabled = true; }
 
   try {
-    const data = await jsonpFetch(url, { action: 'getPerformansRaw', token });
-    console.log('📥 getPerformansRaw yanıtı:', JSON.stringify(data).substring(0, 300));
+    // fetchPerformansRawPaginated() tüm sayfaları otomatik birleştirir.
+    const { performansData: allPerformansData } = await fetchPerformansRawPaginated(
+      url, token,
+      (cur, total) => { if (btn) btn.innerHTML = `⬇️ ${cur}/${total} çekiliyor...`; }
+    );
+    const data = {
+      status: 'ok',
+      performansData: allPerformansData,
+      count: allPerformansData.length
+    };
+    console.log('📥 Toplam çekilen inspector:', allPerformansData.length);
+
     if (data.status === 'ok' && Array.isArray(data.performansData) && data.performansData.length > 0) {
       performansData = fixVerimlilikPerf(restorePerformansDateObjects(data.performansData));
       // verimlilikPerf hedefVerimlilik'e göre yeniden hesaplandı
@@ -2274,13 +2309,21 @@ async function pullPerformansFromSheetsManual(ev) {
   if (btn) { btn.innerHTML = (translations[currentLang]||translations.tr).pulling; btn.disabled = true; }
 
   try {
-    const data = await jsonpFetch(url, { action: 'getPerformansRaw', token });
+    const { performansData: allPd, savedAt } = await fetchPerformansRawPaginated(
+      url, token,
+      (cur, total) => { if (btn) btn.innerHTML = `⬇️ ${cur}/${total} çekiliyor...`; }
+    );
+    const data = {
+      status: 'ok',
+      performansData: allPd,
+      savedAt: savedAt
+    };
 
     if (data.status === 'ok' && Array.isArray(data.performansData) && data.performansData.length > 0) {
       const count    = data.performansData.length;
-      const savedAt  = data.savedAt ? new Date(data.savedAt).toLocaleString('tr-TR') : '—';
+      const savedAtFmt  = data.savedAt ? new Date(data.savedAt).toLocaleString('tr-TR') : '—';
 
-      if (!confirm(`📥 Sheets'te ${count} inspector verisi bulundu.\nSon kayıt: ${savedAt}\n\nMevcut analiz verilerinin üzerine yazılsın mı?`)) {
+      if (!confirm(`📥 Sheets'te ${count} inspector verisi bulundu.\nSon kayıt: ${savedAtFmt}\n\nMevcut analiz verilerinin üzerine yazılsın mı?`)) {
         if (btn) { btn.innerHTML = orig; btn.disabled = false; }
         return;
       }
@@ -4813,9 +4856,9 @@ async function autoFetchPerfIfNeeded() {
 
   _perfFetchInProgress = true;
   try {
-    const data = await jsonpFetch(url, { action: 'getPerformansRaw', token });
-    if (data.status === 'ok' && Array.isArray(data.performansData) && data.performansData.length > 0) {
-      performansData = fixVerimlilikPerf(restorePerformansDateObjects(data.performansData));
+    const { performansData: pd } = await fetchPerformansRawPaginated(url, token);
+    if (pd && pd.length > 0) {
+      performansData = fixVerimlilikPerf(restorePerformansDateObjects(pd));
       // verimlilikPerf hedefVerimlilik'e göre yeniden hesaplandı
       saveData();
       renderPerfTabloFromData();
