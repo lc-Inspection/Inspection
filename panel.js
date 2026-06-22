@@ -5403,7 +5403,67 @@ function performansHesapla(){
 
   let kaldiSatirSayisi = 0;
 
-  excelRows.forEach(row => {
+  // ── ÇAKIŞMA DÜZELTMESİ (Sistematik Geç Kapanış Normalizasyonu) ───────────
+  // Sorun: Sistemsel hata nedeniyle bir siparişin kapanışı sisteme yansımamış
+  // ve inspector saatlerce sonra fark edip tekrar göndermiş olabilir.
+  // Bu durumda önceki kaydın bitiş saati, bir sonraki kaydın başlangıç saatinden
+  // BÜYÜK çıkar (çakışma) — bu yapay bir geç kapanış süresidir.
+  //
+  // Düzeltme kuralı: Aynı inspector'ın aynı gündeki kayıtları başlangıç saatine
+  // göre sıralandığında, bir kaydın bitiş saati bir sonraki kaydın başlangıç
+  // saatinden büyükse → o kaydın bitiş saatini bir sonraki kaydın başlangıç
+  // saatiyle eşitle. Böylece gerçek çalışma süresi doğru hesaplanır.
+  //
+  // Sonuç: (baslangicTarih, bitisTarih) → düzeltilmiş bitiş tarihi
+  // Map anahtarı: "inspector|gün|başlangıçMs" → düzeltilmiş bitis Date nesnesi
+  const _duzeltilmisBitisMap = new Map(); // key: rowIndex, val: Date
+
+  // 1. Tüm satırları önceden parse et
+  const _rowMeta = excelRows.map((row, idx) => {
+    const ins = String(row[insCol]||'').trim();
+    const baslangicTarih = baslangicCol ? row[baslangicCol] : null;
+    const bitisTarih = bitisCol ? row[bitisCol] : null;
+    const parsedBas = baslangicTarih ? parseFlexibleDate(baslangicTarih) : null;
+    const parsedBit = bitisTarih ? parseFlexibleDate(bitisTarih) : null;
+    return { idx, ins, parsedBas, parsedBit };
+  });
+
+  // 2. Inspector + gün bazında grupla
+  const _insGunGruplari = {};
+  _rowMeta.forEach(m => {
+    if (!m.ins || !m.parsedBas || !m.parsedBit) return;
+    const gun = m.parsedBas.toISOString().slice(0, 10); // YYYY-MM-DD
+    const key = m.ins + '|' + gun;
+    if (!_insGunGruplari[key]) _insGunGruplari[key] = [];
+    _insGunGruplari[key].push(m);
+  });
+
+  // 3. Her grupda başlangıç saatine göre sırala, çakışmaları düzelt
+  Object.values(_insGunGruplari).forEach(grup => {
+    grup.sort((a, b) => a.parsedBas - b.parsedBas);
+    for (let i = 0; i < grup.length - 1; i++) {
+      const current = grup[i];
+      const next    = grup[i + 1];
+      // Effective bitiş: önceden düzeltilmişse onu kullan (zincirleme için)
+      const effBit = _duzeltilmisBitisMap.has(current.idx)
+        ? _duzeltilmisBitisMap.get(current.idx)
+        : current.parsedBit;
+      // Çakışma: current efektif bitis > next baslangic
+      if (effBit > next.parsedBas) {
+        // Düzeltme: current bitiş = next başlangıç
+        _duzeltilmisBitisMap.set(current.idx, next.parsedBas);
+        console.log(
+          `⚠️ Çakışma düzeltildi [${current.ins}]: ` +
+          `${effBit.toLocaleTimeString('tr-TR')} → ` +
+          `${next.parsedBas.toLocaleTimeString('tr-TR')} ` +
+          `(sonraki kayıt: ${next.parsedBas.toLocaleTimeString('tr-TR')})`
+        );
+      }
+    }
+  });
+  // ── ÇAKIŞMA DÜZELTMESİ SONU ─────────────────────────────────────────────
+
+  excelRows.forEach((row, _rowIdx) => {
     const excelKlasman = String(row[klasmanCol]||'').trim();
     const ins = String(row[insCol]||'').trim();
     const adetHam = parseFloat(row[adetCol])||0;
@@ -5413,7 +5473,11 @@ function performansHesapla(){
 
     // Tarihleri en başta parse et — örnekleme modu seçimi için de kullanılır
     const parsedBaslangic = baslangicTarih ? parseFlexibleDate(baslangicTarih) : null;
-    const parsedBitis     = bitisTarih     ? parseFlexibleDate(bitisTarih)     : null;
+    const parsedBitisTaslak = bitisTarih ? parseFlexibleDate(bitisTarih) : null;
+    // Çakışma varsa düzeltilmiş bitiş saatini kullan
+    const parsedBitis = _duzeltilmisBitisMap.has(_rowIdx)
+      ? _duzeltilmisBitisMap.get(_rowIdx)
+      : parsedBitisTaslak;
     const tarihGecerli = parsedBaslangic && parsedBitis &&
                          parsedBitis > parsedBaslangic &&
                          parsedBaslangic.getFullYear() > 2000;
