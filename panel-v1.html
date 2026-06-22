@@ -326,7 +326,8 @@
       <!-- Sayfalama -->
       <div class="pagination" id="dashboard-pagination" style="display: none;">
         <button class="pag-btn" id="dash-btn-prev" onclick="changeDashboardPage(-1)" data-i18n="prev">‹ Önceki</button>
-        <div class="pag-info" id="dash-page-info">1 / 1</div>
+        <div id="dash-page-numbers" style="display:flex;align-items:center;gap:4px;"></div>
+        <div class="pag-info" id="dash-page-info" style="display:none;">1 / 1</div>
         <button class="pag-btn" id="dash-btn-next" onclick="changeDashboardPage(1)" data-i18n="next">Sonraki ›</button>
       </div>
     </div>
