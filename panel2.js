@@ -254,7 +254,7 @@ function _aoRenderTop20Grid() {
       + '<div style="position:absolute;top:8px;right:9px;width:18px;height:18px;border-radius:5px;background:' + rankBg + ';display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;letter-spacing:-.3px;">' + (i + 1) + '</div>'
       + '<div style="font-size:11px;font-weight:700;color:#0B1F3A;margin-bottom:5px;padding-right:22px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + k.ad + '">' + k.ad + '</div>'
       + '<div style="display:flex;align-items:baseline;gap:4px;margin-bottom:3px;">'
-      +   '<div style="font-size:17px;font-weight:800;color:#1565C0;font-family:\'DM Mono\',monospace;line-height:1;">' + k.adet.toLocaleString('tr-TR') + '</div>'
+      +   '<div style="font-size:17px;font-weight:800;color:#1565C0;font-family:\'DM Mono\',monospace;line-height:1;">' + formatTR(k.adet) + '</div>'
       +   '<div style="font-size:9px;font-weight:600;color:#8AAAC8;text-transform:uppercase;letter-spacing:.5px;">Adet</div>'
       + '</div>'
       + '<div style="font-size:9px;color:#8AAAC8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px;">' + k.kayit + ' kayıt</div>'
@@ -862,7 +862,7 @@ function _pwaShowInstallGuide(msg) {
 
   document.getElementById('ot-sure-val').textContent   = fmtSn(otSn);
   document.getElementById('ot-sure-badge').textContent  = otDk > 0 ? '+' + otDk + ' dk' : '—';
-  document.getElementById('ot-adet-val').textContent   = otAdet > 0 ? otAdet.toLocaleString('tr-TR') + ' adet' : '—';
+  document.getElementById('ot-adet-val').textContent   = otAdet > 0 ? formatTR(otAdet) + ' adet' : '—';
   document.getElementById('ot-adet-badge').textContent  = otAdetPct > 0 ? '%' + otAdetPct : '—';
   document.getElementById('ot-verim-val').textContent  = verim > 0 ? '%' + verim : '—';
   document.getElementById('ot-label-mesai').textContent = 'Mesai: ' + fmtSn(mesaiSn);
@@ -992,9 +992,9 @@ function _renderGunlukTablo() {
     var tarihStr = g.tarih.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'short' });
     return '<tr style="border-bottom:1px solid #f3f4f6;">'
       + '<td style="padding:8px 10px;font-size:12px;color:#111827;font-weight:500;">' + tarihStr + '</td>'
-      + '<td style="padding:8px 10px;text-align:center;font-size:13px;font-weight:600;color:#111827;">' + Math.round(g.toplamAdet).toLocaleString('tr-TR') + '</td>'
-      + '<td style="padding:8px 10px;text-align:center;font-size:12px;color:#1d4ed8;">' + Math.round(g.normalAdet).toLocaleString('tr-TR') + '</td>'
-      + '<td style="padding:8px 10px;text-align:center;font-size:12px;color:#D85A30;font-weight:600;">' + Math.round(g.otAdet).toLocaleString('tr-TR') + '</td>'
+      + '<td style="padding:8px 10px;text-align:center;font-size:13px;font-weight:600;color:#111827;">' + Math.round(g.toplamAdet) + '</td>'
+      + '<td style="padding:8px 10px;text-align:center;font-size:12px;color:#1d4ed8;">' + Math.round(g.normalAdet) + '</td>'
+      + '<td style="padding:8px 10px;text-align:center;font-size:12px;color:#D85A30;font-weight:600;">' + Math.round(g.otAdet) + '</td>'
       + '<td style="padding:8px 10px;text-align:center;font-size:12px;color:' + (g.otSureDk > 0 ? '#D85A30' : '#9ca3af') + ';font-weight:' + (g.otSureDk > 0 ? '600' : '400') + ';">' + fmtSaat(g.otSureDk) + '</td>'
       + '</tr>';
   }).join('');
@@ -1004,9 +1004,9 @@ function _renderGunlukTablo() {
 
   rows += '<tr style="background:#f1f5f9;border-top:2px solid #e5e7eb;">'
     + '<td style="padding:8px 10px;font-size:12px;font-weight:700;color:#111827;">TOPLAM</td>'
-    + '<td style="padding:8px 10px;text-align:center;font-size:13px;font-weight:700;color:#111827;">' + Math.round(tAdet).toLocaleString('tr-TR') + '</td>'
-    + '<td style="padding:8px 10px;text-align:center;font-size:12px;font-weight:700;color:#1d4ed8;">' + Math.round(tNormal).toLocaleString('tr-TR') + '</td>'
-    + '<td style="padding:8px 10px;text-align:center;font-size:12px;font-weight:700;color:#D85A30;">' + Math.round(tOt).toLocaleString('tr-TR') + '</td>'
+    + '<td style="padding:8px 10px;text-align:center;font-size:13px;font-weight:700;color:#111827;">' + Math.round(tAdet) + '</td>'
+    + '<td style="padding:8px 10px;text-align:center;font-size:12px;font-weight:700;color:#1d4ed8;">' + Math.round(tNormal) + '</td>'
+    + '<td style="padding:8px 10px;text-align:center;font-size:12px;font-weight:700;color:#D85A30;">' + Math.round(tOt) + '</td>'
     + '<td style="padding:8px 10px;text-align:center;font-size:12px;font-weight:700;color:#D85A30;">' + fmtSaat(tOtDk) + '</td>'
     + '</tr>';
 
