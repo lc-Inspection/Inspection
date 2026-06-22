@@ -1332,7 +1332,7 @@ function renderKlasmanAnaliz() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
         <div>
           <div style="font-size:15px;font-weight:700;color:var(--navy);">${k.ad}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${k.toplamAdet.toLocaleString('tr-TR')} adet · ${k.inspectorSayisi} inspector</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${formatTR(k.toplamAdet)} adet · ${k.inspectorSayisi} inspector</div>
         </div>
         <div style="text-align:right;">
           <div style="font-size:22px;font-weight:800;color:${barRenk};font-family:'DM Mono',monospace;line-height:1;">${gerceklesenOrt !== null ? gerceklesenOrt.toFixed(2)+'sn' : '—'}</div>
@@ -1377,7 +1377,7 @@ function renderKlasmanAnaliz() {
       <div style="font-size:28px;">🎯</div>
       <div style="flex:1;">
         <div style="font-size:15px;font-weight:700;color:#fff;">${(translations[currentLang]||translations.tr).klasman_actual_analysis}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:3px;">${liste.length} ${(translations[currentLang]||translations.tr).klasman_word} · ${liste.reduce((s,k)=>s+k.toplamAdet,0).toLocaleString('tr-TR')} ${(translations[currentLang]||translations.tr).total_units_summary}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:3px;">${liste.length} ${(translations[currentLang]||translations.tr).klasman_word} · ${formatTR(liste.reduce((s,k)=>s+k.toplamAdet,0))} ${(translations[currentLang]||translations.tr).total_units_summary}</div>
       </div>
       ${[
         ['✅',(translations[currentLang]||translations.tr).on_target,  liste.filter(k=>{const g=k.toplamAdet>0&&k.toplamFiiliSure>0?k.toplamFiiliSure/k.toplamAdet:null;return g!==null&&k.standartKontrolSure>0&&g<=k.standartKontrolSure;}).length,'#4CAF50'],
@@ -1627,7 +1627,7 @@ function _renderKlAnalizUI(el) {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
         <div>
           <div style="font-size:15px;font-weight:700;color:var(--navy);">${k.ad}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${k.toplamAdet.toLocaleString('tr-TR')} adet · ${k.inspectorSayisi} inspector</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${formatTR(k.toplamAdet)} adet · ${k.inspectorSayisi} inspector</div>
         </div>
         <div style="text-align:right;">
           <div style="font-size:22px;font-weight:800;color:${barRenk};font-family:'DM Mono',monospace;line-height:1;">${oranToplam !== null ? Math.round(oranToplam*100)+'%' : '—'}</div>
@@ -1707,7 +1707,7 @@ function _renderKlAnalizUI(el) {
       <div style="font-size:28px;">🎯</div>
       <div style="flex:1;">
         <div style="font-size:15px;font-weight:700;color:#fff;">${(translations[currentLang]||translations.tr).klasman_actual_analysis}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:3px;">${orijinal.length} ${(translations[currentLang]||translations.tr).klasman_word} · ${orijinal.reduce((s,k)=>s+k.toplamAdet,0).toLocaleString('tr-TR')} ${(translations[currentLang]||translations.tr).total_units_summary}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:3px;">${orijinal.length} ${(translations[currentLang]||translations.tr).klasman_word} · ${formatTR(orijinal.reduce((s,k)=>s+k.toplamAdet,0))} ${(translations[currentLang]||translations.tr).total_units_summary}</div>
       </div>
       ${[
         ['✅',(translations[currentLang]||translations.tr).on_target,'hedefte',hedefte,'#4CAF50'],
@@ -3185,6 +3185,14 @@ function fmtSnKisa(sn) {
   return h > 0 ? `${h}s ${String(m).padStart(2,'0')}d` : `${m}d`;
 }
 
+// ── Türkçe Sayı Formatı (binlik nokta ayraçlı) ───────────────────────────
+// toLocaleString('tr-TR') bazı ortamlarda (özellikle WebView/PWA) çalışmayabilir.
+// Bu fonksiyon her durumda doğru binlik nokta ayraçlı format üretir.
+function formatTR(num) {
+  if (num === null || num === undefined || isNaN(num)) return '—';
+  return String(Math.round(num)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
 function formatNumber(num) {
   if (num >= 1000000) {
     return (num / 1000000).toFixed(1) + 'M';
@@ -3239,7 +3247,7 @@ function updateSummaryStats(inspectors) {
   if (document.getElementById('verypoor-count')) document.getElementById('verypoor-count').textContent = veryPoor;
   document.getElementById('avg-performance').textContent = avgPerformans + '%';
   document.getElementById('avg-working-days').textContent = avgWorkingDays + ' ' + (translations[currentLang]||translations.tr).days_suffix;
-  document.getElementById('total-products').textContent = totalProducts.toLocaleString('tr-TR');
+  document.getElementById('total-products').textContent = formatTR(totalProducts);
 
 }
 
@@ -3431,7 +3439,7 @@ function showKlasmanSureOnerisi(klasmanId) {
       </div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted2)">
         <span>Veri kaynağı</span>
-        <span>${veri.toplamAdet.toLocaleString('tr-TR')} adet · ${veri.inspectorSayisi || 0} inspector</span>
+        <span>${formatTR(veri.toplamAdet)} adet · ${veri.inspectorSayisi || 0} inspector</span>
       </div>
     </div>
 
@@ -3503,7 +3511,7 @@ function showPerfSeviyeDetay(seviyeKey) {
       <tr style="border-bottom:1px solid var(--border2)">
         <td style="padding:9px 10px;font-weight:600;color:var(--navy);cursor:pointer" onclick="document.getElementById('perf-seviye-popup').style.display='none'; showInspectorDetail('${insp.ins.replace(/'/g, "\\'")}')">${_escapeHtml(_formatDisplayName(insp.ins))}</td>
         <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${insp.gunSayisi || 0} gün</td>
-        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${(insp.adet || 0).toLocaleString('tr-TR')}</td>
+        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${formatTR((insp.adet || 0))}</td>
         <td style="padding:9px 10px;text-align:center">${otHtml}</td>
         <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${perfColor}">${perf}%</td>
       </tr>`;
@@ -3530,7 +3538,7 @@ function showPerfSeviyeDetay(seviyeKey) {
     </div>
     <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:14px;padding-top:12px;border-top:2px solid var(--border2);font-size:12px">
       <span style="color:var(--muted)">Toplam <strong style="color:var(--navy)">${liste.length}</strong> inspector</span>
-      <span style="color:var(--muted)">Toplam Ürün: <strong style="color:var(--navy);font-family:'DM Mono',monospace">${toplamAdet.toLocaleString('tr-TR')}</strong></span>
+      <span style="color:var(--muted)">Toplam Ürün: <strong style="color:var(--navy);font-family:'DM Mono',monospace">${formatTR(toplamAdet)}</strong></span>
       <span style="color:var(--muted)">Ort. Çalışma Günü: <strong style="color:var(--navy);font-family:'DM Mono',monospace">${ortGun} gün</strong></span>
       <span style="color:var(--muted)">Ort. Performans: <strong style="color:${tanim.color};font-family:'DM Mono',monospace">${ortPerf}%</strong></span>
     </div>
@@ -3822,11 +3830,11 @@ function renderInspectorCards() {
         <!-- Ana İstatistikler -->
         <div class="inspector-stats">
           <div class="inspector-stat">
-            <div class="inspector-stat-value">${inspector.adet.toLocaleString('tr-TR')}</div>
+            <div class="inspector-stat-value">${formatTR(inspector.adet)}</div>
             <div class="inspector-stat-label" data-i18n="total_qty">Toplam Adet</div>
           </div>
           <div class="inspector-stat">
-            <div class="inspector-stat-value">${inspector.kayit.toLocaleString('tr-TR')}</div>
+            <div class="inspector-stat-value">${formatTR(inspector.kayit)}</div>
             <div class="inspector-stat-label" data-i18n="record_count">Kayıt Sayısı</div>
           </div>
         </div>
@@ -3864,7 +3872,7 @@ function renderInspectorCards() {
           ${_2KaliteDahil ? '' : (inspector.toplam2KaliteAdet > 0
             ? `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(124,58,237,.08);border-radius:7px">
                 <span style="font-size:11px;color:#7C3AED">🏷️ 2.Kalite kontrolü:</span>
-                <span style="font-size:13px;font-weight:700;color:#7C3AED">${inspector.toplam2KaliteAdet.toLocaleString('tr-TR')} adet</span>
+                <span style="font-size:13px;font-weight:700;color:#7C3AED">${formatTR(inspector.toplam2KaliteAdet)} adet</span>
                 ${inspector.perf2Kalite !== null && inspector.perf2Kalite !== undefined
                   ? `<span style="font-size:13px;font-weight:700;color:#7C3AED">· ${inspector.perf2Kalite}%</span>`
                   : ''}
@@ -5052,7 +5060,7 @@ function renderPerfTabloFromData(page) {
       <!-- Stats: 2×2 grid -->
       <div style="padding:0 16px 10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
         ${[
-          ['📦','Adet',(row.adet||0).toLocaleString('tr-TR')],
+          ['📦','Adet',formatTR(row.adet||0)],
           ['📋','Kayıt',row.kayit||0],
           ['⏱','Standart',fmtSure(row.standartSure)],
           ['🕐','Mesai',fmtSure(row.mesaiSure) + (row.toplamMesaistiSaniye > 0 ? ` 🌙+${Math.round(row.toplamMesaistiSaniye/60)}dk` : '')]
@@ -6064,7 +6072,7 @@ function renderTopInspectors() {
           <div class="top-inspector-info-text" style="flex:1;min-width:0">
             <div class="top-inspector-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${inspector.ins}</div>
             <div class="top-inspector-details">
-              ${(inspector.adet || 0).toLocaleString('tr-TR')} ${t.units_short} · ${inspector.gunSayisi || 0} ${t.working}
+              ${formatTR((inspector.adet || 0))} ${t.units_short} · ${inspector.gunSayisi || 0} ${t.working}
             </div>
             <span class="top-inspector-badge ${performanceLevel.cls}" style="margin-top:4px;display:inline-block">${performanceLevel.text}</span>
           </div>
@@ -6144,7 +6152,7 @@ function showSlide(index) {
         <span class="slide-klasman-card-perf" style="color:${kColor}">${kPerf}%</span>
       </div>
       <div class="slide-klasman-bar"><div class="slide-klasman-bar-fill" style="width:${barW}%;background:${kColor}"></div></div>
-      <div class="slide-klasman-card-adet">${(kData.adet || 0).toLocaleString('tr-TR')} ${t.units_short}</div>
+      <div class="slide-klasman-card-adet">${formatTR((kData.adet || 0))} ${t.units_short}</div>
     </div>`;
   }).join('') : `<div style="font-size:12px;color:rgba(255,255,255,.4);text-align:center;padding:16px">${t.no_data_live}</div>`;
 
@@ -6174,7 +6182,7 @@ function showSlide(index) {
           <div class="slide-overtime-stat-label">Verimlilik</div>
         </div>
         <div class="slide-overtime-stat">
-          <div class="slide-overtime-stat-value">${otAdetTahmini !== null ? otAdetTahmini.toLocaleString('tr-TR') : '—'}</div>
+          <div class="slide-overtime-stat-value">${otAdetTahmini !== null ? formatTR(otAdetTahmini) : '—'}</div>
           <div class="slide-overtime-stat-label">Kontrol Edilen (tah.)</div>
         </div>
       </div>
@@ -6214,11 +6222,11 @@ function showSlide(index) {
         <div class="inspector-slide-center">
           <div class="inspector-slide-info">
             <div class="inspector-slide-stat">
-              <div class="inspector-slide-stat-value">${(inspector.adet || 0).toLocaleString('tr-TR')}</div>
+              <div class="inspector-slide-stat-value">${formatTR((inspector.adet || 0))}</div>
               <div class="inspector-slide-stat-label">${t.total_product}</div>
             </div>
             <div class="inspector-slide-stat">
-              <div class="inspector-slide-stat-value">${(inspector.kayit || 0).toLocaleString('tr-TR')}</div>
+              <div class="inspector-slide-stat-value">${formatTR((inspector.kayit || 0))}</div>
               <div class="inspector-slide-stat-label">${t.record_count}</div>
             </div>
             <div class="inspector-slide-stat">
@@ -7359,7 +7367,7 @@ async function pullKlasmanAnalizFromSheets() {
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
             <div>
               <div style="font-size:15px;font-weight:700;color:var(--navy);">${k.ad}</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px;">${(k.toplamAdet||0).toLocaleString('tr-TR')} adet · ${k.inspectorSayisi||0} inspector</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px;">${formatTR((k.toplamAdet||0))} adet · ${k.inspectorSayisi||0} inspector</div>
             </div>
             <div style="text-align:right;">
               <div style="font-size:22px;font-weight:800;color:${barRenk};font-family:'DM Mono',monospace;line-height:1;">${gerceklesen > 0 ? gerceklesen.toFixed(2)+'sn' : '—'}</div>
@@ -7404,7 +7412,7 @@ async function pullKlasmanAnalizFromSheets() {
           <div style="font-size:28px;">🎯</div>
           <div style="flex:1;">
             <div style="font-size:15px;font-weight:700;color:#fff;" data-i18n="klasman_analiz_overlay_title">Classification Analysis — Fetched from Sheets</div>
-            <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:3px;">${liste.length} klasman · ${liste.reduce((s,k)=>s+(k.toplamAdet||0),0).toLocaleString('tr-TR')} toplam adet</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:3px;">${liste.length} klasman · ${formatTR(liste.reduce((s,k)=>s+(k.toplamAdet||0),0))} toplam adet</div>
           </div>
           ${[['✅','Hedefte',hedefte,'#4CAF50'],['⚠️','Yakın',yakin,'#FFB74D'],['🔴','Yüksek',yuksek,'#EF9A9A'],['➖','Veri Yok',veriYok,'rgba(255,255,255,.5)']].map(([ic,lb,cnt,col])=>`
           <div style="text-align:center;background:rgba(255,255,255,.1);border-radius:10px;padding:10px 16px;min-width:80px;">
@@ -7720,7 +7728,7 @@ function renderEkipAnaliz() {
         <td style="padding:10px 12px;font-weight:700;color:var(--muted);width:36px;text-align:center">${madalya}</td>
         <td style="padding:10px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(ins.ins))}</td>
         <td style="padding:10px 12px;text-align:center"><span class="${perfClass}" style="font-weight:700;font-family:'DM Mono',monospace">${ins.performans || 0}%</span></td>
-        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${(ins.adet || 0).toLocaleString('tr-TR')}</td>
+        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${formatTR((ins.adet || 0))}</td>
         <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${klasmanSayisi}</td>
       </tr>
     `;
@@ -7777,8 +7785,8 @@ function renderEkipAnaliz() {
           <div class="${perfClass}" style="height:100%;width:${barYuzde}%;background:currentColor;border-radius:6px;transition:width .3s"></div>
         </div>
         <div style="width:64px;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">📅 ${gunSayisi} ${t.days_suffix}</div>
-        <div style="width:80px;text-align:right;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0" title="${t.ekip_analiz_daily_avg}">⌀ ${gunlukOrt.toLocaleString('tr-TR')}/${t.days_suffix_short}</div>
-        <div style="width:120px;text-align:right;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">${adet.toLocaleString('tr-TR')} (${pay}%)</div>
+        <div style="width:80px;text-align:right;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0" title="${t.ekip_analiz_daily_avg}">⌀ ${formatTR(gunlukOrt)}/${t.days_suffix_short}</div>
+        <div style="width:120px;text-align:right;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">${formatTR(adet)} (${pay}%)</div>
       </div>
     `;
   }).join('');
@@ -7802,12 +7810,12 @@ function renderEkipAnaliz() {
         <div class="summary-stat-label">${t.team_avg_perf}</div>
       </div>
       <div class="summary-stat" style="background:linear-gradient(135deg,var(--lamber) 0%,#fff 100%);border-color:#FFE082">
-        <div class="summary-stat-value" style="color:var(--amber)">${toplamAdet.toLocaleString('tr-TR')}</div>
+        <div class="summary-stat-value" style="color:var(--amber)">${formatTR(toplamAdet)}</div>
         <div class="summary-stat-label">${t.team_manager_total_qty}</div>
       </div>
       <div class="summary-stat" style="background:linear-gradient(135deg,var(--lblue3) 0%,#fff 100%);border-color:var(--lblue)">
         <div class="summary-stat-value" style="font-size:18px;color:var(--blue)">🏅 ${_escapeHtml(_formatDisplayName(enCokUretim.ins))}</div>
-        <div class="summary-stat-label">${t.ekip_analiz_top_producer} · ${(enCokUretim.adet || 0).toLocaleString('tr-TR')}</div>
+        <div class="summary-stat-label">${t.ekip_analiz_top_producer} · ${formatTR((enCokUretim.adet || 0))}</div>
       </div>
     </div>
 
@@ -7921,7 +7929,7 @@ async function renderTeamManagersSection() {
                 <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-top:4px">${t.team_manager_member_count}</div>
               </div>
               <div style="text-align:center;padding:8px 4px;border-radius:8px;background:var(--lamber);border:1px solid #FFE082">
-                <div style="font-size:18px;font-weight:700;color:var(--amber);font-family:'DM Mono',monospace;line-height:1">${totalAdet.toLocaleString('tr-TR')}</div>
+                <div style="font-size:18px;font-weight:700;color:var(--amber);font-family:'DM Mono',monospace;line-height:1">${formatTR(totalAdet)}</div>
                 <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-top:4px">${t.team_manager_total_qty}</div>
               </div>
               <div style="text-align:center;padding:8px 4px;border-radius:8px;background:var(--lgreen);border:1px solid #B2DFDB">
@@ -7981,7 +7989,7 @@ function renderTeamSection() {
   const elAvgDays  = document.getElementById('team-avg-days');
   if (elMembers)  elMembers.textContent  = total;
   if (elAvgPerf)  elAvgPerf.textContent  = avgPerf + '%';
-  if (elProducts) elProducts.textContent = totalProducts.toLocaleString('tr-TR');
+  if (elProducts) elProducts.textContent = formatTR(totalProducts);
   if (elAvgDays)  elAvgDays.textContent  = avgDays + ' ' + t.days_suffix;
 
 
@@ -8753,7 +8761,7 @@ function renderKayipZamanAdminOzet() {
       <div class="summary-stat-label">Etkilenen Inspector</div>
     </div>
     <div class="summary-stat" style="border-color:#A5D6A7;background:linear-gradient(135deg,#E8F5E9 0%,#fff 100%)">
-      <div class="summary-stat-value" style="color:#2E7D32">${adetVarMi ? '~'+toplamAdet.toLocaleString('tr-TR') : '—'}</div>
+      <div class="summary-stat-value" style="color:#2E7D32">${adetVarMi ? '~'+formatTR(toplamAdet) : '—'}</div>
       <div class="summary-stat-label">Tahmini Kayıp Adet</div>
     </div>`;
 
@@ -8823,7 +8831,7 @@ function renderKayipZamanSebepOzetKartlari() {
           <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Bekleme Saati</div>
         </div>
         <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+d.adet.toLocaleString('tr-TR') : '—'}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+formatTR(d.adet) : '—'}</div>
           <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Tah. Kayıp Adet</div>
         </div>
         <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
@@ -8942,7 +8950,7 @@ function renderKayipZamanDetayliTablo() {
           <div class="l">Bekleme Saati</div>
         </div>
         <div class="kz-sebep-stat">
-          <div class="v">${adetHesaplanabildi ? '~'+toplamTahminiAdet.toLocaleString('tr-TR') : '—'}</div>
+          <div class="v">${adetHesaplanabildi ? '~'+formatTR(toplamTahminiAdet) : '—'}</div>
           <div class="l">Tah. Kayıp Adet</div>
         </div>
         <div class="kz-sebep-stat">
@@ -9242,7 +9250,7 @@ function showKayipZamanRaporGorunumu() {
           <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Bekleme Saati</div>
         </div>
         <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+d.adet.toLocaleString('tr-TR') : '—'}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+formatTR(d.adet) : '—'}</div>
           <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Tah. Kayıp Adet</div>
         </div>
         <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
@@ -9312,7 +9320,7 @@ function showKayipZamanRaporGorunumu() {
           <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:6px">Etkilenen Inspector</div>
         </div>
         <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px;border-top:3px solid var(--green)">
-          <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--navy)">${adetVarMiGenel ? '~'+toplamAdetGenel.toLocaleString('tr-TR') : '—'}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--navy)">${adetVarMiGenel ? '~'+formatTR(toplamAdetGenel) : '—'}</div>
           <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:6px">Tahmini Kayıp Adet</div>
         </div>
       </div>
@@ -9614,7 +9622,7 @@ function showSebepInspectorDetay(sebep) {
       ${adetVarMi ? `
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px">
         <span style="color:var(--muted)">Tahmini Kayıp Adet</span>
-        <span style="font-family:'DM Mono',monospace;font-weight:700;color:#8E24AA">~${toplamTahminiAdet.toLocaleString('tr-TR')} adet</span>
+        <span style="font-family:'DM Mono',monospace;font-weight:700;color:#8E24AA">~${formatTR(toplamTahminiAdet)} adet</span>
       </div>
       <div style="font-size:10px;color:var(--muted);margin-top:8px;font-style:italic">* Kişinin kendi ortalama hızına göre tahmini hesaplanmıştır, kesin değil.</div>` : ''}`;
   }
