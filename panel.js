@@ -2775,6 +2775,7 @@ async function clearDashboardData() {
   slideshowInspectors    = [];
   currentSlideIndex      = 0;
   selectedInspectorDetail = null;
+  _klAnalizTumListe      = []; // Klasman Analizi de sıfırla (yeni Excel yüklenince yeniden hesaplanır)
 
   saveData();
   renderDashboard();
