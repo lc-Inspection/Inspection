@@ -577,7 +577,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzZZXRZ1jU_kcul5wXkYPzJZQb9hD46j_QF-YuY_SlgrtssEI3pw8cE5nDB-g7jBZFv/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzZOFq3GPjqdYUkWEssHVqvgYy_3fdH7UAWSudAWj3OYz7PbY2ksysr37gzffT4lqPI/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -7410,6 +7410,19 @@ async function pullKlasmanAnalizFromSheets() {
   try {
     const data = await jsonpFetch(url, { action: 'getKlasmanAnaliz', token });
     if (data.status === 'ok' && Array.isArray(data.klasmanAnaliz) && data.klasmanAnaliz.length > 0) {
+      // Sheets'ten gelen veriyi _klAnalizTumListe'ye de yaz (Süre Önerisi için)
+      _klAnalizTumListe = data.klasmanAnaliz.map(k => ({
+        ad:                k.ad,
+        toplamAdet:        k.toplamAdet        || 0,
+        toplamFiiliSure:   k.toplamFiiliSure   || 0,
+        toplamStandartSure:k.toplamStandartSure|| 0,
+        inspectorSayisi:   k.inspectorSayisi   || 0,
+        standartKontrolSure: k.standartKontrolSure || 0,
+        istasyonSure:      k.istasyonSuresi    || 0,
+        kayitSayisi:       0,
+        adetListesi:       []
+      }));
+
       // Sheets'ten gelen veriyi ekranda göster
       const el = document.getElementById('klasman-analiz-icerik');
       if (!el) return;
@@ -7418,12 +7431,24 @@ async function pullKlasmanAnalizFromSheets() {
 
       const kartlar = liste.map(k => {
         const std          = k.standartKontrolSure || 0;
-        const gerceklesen  = k.gerceklesenOrt      || 0;
+        // Önce toplam oran kullan (daha doğru), yoksa adet-başı ortalamaya düş
+        const toplamOran   = (k.toplamStandartSure > 0 && k.toplamFiiliSure > 0)
+                             ? k.toplamFiiliSure / k.toplamStandartSure : null;
+        const gerceklesen  = k.gerceklesenOrt > 0
+                             ? k.gerceklesenOrt
+                             : (k.toplamAdet > 0 && k.toplamFiiliSure > 0
+                                ? k.toplamFiiliSure / k.toplamAdet : 0);
         const fark         = gerceklesen > 0 && std > 0 ? gerceklesen - std : null;
         const farkYuzde    = fark !== null && std > 0 ? Math.round((fark / std) * 100) : null;
-        const barGenislik  = gerceklesen > 0 && std > 0 ? Math.min(200, Math.round((gerceklesen / std) * 100)) : 0;
-        const barRenk      = fark === null ? 'var(--muted2)' : fark <= 0 ? '#00897B' : fark <= std * 0.2 ? '#F57F17' : '#C62828';
-        const farkIkon     = fark === null ? '—' : fark <= 0 ? '▼ Hedef Altında ✓' : '▲ Hedef Üstünde';
+        const barGenislik  = toplamOran !== null
+                             ? Math.min(200, Math.round(toplamOran * 100))
+                             : (gerceklesen > 0 && std > 0 ? Math.min(200, Math.round((gerceklesen / std) * 100)) : 0);
+        const barRenk      = toplamOran === null && fark === null ? 'var(--muted2)'
+                             : (toplamOran !== null ? toplamOran : (gerceklesen / std)) <= 1 ? '#00897B'
+                             : (toplamOran !== null ? toplamOran : (gerceklesen / std)) <= 1.2 ? '#F57F17' : '#C62828';
+        const farkIkon     = toplamOran === null && fark === null ? '—'
+                             : (toplamOran !== null ? toplamOran <= 1 : fark !== null && fark <= 0)
+                               ? '▼ Hedef Altında ✓' : '▲ Hedef Üstünde';
 
         return `
         <div style="background:#fff;border:1.5px solid var(--border2);border-radius:14px;padding:20px;box-shadow:var(--shadow);position:relative;overflow:hidden;">
