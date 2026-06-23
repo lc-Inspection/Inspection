@@ -577,7 +577,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyx7Yj-xZdTLXS9Td7gHeZRKX7z3f5NtYIQN3uJ5ePmdPIP2BqYPB5Ydo7a6Gs2Bxco/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxgTGKDQATXQd_7nkFNR27Lqaqho3VfVsSzIDx2zKgGFclK-UYLGthTisq_UXrMo84d/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -1918,12 +1918,7 @@ const listeTemiz = liste.map(inspector => {
   Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
     klasmanlarTemiz[k] = {
       adet: v.adet, standartSure: v.standartSure,
-      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf,
-      toplam2KaliteAdet: v.toplam2KaliteAdet || 0,
-      toplam2KaliteStandartSure: v.toplam2KaliteStandartSure || 0,
-      toplam2KaliteFiiliSure: v.toplam2KaliteFiiliSure || 0,
-      toplamStandartSureNormal: v.toplamStandartSureNormal || 0,
-      toplamStandartSureOvertime: v.toplamStandartSureOvertime || 0
+      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
     };
   });
   return {
@@ -2263,12 +2258,7 @@ async function pushPerformansManual(ev) {
   Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
     klasmanlarTemiz[k] = {
       adet: v.adet, standartSure: v.standartSure,
-      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf,
-      toplam2KaliteAdet: v.toplam2KaliteAdet || 0,
-      toplam2KaliteStandartSure: v.toplam2KaliteStandartSure || 0,
-      toplam2KaliteFiiliSure: v.toplam2KaliteFiiliSure || 0,
-      toplamStandartSureNormal: v.toplamStandartSureNormal || 0,
-      toplamStandartSureOvertime: v.toplamStandartSureOvertime || 0
+      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
     };
   });
   return {
@@ -2685,12 +2675,7 @@ function saveData() {
           standartSure: v.standartSure,
           kayitFiiliSure: v.kayitFiiliSure,
           hizPerf: v.hizPerf,
-          hacimPerf: v.hacimPerf,
-          toplam2KaliteAdet: v.toplam2KaliteAdet || 0,
-          toplam2KaliteStandartSure: v.toplam2KaliteStandartSure || 0,
-          toplam2KaliteFiiliSure: v.toplam2KaliteFiiliSure || 0,
-          toplamStandartSureNormal: v.toplamStandartSureNormal || 0,
-          toplamStandartSureOvertime: v.toplamStandartSureOvertime || 0
+          hacimPerf: v.hacimPerf
         };
       });
       return { ...inspector, klasmanlar: klasmanlarTemiz };
@@ -2790,6 +2775,7 @@ async function clearDashboardData() {
   slideshowInspectors    = [];
   currentSlideIndex      = 0;
   selectedInspectorDetail = null;
+  _klAnalizTumListe      = []; // Klasman Analizi de sıfırla
 
   saveData();
   renderDashboard();
@@ -2831,13 +2817,13 @@ function parseFlexibleDate(val) {
   }
   const s = String(val).trim();
   if (!s) return null;
-  const dmyMatch = s.match(/^(\d{2})-(\d{2})-(\d{4})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  const dmyMatch = s.match(/^(\d{2})[-.](\d{2})[-.](\d{4})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
   if (dmyMatch) {
     const [, dd, mm, yyyy, hh='0', min='0', ss='0'] = dmyMatch;
     const d = new Date(+yyyy, +mm - 1, +dd, +hh, +min, +ss);
     return isNaN(d.getTime()) ? null : d;
   }
-  const ymdhMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  const ymdhMatch = s.match(/^(\d{4})[-.](\d{2})[-.](\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
   if (ymdhMatch) {
     const [, yyyy, mm, dd, hh='0', min='0', ss='0'] = ymdhMatch;
     const d = new Date(+yyyy, +mm - 1, +dd, +hh, +min, +ss);
@@ -4080,7 +4066,6 @@ function showInspectorDetail(inspectorName) {
               if (!hedefKey) return;
               inspector.klasmanlar[hedefKey].kayitlar = kayitlarArr.map(r => ({
                 ...r,
-                is2Kalite: r.is2Kalite || (r.inspectionTipi ? String(r.inspectionTipi).toLocaleLowerCase('tr-TR').startsWith('2.kalite') : false),
                 kontrolAdetSuresi: r.kontrolAdetSuresi || 0,
                 istasyonSuresi: r.istasyonSuresi || 0,
                 standartSure: r.standartSure || 0,
@@ -4089,32 +4074,7 @@ function showInspectorDetail(inspectorName) {
                 baslangic: r.baslangic ? (() => { const d = new Date(r.baslangic); return isNaN(d.getTime()) ? null : d; })() : null,
                 bitis: r.bitis ? (() => { const d = new Date(r.bitis); return isNaN(d.getTime()) ? null : d; })() : null
               }));
-              // Klasman bazında 2.Kalite toplamlarını kayıtlardan yeniden hesapla
-              const _2KDahil = document.getElementById('inp-2kalite-dahil')?.checked || false;
-              if (!_2KDahil) {
-                let k2A = 0, k2S = 0, k2F = 0;
-                inspector.klasmanlar[hedefKey].kayitlar.forEach(r => {
-                  if (r.is2Kalite) { k2A += (r.adet||0); k2S += (r.standartSure||0); k2F += (r.kayitFiiliSure||0); }
-                });
-                inspector.klasmanlar[hedefKey].toplam2KaliteAdet = k2A;
-                inspector.klasmanlar[hedefKey].toplam2KaliteStandartSure = k2S;
-                inspector.klasmanlar[hedefKey].toplam2KaliteFiiliSure = k2F;
-              }
             });
-            // Inspector üst seviyesindeki 2.Kalite toplamlarını güncelle
-            const _2KDahil2 = document.getElementById('inp-2kalite-dahil')?.checked || false;
-            if (!_2KDahil2) {
-              let tot2A = 0, tot2S = 0, tot2F = 0;
-              Object.values(inspector.klasmanlar).forEach(kl => {
-                tot2A += (kl.toplam2KaliteAdet || 0);
-                tot2S += (kl.toplam2KaliteStandartSure || 0);
-                tot2F += (kl.toplam2KaliteFiiliSure || 0);
-              });
-              inspector.toplam2KaliteAdet = tot2A;
-              inspector.toplam2KaliteStandartSure = tot2S;
-              inspector.toplam2KaliteFiiliSure = tot2F;
-              inspector.perf2Kalite = tot2F > 0 ? Math.round((tot2S / tot2F) * 100) : null;
-            }
             // Overlay hâlâ açıksa tabloyu güncelle
             const ov = document.getElementById('analiz-overlay');
             if (ov && ov.style.display !== 'none') {
@@ -4891,12 +4851,18 @@ function fillColSelects(){
   const sonucEl = document.getElementById('col-sonuc');
   if (sonucEl) sonucEl.innerHTML = '<option value="">— Kullanma —</option>' + excelCols.map(c=>`<option value="${c}">${c}</option>`).join('');
   
-  // Otomatik tahmin
-  const klasmanCol = excelCols[0] || '';
-  const adetCol = excelCols.find(c=>c.toLowerCase().includes('bakilacakmiktar')) || excelCols[17] || '';
-  const insCol = excelCols.find(c=>c.toLowerCase().includes('inspector')) || '';
-  const baslangicCol = excelCols.find(c=>c.toLowerCase().includes('inspectionbaslamatarihi')) || excelCols[10] || '';
-  const bitisCol = excelCols.find(c=>c.toLowerCase().includes('inspectionbitistarihi')) || excelCols[11] || '';
+  // Otomatik tahmin — Türkçe karakter ve boşluk normalize edilerek eşleştirilir
+  function normCol(s) {
+    return String(s).toLowerCase()
+      .replace(/ş/g,'s').replace(/ı/g,'i').replace(/ğ/g,'g')
+      .replace(/ü/g,'u').replace(/ö/g,'o').replace(/ç/g,'c')
+      .replace(/\s+/g,'');
+  }
+  const klasmanCol    = excelCols[0] || '';
+  const adetCol       = excelCols.find(c => normCol(c).includes('bakilacakmiktar')) || excelCols[17] || '';
+  const insCol        = excelCols.find(c => normCol(c).includes('inspector')) || '';
+  const baslangicCol  = excelCols.find(c => normCol(c).includes('inspectionbaslamatarihi') || normCol(c).includes('inspectionbaslama')) || excelCols[10] || '';
+  const bitisCol      = excelCols.find(c => normCol(c).includes('inspectionbitistarihi') || normCol(c).includes('inspectionbitis')) || excelCols[11] || '';
   
   if(klasmanCol && document.getElementById('col-klasman')) document.getElementById('col-klasman').value = klasmanCol;
   if(adetCol && document.getElementById('col-adet')) document.getElementById('col-adet').value = adetCol;
@@ -5932,6 +5898,10 @@ function performansHesapla(){
 
   // _usersCache'i arka planda önceden yükle — "Diğer Ekipler" butonu anında açılsın
   if (!_usersCache.length) _silentLoadUsersCache();
+
+  // PerformansRaw'ı Sheets'e otomatik push et (overtime, mesai vb. tüm alanlarla)
+  // Bu sayede "Sheets'ten Çek" yapıldığında hesaplanan veri doğru gelir.
+  pushPerformansRawToSheets(liste);
   
   showFileStatus(`✅ ${liste.length}` + (translations[currentLang]||translations.tr).analysis_done, 'var(--green)');
 }
@@ -7451,6 +7421,19 @@ async function pullKlasmanAnalizFromSheets() {
   try {
     const data = await jsonpFetch(url, { action: 'getKlasmanAnaliz', token });
     if (data.status === 'ok' && Array.isArray(data.klasmanAnaliz) && data.klasmanAnaliz.length > 0) {
+      // Sheets'ten gelen veriyi _klAnalizTumListe'ye de yaz (Süre Önerisi için)
+      _klAnalizTumListe = data.klasmanAnaliz.map(k => ({
+        ad:                k.ad,
+        toplamAdet:        k.toplamAdet        || 0,
+        toplamFiiliSure:   k.toplamFiiliSure   || 0,
+        toplamStandartSure:k.toplamStandartSure|| 0,
+        inspectorSayisi:   k.inspectorSayisi   || 0,
+        standartKontrolSure: k.standartKontrolSure || 0,
+        istasyonSure:      k.istasyonSuresi    || 0,
+        kayitSayisi:       0,
+        adetListesi:       []
+      }));
+
       // Sheets'ten gelen veriyi ekranda göster
       const el = document.getElementById('klasman-analiz-icerik');
       if (!el) return;
@@ -7459,12 +7442,23 @@ async function pullKlasmanAnalizFromSheets() {
 
       const kartlar = liste.map(k => {
         const std          = k.standartKontrolSure || 0;
-        const gerceklesen  = k.gerceklesenOrt      || 0;
+        const toplamOran   = (k.toplamStandartSure > 0 && k.toplamFiiliSure > 0)
+                             ? k.toplamFiiliSure / k.toplamStandartSure : null;
+        const gerceklesen  = k.gerceklesenOrt > 0
+                             ? k.gerceklesenOrt
+                             : (k.toplamAdet > 0 && k.toplamFiiliSure > 0
+                                ? k.toplamFiiliSure / k.toplamAdet : 0);
         const fark         = gerceklesen > 0 && std > 0 ? gerceklesen - std : null;
         const farkYuzde    = fark !== null && std > 0 ? Math.round((fark / std) * 100) : null;
-        const barGenislik  = gerceklesen > 0 && std > 0 ? Math.min(200, Math.round((gerceklesen / std) * 100)) : 0;
-        const barRenk      = fark === null ? 'var(--muted2)' : fark <= 0 ? '#00897B' : fark <= std * 0.2 ? '#F57F17' : '#C62828';
-        const farkIkon     = fark === null ? '—' : fark <= 0 ? '▼ Hedef Altında ✓' : '▲ Hedef Üstünde';
+        const barGenislik  = toplamOran !== null
+                             ? Math.min(200, Math.round(toplamOran * 100))
+                             : (gerceklesen > 0 && std > 0 ? Math.min(200, Math.round((gerceklesen / std) * 100)) : 0);
+        const barRenk      = toplamOran === null && fark === null ? 'var(--muted2)'
+                             : (toplamOran !== null ? toplamOran : (gerceklesen / (std||1))) <= 1 ? '#00897B'
+                             : (toplamOran !== null ? toplamOran : (gerceklesen / (std||1))) <= 1.2 ? '#F57F17' : '#C62828';
+        const farkIkon     = toplamOran === null && fark === null ? '—'
+                             : (toplamOran !== null ? toplamOran <= 1 : fark !== null && fark <= 0)
+                               ? '▼ Hedef Altında ✓' : '▲ Hedef Üstünde';
 
         return `
         <div style="background:#fff;border:1.5px solid var(--border2);border-radius:14px;padding:20px;box-shadow:var(--shadow);position:relative;overflow:hidden;">
