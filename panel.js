@@ -577,7 +577,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxjrpZBhlGIJxLo0pwZD8T42CcRZrSIRZ7ykKrgHlC8H82F_8Pg4I6a_vHPLx6WGxfx/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwf2ppdP0VUv6kXdj4RMrXrC0XJYEx_v_7PBcmy7MbskGnxxsCqWGeOiXupTziHQJg5/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -5898,6 +5898,10 @@ function performansHesapla(){
 
   // _usersCache'i arka planda önceden yükle — "Diğer Ekipler" butonu anında açılsın
   if (!_usersCache.length) _silentLoadUsersCache();
+
+  // PerformansRaw'ı Sheets'e otomatik push et (overtime, mesai vb. tüm alanlarla)
+  // Bu sayede "Sheets'ten Çek" yapıldığında hesaplanan veri doğru gelir.
+  pushPerformansRawToSheets(liste);
   
   showFileStatus(`✅ ${liste.length}` + (translations[currentLang]||translations.tr).analysis_done, 'var(--green)');
 }
