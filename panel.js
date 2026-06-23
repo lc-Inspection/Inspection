@@ -1918,7 +1918,12 @@ const listeTemiz = liste.map(inspector => {
   Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
     klasmanlarTemiz[k] = {
       adet: v.adet, standartSure: v.standartSure,
-      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
+      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf,
+      toplam2KaliteAdet: v.toplam2KaliteAdet || 0,
+      toplam2KaliteStandartSure: v.toplam2KaliteStandartSure || 0,
+      toplam2KaliteFiiliSure: v.toplam2KaliteFiiliSure || 0,
+      toplamStandartSureNormal: v.toplamStandartSureNormal || 0,
+      toplamStandartSureOvertime: v.toplamStandartSureOvertime || 0
     };
   });
   return {
@@ -2258,7 +2263,12 @@ async function pushPerformansManual(ev) {
   Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
     klasmanlarTemiz[k] = {
       adet: v.adet, standartSure: v.standartSure,
-      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
+      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf,
+      toplam2KaliteAdet: v.toplam2KaliteAdet || 0,
+      toplam2KaliteStandartSure: v.toplam2KaliteStandartSure || 0,
+      toplam2KaliteFiiliSure: v.toplam2KaliteFiiliSure || 0,
+      toplamStandartSureNormal: v.toplamStandartSureNormal || 0,
+      toplamStandartSureOvertime: v.toplamStandartSureOvertime || 0
     };
   });
   return {
@@ -2675,7 +2685,12 @@ function saveData() {
           standartSure: v.standartSure,
           kayitFiiliSure: v.kayitFiiliSure,
           hizPerf: v.hizPerf,
-          hacimPerf: v.hacimPerf
+          hacimPerf: v.hacimPerf,
+          toplam2KaliteAdet: v.toplam2KaliteAdet || 0,
+          toplam2KaliteStandartSure: v.toplam2KaliteStandartSure || 0,
+          toplam2KaliteFiiliSure: v.toplam2KaliteFiiliSure || 0,
+          toplamStandartSureNormal: v.toplamStandartSureNormal || 0,
+          toplamStandartSureOvertime: v.toplamStandartSureOvertime || 0
         };
       });
       return { ...inspector, klasmanlar: klasmanlarTemiz };
@@ -4065,6 +4080,7 @@ function showInspectorDetail(inspectorName) {
               if (!hedefKey) return;
               inspector.klasmanlar[hedefKey].kayitlar = kayitlarArr.map(r => ({
                 ...r,
+                is2Kalite: r.is2Kalite || (r.inspectionTipi ? String(r.inspectionTipi).toLocaleLowerCase('tr-TR').startsWith('2.kalite') : false),
                 kontrolAdetSuresi: r.kontrolAdetSuresi || 0,
                 istasyonSuresi: r.istasyonSuresi || 0,
                 standartSure: r.standartSure || 0,
@@ -4073,7 +4089,32 @@ function showInspectorDetail(inspectorName) {
                 baslangic: r.baslangic ? (() => { const d = new Date(r.baslangic); return isNaN(d.getTime()) ? null : d; })() : null,
                 bitis: r.bitis ? (() => { const d = new Date(r.bitis); return isNaN(d.getTime()) ? null : d; })() : null
               }));
+              // Klasman bazında 2.Kalite toplamlarını kayıtlardan yeniden hesapla
+              const _2KDahil = document.getElementById('inp-2kalite-dahil')?.checked || false;
+              if (!_2KDahil) {
+                let k2A = 0, k2S = 0, k2F = 0;
+                inspector.klasmanlar[hedefKey].kayitlar.forEach(r => {
+                  if (r.is2Kalite) { k2A += (r.adet||0); k2S += (r.standartSure||0); k2F += (r.kayitFiiliSure||0); }
+                });
+                inspector.klasmanlar[hedefKey].toplam2KaliteAdet = k2A;
+                inspector.klasmanlar[hedefKey].toplam2KaliteStandartSure = k2S;
+                inspector.klasmanlar[hedefKey].toplam2KaliteFiiliSure = k2F;
+              }
             });
+            // Inspector üst seviyesindeki 2.Kalite toplamlarını güncelle
+            const _2KDahil2 = document.getElementById('inp-2kalite-dahil')?.checked || false;
+            if (!_2KDahil2) {
+              let tot2A = 0, tot2S = 0, tot2F = 0;
+              Object.values(inspector.klasmanlar).forEach(kl => {
+                tot2A += (kl.toplam2KaliteAdet || 0);
+                tot2S += (kl.toplam2KaliteStandartSure || 0);
+                tot2F += (kl.toplam2KaliteFiiliSure || 0);
+              });
+              inspector.toplam2KaliteAdet = tot2A;
+              inspector.toplam2KaliteStandartSure = tot2S;
+              inspector.toplam2KaliteFiiliSure = tot2F;
+              inspector.perf2Kalite = tot2F > 0 ? Math.round((tot2S / tot2F) * 100) : null;
+            }
             // Overlay hâlâ açıksa tabloyu güncelle
             const ov = document.getElementById('analiz-overlay');
             if (ov && ov.style.display !== 'none') {
