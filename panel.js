@@ -3589,10 +3589,13 @@ function onOvertimeDahilChange() {
   if (performansData && performansData.length > 0) {
     performansData.forEach(row => {
       const normalMesai = row.mesaiSure - (row.overtimeMesaiSure || 0);
-      const mesaiPaydasi = _overtimeDahil ? row.mesaiSure : (normalMesai > 0 ? normalMesai : row.mesaiSure);
-      row.genelHizPerf = mesaiPaydasi > 0
-        ? Math.round((row.standartSure / mesaiPaydasi) * 100)
-        : row.genelHizPerf;
+      const standart  = _overtimeDahil
+        ? row.standartSure
+        : (row.standartSureNormal > 0 ? row.standartSureNormal : row.standartSure);
+      const payda = _overtimeDahil
+        ? row.mesaiSure
+        : (normalMesai > 0 ? normalMesai : row.mesaiSure);
+      row.genelHizPerf = payda > 0 ? Math.round((standart / payda) * 100) : row.genelHizPerf;
       row.genelPerformans = row.genelHizPerf;
       const hedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
       row.verimlilikPerf = row.genelHizPerf !== null ? Math.round(row.genelHizPerf * (100 / hedef)) : null;
@@ -5745,15 +5748,23 @@ function performansHesapla(){
     }
 
     // Toplam performansı hesapla
-    // _overtimeDahil = false (varsayılan): sadece normal mesai (16:45'e kadar) paydaya girer
-    // _overtimeDahil = true: overtime dahil tüm mesai paydaya girer
+    // _overtimeDahil = false (varsayılan): sadece normal mesai saatlerindeki iş
+    // _overtimeDahil = true: overtime dahil tüm mesai ve tüm standart süre
     const normalMesaiSn = mesaiSureSn - (mesaiHesap ? (mesaiHesap.toplamMesaistiSaniye || 0) : 0);
-    const performansPaydasi = _overtimeDahil
-      ? mesaiSureSn
-      : (normalMesaiSn > 0 ? normalMesaiSn : mesaiSureSn);
+
+    let performansStandart, performansPaydasi;
+    if (_overtimeDahil) {
+      // Tüm mesai + tüm standart süre
+      performansStandart = toplamStandartSure;
+      performansPaydasi  = mesaiSureSn;
+    } else {
+      // Sadece normal mesaiye düşen standart süre + normal mesai
+      performansStandart = toplamStandartSureNormal > 0 ? toplamStandartSureNormal : toplamStandartSure;
+      performansPaydasi  = normalMesaiSn > 0 ? normalMesaiSn : mesaiSureSn;
+    }
 
     if (performansPaydasi && performansPaydasi > fiiliSureSn * 0.1) {
-      performans = Math.round((toplamStandartSure / performansPaydasi) * 100);
+      performans = Math.round((performansStandart / performansPaydasi) * 100);
     } else {
       performans = null;
     }
