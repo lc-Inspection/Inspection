@@ -520,6 +520,11 @@ const KZ_CACHE_MS = 20000; // 20 saniye icinde tekrar girilirse network'e gitmed
 // true olursa: 2.Kalite kayıtları diğer kayıtlarla aynı akıştan geçer (ayrım kalkar).
 let _2KaliteDahil = false;
 
+// Overtime çalışmasının Düz. Performans hesabına dahil edilip edilmeyeceği.
+// VARSAYILAN: false — performans sadece normal mesai (08:00-16:45) paydasıyla hesaplanır.
+// true olursa: overtime saatleri de mesai paydasına eklenir.
+let _overtimeDahil = false;
+
 // ─── Kayıp Zaman localStorage cache ───
 // Sayfa yenilendiğinde (F5) JS state sıfırlanır; bu yüzden son çekilen veriyi
 // localStorage'da tutup açılışta anında gösteriyoruz, arkaplanda Sheets'ten tazeliyoruz.
@@ -577,7 +582,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzltFFUIarwX9iAo_Whsz-Eo4Js-cqRqUUUcflGJmZc8UT8QRUNnigna3IULf-_sSE/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwHngI7WYiR5QA27GYDVHUYadMb4pHLoL93t5fbT-ektjmLvqeXsIBhDb-t1o7OFjl3/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -3570,6 +3575,36 @@ function on2KaliteDahilChange() {
   }
 }
 
+function onOvertimeDahilChange() {
+  const checkbox = document.getElementById('inp-overtime-dahil');
+  _overtimeDahil = !!(checkbox && checkbox.checked);
+
+  // Excel verisi varsa sıfırdan yeniden hesapla (en güvenilir yol)
+  if (typeof excelRows !== 'undefined' && excelRows && excelRows.length > 0) {
+    performansHesapla();
+    return;
+  }
+
+  // Excel verisi yoksa performansData üzerinde anlık güncelle
+  if (performansData && performansData.length > 0) {
+    performansData.forEach(row => {
+      const normalMesai = row.mesaiSure - (row.overtimeMesaiSure || 0);
+      const mesaiPaydasi = _overtimeDahil ? row.mesaiSure : (normalMesai > 0 ? normalMesai : row.mesaiSure);
+      row.genelHizPerf = mesaiPaydasi > 0
+        ? Math.round((row.standartSure / mesaiPaydasi) * 100)
+        : row.genelHizPerf;
+      row.genelPerformans = row.genelHizPerf;
+      const hedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
+      row.verimlilikPerf = row.genelHizPerf !== null ? Math.round(row.genelHizPerf * (100 / hedef)) : null;
+    });
+    renderDashboard();
+    renderPerfTabloFromData(1);
+    updateSidebar();
+  } else {
+    showFileStatus('⚠️ Bu ayarın uygulanabilmesi için Excel dosyasını yükleyin.', 'var(--amber)');
+  }
+}
+
 function onHedefChange() {
   // Veri varsa tablo + kartları yeniden çiz; yoksa sadece tabloyu yenile
   if (performansData && performansData.length > 0) {
@@ -5710,8 +5745,15 @@ function performansHesapla(){
     }
 
     // Toplam performansı hesapla
-    if (mesaiSureSn && mesaiSureSn > fiiliSureSn * 0.1) {
-      performans = Math.round((toplamStandartSure / mesaiSureSn) * 100);
+    // _overtimeDahil = false (varsayılan): sadece normal mesai (16:45'e kadar) paydaya girer
+    // _overtimeDahil = true: overtime dahil tüm mesai paydaya girer
+    const normalMesaiSn = mesaiSureSn - (mesaiHesap ? (mesaiHesap.toplamMesaistiSaniye || 0) : 0);
+    const performansPaydasi = _overtimeDahil
+      ? mesaiSureSn
+      : (normalMesaiSn > 0 ? normalMesaiSn : mesaiSureSn);
+
+    if (performansPaydasi && performansPaydasi > fiiliSureSn * 0.1) {
+      performans = Math.round((toplamStandartSure / performansPaydasi) * 100);
     } else {
       performans = null;
     }
