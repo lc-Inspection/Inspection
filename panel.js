@@ -2775,7 +2775,6 @@ async function clearDashboardData() {
   slideshowInspectors    = [];
   currentSlideIndex      = 0;
   selectedInspectorDetail = null;
-  _klAnalizTumListe      = []; // Klasman Analizi de sıfırla (yeni Excel yüklenince yeniden hesaplanır)
 
   saveData();
   renderDashboard();
@@ -2817,23 +2816,18 @@ function parseFlexibleDate(val) {
   }
   const s = String(val).trim();
   if (!s) return null;
-
-  // ── dd-mm-yyyy veya dd.mm.yyyy (tire veya nokta ayraçlı) ──────────────────
-  const dmyMatch = s.match(/^(\d{2})[-.](\d{2})[-.](\d{4})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  const dmyMatch = s.match(/^(\d{2})-(\d{2})-(\d{4})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
   if (dmyMatch) {
     const [, dd, mm, yyyy, hh='0', min='0', ss='0'] = dmyMatch;
     const d = new Date(+yyyy, +mm - 1, +dd, +hh, +min, +ss);
     return isNaN(d.getTime()) ? null : d;
   }
-
-  // ── yyyy-mm-dd veya yyyy.mm.dd ────────────────────────────────────────────
-  const ymdhMatch = s.match(/^(\d{4})[-.](\d{2})[-.](\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  const ymdhMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
   if (ymdhMatch) {
     const [, yyyy, mm, dd, hh='0', min='0', ss='0'] = ymdhMatch;
     const d = new Date(+yyyy, +mm - 1, +dd, +hh, +min, +ss);
     return isNaN(d.getTime()) ? null : d;
   }
-
   const fallback = new Date(s);
   return isNaN(fallback.getTime()) ? null : fallback;
 }
@@ -7416,19 +7410,6 @@ async function pullKlasmanAnalizFromSheets() {
   try {
     const data = await jsonpFetch(url, { action: 'getKlasmanAnaliz', token });
     if (data.status === 'ok' && Array.isArray(data.klasmanAnaliz) && data.klasmanAnaliz.length > 0) {
-      // Sheets'ten gelen veriyi _klAnalizTumListe'ye de yaz (Süre Önerisi için)
-      _klAnalizTumListe = data.klasmanAnaliz.map(k => ({
-        ad:                k.ad,
-        toplamAdet:        k.toplamAdet        || 0,
-        toplamFiiliSure:   k.toplamFiiliSure   || 0,
-        toplamStandartSure:k.toplamStandartSure|| 0,
-        inspectorSayisi:   k.inspectorSayisi   || 0,
-        standartKontrolSure: k.standartKontrolSure || 0,
-        istasyonSure:      k.istasyonSuresi    || 0,
-        kayitSayisi:       0,
-        adetListesi:       []
-      }));
-
       // Sheets'ten gelen veriyi ekranda göster
       const el = document.getElementById('klasman-analiz-icerik');
       if (!el) return;
@@ -7437,24 +7418,12 @@ async function pullKlasmanAnalizFromSheets() {
 
       const kartlar = liste.map(k => {
         const std          = k.standartKontrolSure || 0;
-        // Önce toplam oran kullan (daha doğru), yoksa adet-başı ortalamaya düş
-        const toplamOran   = (k.toplamStandartSure > 0 && k.toplamFiiliSure > 0)
-                             ? k.toplamFiiliSure / k.toplamStandartSure : null;
-        const gerceklesen  = k.gerceklesenOrt > 0
-                             ? k.gerceklesenOrt
-                             : (k.toplamAdet > 0 && k.toplamFiiliSure > 0
-                                ? k.toplamFiiliSure / k.toplamAdet : 0);
+        const gerceklesen  = k.gerceklesenOrt      || 0;
         const fark         = gerceklesen > 0 && std > 0 ? gerceklesen - std : null;
         const farkYuzde    = fark !== null && std > 0 ? Math.round((fark / std) * 100) : null;
-        const barGenislik  = toplamOran !== null
-                             ? Math.min(200, Math.round(toplamOran * 100))
-                             : (gerceklesen > 0 && std > 0 ? Math.min(200, Math.round((gerceklesen / std) * 100)) : 0);
-        const barRenk      = toplamOran === null && fark === null ? 'var(--muted2)'
-                             : (toplamOran !== null ? toplamOran : (gerceklesen / std)) <= 1 ? '#00897B'
-                             : (toplamOran !== null ? toplamOran : (gerceklesen / std)) <= 1.2 ? '#F57F17' : '#C62828';
-        const farkIkon     = toplamOran === null && fark === null ? '—'
-                             : (toplamOran !== null ? toplamOran <= 1 : fark !== null && fark <= 0)
-                               ? '▼ Hedef Altında ✓' : '▲ Hedef Üstünde';
+        const barGenislik  = gerceklesen > 0 && std > 0 ? Math.min(200, Math.round((gerceklesen / std) * 100)) : 0;
+        const barRenk      = fark === null ? 'var(--muted2)' : fark <= 0 ? '#00897B' : fark <= std * 0.2 ? '#F57F17' : '#C62828';
+        const farkIkon     = fark === null ? '—' : fark <= 0 ? '▼ Hedef Altında ✓' : '▲ Hedef Üstünde';
 
         return `
         <div style="background:#fff;border:1.5px solid var(--border2);border-radius:14px;padding:20px;box-shadow:var(--shadow);position:relative;overflow:hidden;">
