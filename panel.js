@@ -5652,17 +5652,22 @@ function performansHesapla(){
         kl.toplam2KaliteFiiliSure = (kl.toplam2KaliteFiiliSure || 0) + kayitFiiliSure;
       }
     } else {
-      kl.toplamAdet += adet;
-      kl.toplamStandartSure += standartSure;
-      if (kayitFiiliSure && kayitFiiliSure > 0) {
-        kl.toplamKayitFiiliSure += kayitFiiliSure;
-      }
-      // Normal mesai / overtime ayrımı - bitiş saatine göre (16:45 sınırı)
+      // Overtime toggle kontrolü: kapalıysa overtime kayıtları hesaba girmesin
       const kayitNormalSayilir = kayitNormalMi(parsedBitis);
-      if (kayitNormalSayilir) {
-        kl.toplamStandartSureNormal = (kl.toplamStandartSureNormal||0) + standartSure;
-      } else {
+      if (!_overtimeDahil && !kayitNormalSayilir) {
+        // Overtime kaydı, toggle kapalı → atla (ne adet ne standart süre ekleme)
         kl.toplamStandartSureOvertime = (kl.toplamStandartSureOvertime||0) + standartSure;
+      } else {
+        kl.toplamAdet += adet;
+        kl.toplamStandartSure += standartSure;
+        if (kayitFiiliSure && kayitFiiliSure > 0) {
+          kl.toplamKayitFiiliSure += kayitFiiliSure;
+        }
+        if (kayitNormalSayilir) {
+          kl.toplamStandartSureNormal = (kl.toplamStandartSureNormal||0) + standartSure;
+        } else {
+          kl.toplamStandartSureOvertime = (kl.toplamStandartSureOvertime||0) + standartSure;
+        }
       }
     }
     const kayitNormalSayilir = kayitNormalMi(parsedBitis);
@@ -5671,7 +5676,13 @@ function performansHesapla(){
     if (is2Kalite && !_2KaliteDahil) {
       // toplamAdet'e eklenmedi (yukarıda hariç tutuldu)
     } else {
-      inspectorMap[ins].toplamAdet += adet;
+      // Overtime toggle kapalıysa overtime kayıtları adet toplamına da girmesin
+      const kayitNormalSayilir2 = kayitNormalMi(parsedBitis);
+      if (!_overtimeDahil && !kayitNormalSayilir2) {
+        // overtime kaydı, toggle kapalı → atla
+      } else {
+        inspectorMap[ins].toplamAdet += adet;
+      }
     }
   });
 
@@ -5748,23 +5759,18 @@ function performansHesapla(){
     }
 
     // Toplam performansı hesapla
-    // _overtimeDahil = false (varsayılan): sadece normal mesai saatlerindeki iş
-    // _overtimeDahil = true: overtime dahil tüm mesai ve tüm standart süre
-    const normalMesaiSn = mesaiSureSn - (mesaiHesap ? (mesaiHesap.toplamMesaistiSaniye || 0) : 0);
-
-    let performansStandart, performansPaydasi;
-    if (_overtimeDahil) {
-      // Tüm mesai + tüm standart süre
-      performansStandart = toplamStandartSure;
-      performansPaydasi  = mesaiSureSn;
-    } else {
-      // Sadece normal mesaiye düşen standart süre + normal mesai
-      performansStandart = toplamStandartSureNormal > 0 ? toplamStandartSureNormal : toplamStandartSure;
-      performansPaydasi  = normalMesaiSn > 0 ? normalMesaiSn : mesaiSureSn;
-    }
+    // _overtimeDahil = false (varsayılan): overtime kayıtları zaten yukarıda
+    // hesaba katılmadı (adet ve standart süre hariç tutuldu). Mesai paydasından
+    // da overtime saatlerini düş → sadece normal mesai üzerinden hesapla.
+    // _overtimeDahil = true: tüm kayıtlar dahil, tüm mesai paydaya girer.
+    const overtimeSn = mesaiHesap ? (mesaiHesap.toplamMesaistiSaniye || 0) : 0;
+    const normalMesaiSn = mesaiSureSn - overtimeSn;
+    const performansPaydasi = _overtimeDahil
+      ? mesaiSureSn
+      : (normalMesaiSn > 0 ? normalMesaiSn : mesaiSureSn);
 
     if (performansPaydasi && performansPaydasi > fiiliSureSn * 0.1) {
-      performans = Math.round((performansStandart / performansPaydasi) * 100);
+      performans = Math.round((toplamStandartSure / performansPaydasi) * 100);
     } else {
       performans = null;
     }
