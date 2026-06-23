@@ -4856,18 +4856,12 @@ function fillColSelects(){
   const sonucEl = document.getElementById('col-sonuc');
   if (sonucEl) sonucEl.innerHTML = '<option value="">— Kullanma —</option>' + excelCols.map(c=>`<option value="${c}">${c}</option>`).join('');
   
-  // Otomatik tahmin — Türkçe karakter ve boşluk normalize edilerek eşleştirilir
-  function normCol(s) {
-    return String(s).toLowerCase()
-      .replace(/ş/g,'s').replace(/ı/g,'i').replace(/ğ/g,'g')
-      .replace(/ü/g,'u').replace(/ö/g,'o').replace(/ç/g,'c')
-      .replace(/\s+/g,'');
-  }
-  const klasmanCol    = excelCols[0] || '';
-  const adetCol       = excelCols.find(c => normCol(c).includes('bakilacakmiktar')) || excelCols[17] || '';
-  const insCol        = excelCols.find(c => normCol(c).includes('inspector')) || '';
-  const baslangicCol  = excelCols.find(c => normCol(c).includes('inspectionbaslamatarihi') || normCol(c).includes('inspectionbaslama')) || excelCols[10] || '';
-  const bitisCol      = excelCols.find(c => normCol(c).includes('inspectionbitistarihi') || normCol(c).includes('inspectionbitis')) || excelCols[11] || '';
+  // Otomatik tahmin
+  const klasmanCol = excelCols[0] || '';
+  const adetCol = excelCols.find(c=>c.toLowerCase().includes('bakilacakmiktar')) || excelCols[17] || '';
+  const insCol = excelCols.find(c=>c.toLowerCase().includes('inspector')) || '';
+  const baslangicCol = excelCols.find(c=>c.toLowerCase().includes('inspectionbaslamatarihi')) || excelCols[10] || '';
+  const bitisCol = excelCols.find(c=>c.toLowerCase().includes('inspectionbitistarihi')) || excelCols[11] || '';
   
   if(klasmanCol && document.getElementById('col-klasman')) document.getElementById('col-klasman').value = klasmanCol;
   if(adetCol && document.getElementById('col-adet')) document.getElementById('col-adet').value = adetCol;
