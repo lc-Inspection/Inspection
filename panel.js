@@ -5851,6 +5851,20 @@ function performansHesapla(){
   // Performans verilerini güncelle
   performansData = liste;
 
+  // ── SLIDESHOW SENKRONİZASYONU ───────────────────────────────────────────
+  // Slideshow zaten açıkken örnekleme modu / "Tarihe Göre Farklı Seviyeler"
+  // dönemleri / verimlilik hedefi gibi ayarlar değiştirilirse, kartları
+  // besleyen slideshowInspectors önceden alınmış DONMUŞ bir kopya olduğu
+  // için performansData güncellense bile ekrandaki kartlar değişmiyordu.
+  // Bu yüzden slideshow açıkken her hesaplamada slideshowInspectors'ı da
+  // performansData ile birlikte tazeleyip o anki slaydı yeniden çiziyoruz.
+  if (typeof slideshowActive !== 'undefined' && slideshowActive) {
+    const _oldSlideIdx = currentSlideIndex;
+    prepareSlideshow();
+    currentSlideIndex = Math.min(_oldSlideIdx, Math.max(0, slideshowInspectors.length - 1));
+    if (slideshowInspectors.length) showSlide(currentSlideIndex);
+  }
+
   // Yeni bir yükleme başlıyor — önceki Temizle iptalini sıfırla
   window._uploadAborted = false;
 
