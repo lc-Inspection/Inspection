@@ -1912,32 +1912,31 @@ async function pushPerformansRawToSheets(liste) {
   const token = appConfig.sheetsApiToken;
   if (!url || !token) return;
   try {
-    // kayitlar dizisi olmadan gönder — boyut sınırını aşmamak için
-    // (kayitlar ayrıca setInspectorKayitlar ile gönderilir)
-    // YENİ
-const _pushHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
-const _pushOrneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
-const _pushOrneklemeTarihliAktif = document.getElementById('ornekleme-tarihli-aktif')?.checked || false;
-const listeTemiz = liste.map(inspector => {
-  const klasmanlarTemiz = {};
-  Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
-    klasmanlarTemiz[k] = {
-      adet: v.adet, standartSure: v.standartSure,
-      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
-    };
-  });
-  return {
-    ...inspector,
-    klasmanlar: klasmanlarTemiz,
-    toplamMesaistiSaniye: inspector.toplamMesaistiSaniye || 0,
-    gunlukOvertimeDetay: inspector.gunlukOvertimeDetay || {},
-    hedefVerimlilik: _pushHedef,
-    verimlilikPerf: inspector.genelHizPerf != null ? Math.round(inspector.genelHizPerf * (100 / _pushHedef)) : inspector.verimlilikPerf,
-    orneklemeMod: _pushOrneklemeMod,
-    orneklemeTarihliAktif: _pushOrneklemeTarihliAktif,
-    orneklemeDonemleri: _pushOrneklemeTarihliAktif ? orneklemeDonemleri : []
-  };
-});
+    // Değerleri fonksiyon çağrıldığı an güncel olarak okuyoruz:
+    const _pushHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
+    const _pushOrneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
+    const _pushOrneklemeTarihliAktif = document.getElementById('ornekleme-tarihli-aktif')?.checked || false;
+
+    const listeTemiz = liste.map(inspector => {
+      const klasmanlarTemiz = {};
+      Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
+        klasmanlarTemiz[k] = {
+          adet: v.adet, standartSure: v.standartSure,
+          kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
+        };
+      });
+      return {
+        ...inspector,
+        klasmanlar: klasmanlarTemiz,
+        toplamMesaistiSaniye: inspector.toplamMesaistiSaniye || 0,
+        gunlukOvertimeDetay: inspector.gunlukOvertimeDetay || {},
+        hedefVerimlilik: _pushHedef,
+        verimlilikPerf: inspector.genelHizPerf != null ? Math.round(inspector.genelHizPerf * (100 / _pushHedef)) : inspector.verimlilikPerf,
+        orneklemeMod: _pushOrneklemeMod,
+        orneklemeTarihliAktif: _pushOrneklemeTarihliAktif,
+        orneklemeDonemleri: _pushOrneklemeTarihliAktif ? orneklemeDonemleri : []
+      };
+    });
 
     await fetch(url, {
       method: 'POST',
@@ -2253,31 +2252,32 @@ async function pushPerformansManual(ev) {
       mode: 'no-cors'
     });
 
-    // 2) Ham JSON'u gönder — kayitlar olmadan (boyut sınırı aşılmasın)
-    // Not: kayitlar ayrıca pushInspectorKayitlarToSheets ile gönderilecek
+// 2) Ham JSON'u gönder — kayitlar olmadan (boyut sınırı aşılmasın)
     const _manualHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
     const _manualOrneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
     const _manualOrneklemeTarihliAktif = document.getElementById('ornekleme-tarihli-aktif')?.checked || false;
+
     const performansDataTemiz = performansData.map(inspector => {
-  const klasmanlarTemiz = {};
-  Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
-    klasmanlarTemiz[k] = {
-      adet: v.adet, standartSure: v.standartSure,
-      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
-    };
-  });
-  return {
-    ...inspector,
-    klasmanlar: klasmanlarTemiz,
-    toplamMesaistiSaniye: inspector.toplamMesaistiSaniye || 0,
-    gunlukOvertimeDetay: inspector.gunlukOvertimeDetay || {},
-    hedefVerimlilik: _manualHedef,
-    verimlilikPerf: inspector.genelHizPerf != null ? Math.round(inspector.genelHizPerf * (100 / _manualHedef)) : inspector.verimlilikPerf,
-    orneklemeMod: _manualOrneklemeMod,
-    orneklemeTarihliAktif: _manualOrneklemeTarihliAktif,
-    orneklemeDonemleri: _manualOrneklemeTarihliAktif ? orneklemeDonemleri : []
-  };
-});
+      const klasmanlarTemiz = {};
+      Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
+        klasmanlarTemiz[k] = {
+          adet: v.adet, standartSure: v.standartSure,
+          kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
+        };
+      });
+      return {
+        ...inspector,
+        klasmanlar: klasmanlarTemiz,
+        toplamMesaistiSaniye: inspector.toplamMesaistiSaniye || 0,
+        gunlukOvertimeDetay: inspector.gunlukOvertimeDetay || {},
+        hedefVerimlilik: _manualHedef,
+        verimlilikPerf: inspector.genelHizPerf != null ? Math.round(inspector.genelHizPerf * (100 / _manualHedef)) : inspector.verimlilikPerf,
+        orneklemeMod: _manualOrneklemeMod,
+        orneklemeTarihliAktif: _manualOrneklemeTarihliAktif,
+        orneklemeDonemleri: _manualOrneklemeTarihliAktif ? orneklemeDonemleri : []
+      };
+    });
+
     await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -5258,17 +5258,18 @@ function orneklemeAdet(adet, mod) {
 // kullanılabilmesi sağlanır (örn. 1-15 Ocak Kapalı, 16-28 Ocak Bir Alttan,
 // 29 Ocak - 28 Şubat İki Alttan). En fazla 3 dönem desteklenir.
 // Her dönem: { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD', mode: 'kapali'|'bir'|'iki' }
-const ORNEKLEME_DONEM_MAX = 3;
+const ORNEKLEME_DONEM_MAX = 10;
 let orneklemeDonemleri = [];
 
 function toggleOrneklemeDonemleri() {
   const aktif = document.getElementById('ornekleme-tarihli-aktif')?.checked;
   const wrap = document.getElementById('ornekleme-donemler-wrap');
-  const tag  = document.getElementById('ornekleme-default-tag');
+  const tag = document.getElementById('ornekleme-default-tag'); // <-- Kod zaten burada var!
+  
   if (wrap) wrap.style.display = aktif ? 'flex' : 'none';
-  if (tag)  tag.style.display  = aktif ? 'inline-block' : 'none';
+  if (tag) tag.style.display = aktif ? 'inline-block' : 'none';
+  
   if (aktif && orneklemeDonemleri.length === 0) {
-    // İlk açılışta kullanım kolaylığı için bir dönem ekle
     orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali' });
   }
   renderOrneklemeDonemleri();
