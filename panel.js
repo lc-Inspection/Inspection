@@ -505,6 +505,9 @@ let excelRows = [];
 let excelCols = [];
 let performansData = [];
 let kayipZamanData = []; // { id, inspector, tarih, gun, baslangic, bitis, sebep, aciklama, ekipYoneticisi, sureDk }
+// Sistem tarafından otomatik tespit edilen çakışma kayıtları (Excel parse sırasında doldurulur)
+// { inspector, tarihStr, gercekBitis, duzeltilmisBitis, kayipSn, klasman, talepNo }
+window._sistemselCakismaKayitlari = [];
 
 // Kullanıcı yönetimi (Users sekmesi) için global cache — sayfa açılışında
 // renderDashboard() → renderTeamManagersSection() zinciri tarafından erken
@@ -5471,6 +5474,8 @@ function performansHesapla(){
   // Sonuç: (baslangicTarih, bitisTarih) → düzeltilmiş bitiş tarihi
   // Map anahtarı: "inspector|gün|başlangıçMs" → düzeltilmiş bitis Date nesnesi
   const _duzeltilmisBitisMap = new Map(); // key: rowIndex, val: Date
+  // Yeni Excel yüklemesinde önceki çakışma kayıtlarını temizle
+  window._sistemselCakismaKayitlari = [];
 
   // 1. Tüm satırları önceden parse et
   const _rowMeta = excelRows.map((row, idx) => {
@@ -5522,11 +5527,31 @@ function performansHesapla(){
       if (effBit.getTime() > next.parsedBas.getTime()) {
         // Düzeltme: current bitiş = next başlangıç (tarih+saat tam eşleşme)
         _duzeltilmisBitisMap.set(current.idx, next.parsedBas);
+        // Kayıp süreyi hesapla (sn): gerçek bitiş ile düzeltilmiş bitiş arasındaki fark
+        const _kayipSn = Math.round((effBit.getTime() - next.parsedBas.getTime()) / 1000);
+        // Tarih bilgisini al (YYYY-MM-DD yerel)
+        const _ty  = next.parsedBas.getFullYear();
+        const _tm  = String(next.parsedBas.getMonth()+1).padStart(2,'0');
+        const _td  = String(next.parsedBas.getDate()).padStart(2,'0');
+        const _tarihStr = _ty+'-'+_tm+'-'+_td;
+        // Global kayıt dizisine ekle (aynı rowIdx varsa güncelle)
+        if (!window._sistemselCakismaKayitlari) window._sistemselCakismaKayitlari = [];
+        const _mevcut = window._sistemselCakismaKayitlari.findIndex(function(c){return c._rowIdx===current.idx;});
+        const _kayit = {
+          _rowIdx:          current.idx,
+          inspector:        current.ins,
+          tarihStr:         _tarihStr,
+          gercekBitis:      new Date(effBit.getTime()),
+          duzeltilmisBitis: new Date(next.parsedBas.getTime()),
+          kayipSn:          _kayipSn
+        };
+        if (_mevcut >= 0) window._sistemselCakismaKayitlari[_mevcut] = _kayit;
+        else              window._sistemselCakismaKayitlari.push(_kayit);
         console.log(
-          `⚠️ Çakışma düzeltildi [${current.ins}]: ` +
-          `${effBit.toLocaleString('tr-TR')} → ` +
-          `${next.parsedBas.toLocaleString('tr-TR')} ` +
-          `(sonraki başlangıç: ${next.parsedBas.toLocaleString('tr-TR')})`
+          '⚠️ Çakışma düzeltildi ['+current.ins+']: ' +
+          effBit.toLocaleString('tr-TR') + ' → ' +
+          next.parsedBas.toLocaleString('tr-TR') +
+          ' (kayıp: '+Math.floor(_kayipSn/3600)+'s '+Math.floor((_kayipSn%3600)/60)+'dk)'
         );
       }
     }
@@ -8917,6 +8942,121 @@ function renderKayipZamanAdminAll() {
   renderKayipZamanAdminOzet();
   renderKayipZamanEkipGrid();
   renderKayipZamanDetayliTablo();
+  renderSistemselCakismaBolumu();
+}
+
+// ─── Sistemsel Çakışma Bölümü ───
+// Excel parse sırasında tespit edilen çakışmaları (bitiş tarihi sonraki inspection'ın
+// başlangıcını geçen kayıtlar) admin kayıp zaman sayfasında gösterir.
+function renderSistemselCakismaBolumu() {
+  const container = document.getElementById('kz-sistemsel-cakisma');
+  if (!container) return;
+
+  const kayitlar = window._sistemselCakismaKayitlari || [];
+
+  if (!kayitlar.length) {
+    container.innerHTML = '';
+    return;
+  }
+
+  function fmtSaat(sn) {
+    const s = Math.abs(sn);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sc = Math.floor(s % 60);
+    if (h > 0) return h + 's ' + m + 'dk';
+    if (m > 0) return m + 'dk ' + sc + 'sn';
+    return sc + 'sn';
+  }
+
+  function fmtTime(d) {
+    if (!d) return '—';
+    return d.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  }
+
+  function fmtTarih(d) {
+    if (!d) return '—';
+    return d.toLocaleDateString('tr-TR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  }
+
+  // Inspector bazında grupla
+  const inspMap = {};
+  kayitlar.forEach(function(k) {
+    const key = (k.inspector || '').toLowerCase();
+    if (!inspMap[key]) inspMap[key] = { isim: k.inspector, toplamSn: 0, kayitlar: [] };
+    inspMap[key].toplamSn += k.kayipSn || 0;
+    inspMap[key].kayitlar.push(k);
+  });
+
+  const toplamKayipSn = kayitlar.reduce(function(s, k){ return s + (k.kayipSn || 0); }, 0);
+  const inspSayisi    = Object.keys(inspMap).length;
+
+  const satirlar = Object.values(inspMap).sort(function(a,b){ return b.toplamSn - a.toplamSn; }).map(function(g) {
+    const detaylar = g.kayitlar.map(function(k) {
+      return '<tr style="background:#fff8f0;border-bottom:1px solid #ffe0b2">'
+        + '<td style="padding:5px 14px 5px 28px;font-size:11px;color:#795548;font-family:'DM Mono',monospace">'
+        +   fmtTarih(k.duzeltilmisBitis) + '</td>'
+        + '<td style="padding:5px 14px;font-size:11px;font-family:'DM Mono',monospace;color:#5d4037">'
+        +   fmtTime(k.duzeltilmisBitis) + ' – ' + fmtTime(k.gercekBitis) + '</td>'
+        + '<td style="padding:5px 14px;text-align:center">'
+        +   '<span style="background:#fff3e0;color:#e65100;border:1px solid #ffcc80;border-radius:5px;padding:1px 8px;font-size:11px;font-weight:700">'
+        +   fmtSaat(k.kayipSn) + '</span></td>'
+        + '<td style="padding:5px 14px;font-size:11px;color:#9e9e9e">Bitiş tarihi sonraki inspection başlangıcını geçiyor</td>'
+        + '</tr>';
+    }).join('');
+
+    return '<tr onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'table-row':'none'"'
+      + ' style="border-bottom:1px solid #ffe0b2;cursor:pointer;transition:background .15s"'
+      + ' onmouseover="this.style.background='#fff3e0'" onmouseout="this.style.background=''">'
+      + '<td style="padding:11px 14px;font-weight:700;color:#bf360c">'
+      +   '<span style="font-size:11px;color:#bcaaa4;margin-right:6px">▶</span>'
+      +   _escapeHtml(_formatDisplayName(g.isim)) + '</td>'
+      + '<td style="padding:11px 14px">'
+      +   '<span style="background:#fff3e0;color:#bf360c;border:1px solid #ffcc80;border-radius:5px;padding:2px 9px;font-size:11px;font-weight:600">'
+      +   '⚙️ Sistemsel Hata</span></td>'
+      + '<td style="padding:11px 14px;text-align:center">'
+      +   '<span style="background:#ffebee;color:#c62828;border-radius:7px;padding:4px 10px;font-size:13px;font-weight:700;font-family:'DM Mono',monospace">'
+      +   fmtSaat(g.toplamSn) + '</span></td>'
+      + '<td style="padding:11px 14px;font-size:11px;color:#9e9e9e">' + g.kayitlar.length + ' kayıt</td>'
+      + '</tr>'
+      + '<tr style="display:none"><td colspan="4" style="padding:0">'
+      +   '<table style="width:100%;border-collapse:collapse"><tbody>' + detaylar + '</tbody></table>'
+      + '</td></tr>';
+  }).join('');
+
+  container.innerHTML =
+    '<div style="margin-top:18px;border:2px solid #ffcc80;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(230,81,0,.08)">'
+    + '<div style="background:linear-gradient(135deg,#e65100,#ff8f00);padding:13px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
+    +   '<span style="font-size:20px">⚙️</span>'
+    +   '<div>'
+    +     '<div style="color:#fff;font-weight:700;font-size:14px">Sistemsel Hata — Otomatik Tespit</div>'
+    +     '<div style="color:rgba(255,255,255,.8);font-size:11px">Excel'deki bitiş tarihi çakışmaları · Panel tarafından otomatik düzeltildi</div>'
+    +   '</div>'
+    +   '<div style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap">'
+    +     '<div style="text-align:center;background:rgba(0,0,0,.18);border-radius:8px;padding:6px 14px">'
+    +       '<div style="color:#fff;font-size:16px;font-weight:800;font-family:'DM Mono',monospace">' + fmtSaat(toplamKayipSn) + '</div>'
+    +       '<div style="color:rgba(255,255,255,.7);font-size:10px;margin-top:1px">Toplam Kayıp</div>'
+    +     '</div>'
+    +     '<div style="text-align:center;background:rgba(0,0,0,.18);border-radius:8px;padding:6px 14px">'
+    +       '<div style="color:#fff;font-size:16px;font-weight:800">' + inspSayisi + '</div>'
+    +       '<div style="color:rgba(255,255,255,.7);font-size:10px;margin-top:1px">Inspector</div>'
+    +     '</div>'
+    +     '<div style="text-align:center;background:rgba(0,0,0,.18);border-radius:8px;padding:6px 14px">'
+    +       '<div style="color:#fff;font-size:16px;font-weight:800">' + kayitlar.length + '</div>'
+    +       '<div style="color:rgba(255,255,255,.7);font-size:10px;margin-top:1px">Tespit</div>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:13px">'
+    +   '<thead><tr style="background:#fff8e1;border-bottom:2px solid #ffcc80">'
+    +     '<th style="padding:9px 14px;text-align:left;font-size:10px;color:#bf360c;text-transform:uppercase;letter-spacing:.4px">Inspector <span style="font-weight:400;opacity:.6">(detay için tıkla)</span></th>'
+    +     '<th style="padding:9px 14px;text-align:left;font-size:10px;color:#bf360c;text-transform:uppercase;letter-spacing:.4px">Sebep</th>'
+    +     '<th style="padding:9px 14px;text-align:center;font-size:10px;color:#c62828;text-transform:uppercase;letter-spacing:.4px;width:110px">Kayıp Süre</th>'
+    +     '<th style="padding:9px 14px;text-align:left;font-size:10px;color:#bf360c;text-transform:uppercase;letter-spacing:.4px;width:80px">Kayıt</th>'
+    +   '</tr></thead>'
+    +   '<tbody>' + satirlar + '</tbody>'
+    + '</table>'
+    + '</div>';
 }
 
 // Filtre degisince hem detayli tablo hem liste yenilenir
