@@ -582,7 +582,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz5Kiy8bfZKSRCk_DvNXo04fyNFEluchfjyvY_vmucGtsmT88Ebt_LVnPfN0psK9mcc/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwW036GHT_Rjlg6TGTxEMcar4YPVMDS_kwhUQP8XmJxmFNHVeS_a7EIgjgIyETOHyxn/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
