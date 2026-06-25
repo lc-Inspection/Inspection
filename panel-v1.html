@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KalibRe Performans Paneli</title>
+<title>KalibRe Inspection Performans Paneli</title>
 <!-- ─── PWA META ─── -->
-<meta name="application-name" content="KalibRe Inspection Panel">
+<meta name="application-name" content="Inspection Panel">
 <meta name="description" content="Inspector Performans Takip Paneli">
 <meta name="theme-color" content="#0B1F3A">
 <meta name="mobile-web-app-capable" content="yes">
@@ -65,7 +65,7 @@
   <div class="topbar-brand">
     <div class="topbar-logo">LC</div>
     <div class="topbar-title">
-      KalibRe
+     KalibRe Inspection Performans
       <small data-i18n="app_subtitle">Inspection Control</small>
     </div>
   </div>
@@ -641,9 +641,6 @@
               <label style="margin:0;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--navy);padding:5px 11px;border-radius:7px;border:1.5px solid #CE93D8;background:#fff;transition:all .15s" id="lbl-ornekleme-iki">
                 <input type="radio" name="ornekleme-mod" value="iki" id="ornekleme-iki" onchange="performansHesapla()" style="width:auto;padding:0;border:none;box-shadow:none"> <span data-i18n="two_below">İki Alttan</span>
               </label>
-                          <span id="ornekleme-default-tag" style="display:none; font-size:11px; color:#E65100; font-weight:600; margin-left:10px;">
-  (Dönem dışı kayıtlar için varsayılan)
-</span>
             </div>
             <div id="ornekleme-aciklama" style="font-size:11px;color:var(--muted);flex:1;min-width:200px">
               <span data-i18n="sampling_off">Kapalı: gerçek adet kullanılır.</span> <strong data-i18n="one_below">Bir Alttan</strong> / <strong data-i18n="two_below">İki Alttan</strong>: <span data-i18n="sampling_desc_end">adet örnekleme tablosuna göre dönüştürülür.</span>
@@ -664,7 +661,7 @@
                 <button type="button" class="btn btn-sm" id="btn-ornekleme-donem-ekle" onclick="addOrneklemeDonemi()" style="border-color:#CE93D8;color:#8E24AA">
                   <span data-i18n="sampling_period_add">+ Dönem Ekle</span>
                 </button>
-                <span id="ornekleme-donem-max-hint" style="font-size:10.5px;color:var(--muted);display:none" data-i18n="sampling_period_max">En fazla 3 dönem ekleyebilirsiniz</span>
+                <span id="ornekleme-donem-max-hint" style="font-size:10.5px;color:var(--muted);display:none" data-i18n="sampling_period_max">En fazla 10 dönem ekleyebilirsiniz</span>
               </div>
             </div>
           </div>
@@ -1002,10 +999,19 @@
                 <option value="Diğer">📝 Diğer</option>
               </select>
             </div>
-          </div>
-          <div style="margin-bottom:12px">
-            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Açıklama (isteğe bağlı)</label>
-            <input type="text" id="kz-aciklama" placeholder="Ek not..." style="width:100%" />
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Depo</label>
+              <select id="kz-depo" style="width:100%">
+                <option value="">— Depo seçin —</option>
+                <option value="Esenyurt Depo">🏭 Esenyurt Depo</option>
+                <option value="Titiz Depo">🏭 Titiz Depo</option>
+                <option value="Eroğlu Depo">🏭 Eroğlu Depo</option>
+                <option value="Yalova Depo">🏭 Yalova Depo</option>
+                <option value="Aksaray Depo">🏭 Aksaray Depo</option>
+                <option value="Silivri Depo">🏭 Silivri Depo</option>
+                <option value="Yılmaz Depo">🏭 Yılmaz Depo</option>
+              </select>
+            </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <button class="btn btn-primary" onclick="saveKayipZaman()" id="kz-save-btn">
@@ -1243,7 +1249,7 @@
 </div><!-- /app-shell -->
 
 <script src="panel2.js"></script>
-<script src="panel.js"></script>
+<script src="panel1.js"></script>
 
 <!-- ══════════════════════════════════════════════════════════
      ANALİZ TAM EKRAN OVERLAY
