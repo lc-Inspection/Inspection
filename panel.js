@@ -317,7 +317,7 @@ const translations = {
     sampling_date_toggle:  '📅 Tarihe Göre Farklı Seviyeler Kullan',
     sampling_date_hint:    'Aktif edildiğinde, başlangıç tarihi belirlenen aralıklara denk gelen kayıtlar o döneme ait örnekleme moduna göre hesaplanır. Aralık dışında kalan kayıtlar için yukarıdaki varsayılan mod kullanılır.',
     sampling_period_add:   '+ Dönem Ekle',
-    sampling_period_max:   'En fazla 3 dönem ekleyebilirsiniz',
+    sampling_period_max:   'En fazla 10 dönem ekleyebilirsiniz',
     sampling_period_start: 'Başlangıç',
     sampling_period_end:   'Bitiş',
     sampling_period_mode:  'Mod',
@@ -1912,31 +1912,32 @@ async function pushPerformansRawToSheets(liste) {
   const token = appConfig.sheetsApiToken;
   if (!url || !token) return;
   try {
-    // Değerleri fonksiyon çağrıldığı an güncel olarak okuyoruz:
-    const _pushHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
-    const _pushOrneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
-    const _pushOrneklemeTarihliAktif = document.getElementById('ornekleme-tarihli-aktif')?.checked || false;
-
-    const listeTemiz = liste.map(inspector => {
-      const klasmanlarTemiz = {};
-      Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
-        klasmanlarTemiz[k] = {
-          adet: v.adet, standartSure: v.standartSure,
-          kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
-        };
-      });
-      return {
-        ...inspector,
-        klasmanlar: klasmanlarTemiz,
-        toplamMesaistiSaniye: inspector.toplamMesaistiSaniye || 0,
-        gunlukOvertimeDetay: inspector.gunlukOvertimeDetay || {},
-        hedefVerimlilik: _pushHedef,
-        verimlilikPerf: inspector.genelHizPerf != null ? Math.round(inspector.genelHizPerf * (100 / _pushHedef)) : inspector.verimlilikPerf,
-        orneklemeMod: _pushOrneklemeMod,
-        orneklemeTarihliAktif: _pushOrneklemeTarihliAktif,
-        orneklemeDonemleri: _pushOrneklemeTarihliAktif ? orneklemeDonemleri : []
-      };
-    });
+    // kayitlar dizisi olmadan gönder — boyut sınırını aşmamak için
+    // (kayitlar ayrıca setInspectorKayitlar ile gönderilir)
+    // YENİ
+const _pushHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
+const _pushOrneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
+const _pushOrneklemeTarihliAktif = document.getElementById('ornekleme-tarihli-aktif')?.checked || false;
+const listeTemiz = liste.map(inspector => {
+  const klasmanlarTemiz = {};
+  Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
+    klasmanlarTemiz[k] = {
+      adet: v.adet, standartSure: v.standartSure,
+      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
+    };
+  });
+  return {
+    ...inspector,
+    klasmanlar: klasmanlarTemiz,
+    toplamMesaistiSaniye: inspector.toplamMesaistiSaniye || 0,
+    gunlukOvertimeDetay: inspector.gunlukOvertimeDetay || {},
+    hedefVerimlilik: _pushHedef,
+    verimlilikPerf: inspector.genelHizPerf != null ? Math.round(inspector.genelHizPerf * (100 / _pushHedef)) : inspector.verimlilikPerf,
+    orneklemeMod: _pushOrneklemeMod,
+    orneklemeTarihliAktif: _pushOrneklemeTarihliAktif,
+    orneklemeDonemleri: _pushOrneklemeTarihliAktif ? orneklemeDonemleri : []
+  };
+});
 
     await fetch(url, {
       method: 'POST',
@@ -2252,32 +2253,31 @@ async function pushPerformansManual(ev) {
       mode: 'no-cors'
     });
 
-// 2) Ham JSON'u gönder — kayitlar olmadan (boyut sınırı aşılmasın)
+    // 2) Ham JSON'u gönder — kayitlar olmadan (boyut sınırı aşılmasın)
+    // Not: kayitlar ayrıca pushInspectorKayitlarToSheets ile gönderilecek
     const _manualHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
     const _manualOrneklemeMod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
     const _manualOrneklemeTarihliAktif = document.getElementById('ornekleme-tarihli-aktif')?.checked || false;
-
     const performansDataTemiz = performansData.map(inspector => {
-      const klasmanlarTemiz = {};
-      Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
-        klasmanlarTemiz[k] = {
-          adet: v.adet, standartSure: v.standartSure,
-          kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
-        };
-      });
-      return {
-        ...inspector,
-        klasmanlar: klasmanlarTemiz,
-        toplamMesaistiSaniye: inspector.toplamMesaistiSaniye || 0,
-        gunlukOvertimeDetay: inspector.gunlukOvertimeDetay || {},
-        hedefVerimlilik: _manualHedef,
-        verimlilikPerf: inspector.genelHizPerf != null ? Math.round(inspector.genelHizPerf * (100 / _manualHedef)) : inspector.verimlilikPerf,
-        orneklemeMod: _manualOrneklemeMod,
-        orneklemeTarihliAktif: _manualOrneklemeTarihliAktif,
-        orneklemeDonemleri: _manualOrneklemeTarihliAktif ? orneklemeDonemleri : []
-      };
-    });
-
+  const klasmanlarTemiz = {};
+  Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
+    klasmanlarTemiz[k] = {
+      adet: v.adet, standartSure: v.standartSure,
+      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
+    };
+  });
+  return {
+    ...inspector,
+    klasmanlar: klasmanlarTemiz,
+    toplamMesaistiSaniye: inspector.toplamMesaistiSaniye || 0,
+    gunlukOvertimeDetay: inspector.gunlukOvertimeDetay || {},
+    hedefVerimlilik: _manualHedef,
+    verimlilikPerf: inspector.genelHizPerf != null ? Math.round(inspector.genelHizPerf * (100 / _manualHedef)) : inspector.verimlilikPerf,
+    orneklemeMod: _manualOrneklemeMod,
+    orneklemeTarihliAktif: _manualOrneklemeTarihliAktif,
+    orneklemeDonemleri: _manualOrneklemeTarihliAktif ? orneklemeDonemleri : []
+  };
+});
     await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -5256,20 +5256,20 @@ function orneklemeAdet(adet, mod) {
 // ════════════════════════════════════════════════════════════════════════════════
 // Aynı Excel dosyasında, farklı tarih aralıkları için farklı örnekleme modu
 // kullanılabilmesi sağlanır (örn. 1-15 Ocak Kapalı, 16-28 Ocak Bir Alttan,
-// 29 Ocak - 28 Şubat İki Alttan). En fazla 3 dönem desteklenir.
+// 29 Ocak - 28 Şubat İki Alttan). En fazla 10 dönem desteklenir.
 // Her dönem: { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD', mode: 'kapali'|'bir'|'iki' }
+// ÖNEMLİ: Tarihli mod aktifken hiçbir döneme girmeyen satırlar hesaplamadan TAMAMEN ATLANIR.
 const ORNEKLEME_DONEM_MAX = 10;
 let orneklemeDonemleri = [];
 
 function toggleOrneklemeDonemleri() {
   const aktif = document.getElementById('ornekleme-tarihli-aktif')?.checked;
   const wrap = document.getElementById('ornekleme-donemler-wrap');
-  const tag = document.getElementById('ornekleme-default-tag'); // <-- Kod zaten burada var!
-  
+  const tag  = document.getElementById('ornekleme-default-tag');
   if (wrap) wrap.style.display = aktif ? 'flex' : 'none';
-  if (tag) tag.style.display = aktif ? 'inline-block' : 'none';
-  
+  if (tag)  tag.style.display  = aktif ? 'inline-block' : 'none';
   if (aktif && orneklemeDonemleri.length === 0) {
+    // İlk açılışta kullanım kolaylığı için bir dönem ekle
     orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali' });
   }
   renderOrneklemeDonemleri();
@@ -5328,18 +5328,26 @@ function renderOrneklemeDonemleri() {
 // Verilen tarih için, tarih aralıklı mod aktifse ve tarih bir döneme denk
 // geliyorsa o dönemin örnekleme modunu döndürür. Aksi halde null döner
 // (yani varsayılan/genel mod kullanılmalı).
+// Tarihe göre dönem modu döndürür.
+// Dönüş: dönem bulunduysa { mode, exclude: false }
+//         tarihli mod aktif ama hiçbir döneme girmediyse { mode: null, exclude: true }
+//         tarihli mod pasifse null (genel mod kullanılır)
 function getOrneklemeModForDate(date) {
   if (!date) return null;
   const aktif = document.getElementById('ornekleme-tarihli-aktif')?.checked;
   if (!aktif) return null;
-  for (const p of orneklemeDonemleri) {
-    if (!p.start || !p.end) continue;
+  // Tüm dönemleri kontrol et
+  const donemlerTamimli = orneklemeDonemleri.filter(p => p.start && p.end);
+  for (const p of donemlerTamimli) {
     const [sy, sm, sd] = p.start.split('-').map(Number);
     const [ey, em, ed] = p.end.split('-').map(Number);
     const startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
     const endDate   = new Date(ey, em - 1, ed, 23, 59, 59, 999);
-    if (date >= startDate && date <= endDate) return p.mode;
+    if (date >= startDate && date <= endDate) return { mode: p.mode, exclude: false };
   }
+  // Tarihli mod aktif ama bu tarih hiçbir döneme girmiyor → satırı dışla
+  if (donemlerTamimli.length > 0) return { mode: null, exclude: true };
+  // Dönem tanımlanmamış → genel modu kullan (dışlama yok)
   return null;
 }
 
@@ -5535,8 +5543,11 @@ function performansHesapla(){
     // 3) InspectionSonuc "Kaldı" ise her durumda Kapalı (en yüksek öncelik —
     //    tüm adet kontrol edilmeli)
     let satırOrneklemeMod = orneklemeMod;
-    const donemMod = getOrneklemeModForDate(parsedBaslangic);
-    if (donemMod !== null) satırOrneklemeMod = donemMod;
+    const donemSonuc = getOrneklemeModForDate(parsedBaslangic);
+    if (donemSonuc !== null) {
+      if (donemSonuc.exclude) return; // Bu satır hiçbir döneme girmiyor → tamamen atla
+      satırOrneklemeMod = donemSonuc.mode;
+    }
     if (sonucCol) {
       const sonucRaw = String(row[sonucCol] || '').trim();
       // Türkçe karakter duyarsız karşılaştırma (ı→i, İ→i, ğ→g vs.)
@@ -5851,20 +5862,6 @@ function performansHesapla(){
 
   // Performans verilerini güncelle
   performansData = liste;
-
-  // ── SLIDESHOW SENKRONİZASYONU ───────────────────────────────────────────
-  // Slideshow zaten açıkken örnekleme modu / "Tarihe Göre Farklı Seviyeler"
-  // dönemleri / verimlilik hedefi gibi ayarlar değiştirilirse, kartları
-  // besleyen slideshowInspectors önceden alınmış DONMUŞ bir kopya olduğu
-  // için performansData güncellense bile ekrandaki kartlar değişmiyordu.
-  // Bu yüzden slideshow açıkken her hesaplamada slideshowInspectors'ı da
-  // performansData ile birlikte tazeleyip o anki slaydı yeniden çiziyoruz.
-  if (typeof slideshowActive !== 'undefined' && slideshowActive) {
-    const _oldSlideIdx = currentSlideIndex;
-    prepareSlideshow();
-    currentSlideIndex = Math.min(_oldSlideIdx, Math.max(0, slideshowInspectors.length - 1));
-    if (slideshowInspectors.length) showSlide(currentSlideIndex);
-  }
 
   // Yeni bir yükleme başlıyor — önceki Temizle iptalini sıfırla
   window._uploadAborted = false;
@@ -8417,6 +8414,7 @@ async function saveKayipZaman() {
   const baslangic = document.getElementById('kz-baslangic')?.value;
   const bitis     = document.getElementById('kz-bitis')?.value;
   const sebep     = document.getElementById('kz-sebep')?.value;
+  const depo      = document.getElementById('kz-depo')?.value?.trim() || '';
   const aciklama  = document.getElementById('kz-aciklama')?.value?.trim() || '';
 
   if (!inspector) { alert('Lütfen bir inspector seçin.'); return; }
@@ -8438,6 +8436,7 @@ async function saveKayipZaman() {
     baslangic,
     bitis,
     sebep,
+    depo,
     aciklama,
     ekipYoneticisi: currentUser?.username || '',
     sureDk,
@@ -8461,6 +8460,7 @@ async function saveKayipZaman() {
     document.getElementById('kz-aciklama').value = '';
     document.getElementById('kz-baslangic').value = '';
     document.getElementById('kz-bitis').value = '';
+    document.getElementById('kz-depo').value = '';
     renderKayipZamanEkipListe();
     renderDuzeltilmisPerformansEkip();
   } catch(e) {
@@ -8711,6 +8711,7 @@ function renderKayipZamanEkipListe() {
       <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic?r.baslangic.substring(0,5):''} – ${r.bitis?r.bitis.substring(0,5):''}</td>
       <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
       <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
+      <td style="padding:9px 12px;color:var(--muted);font-size:11px">${r.depo ? '<span style="background:#E8F5E9;color:#2E7D32;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🏭 '+_escapeHtml(r.depo)+'</span>' : ''}</td>
       <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama||'')}</td>
     </tr>`).join('');
 
@@ -8724,6 +8725,7 @@ function renderKayipZamanEkipListe() {
           <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Saat Aralığı</th>
           <th style="padding:9px 12px;text-align:center;font-size:10px;color:#C62828;text-transform:uppercase;letter-spacing:.4px">Süre</th>
           <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Sebep</th>
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Depo</th>
           <th style="padding:9px 12px;text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Açıklama</th>
         </tr>
       </thead>
@@ -8779,6 +8781,7 @@ async function loadKayipZamanAdmin() {
     _kzDetayPage = 1;
     _kzStartDate = '';
     _kzEndDate = '';
+    _kzDepo = '';
     renderKayipZamanAdminAll();
     updateKayipNavBadge();
 
@@ -8813,6 +8816,7 @@ async function loadKayipZamanAdmin() {
   _kzDetayPage = 1;
   _kzStartDate = '';
   _kzEndDate = '';
+  _kzDepo = '';
   renderKayipZamanAdminAll();
   updateKayipNavBadge();
   startKayipZamanAutoRefresh();
@@ -9062,6 +9066,7 @@ function renderKayipZamanDetayliTablo() {
   let filtered = [...kayipZamanData];
   if (_kzStartDate) filtered = filtered.filter(r => formatTarihKisa(r.tarih) >= _kzStartDate);
   if (_kzEndDate)   filtered = filtered.filter(r => formatTarihKisa(r.tarih) <= _kzEndDate);
+  if (_kzDepo)      filtered = filtered.filter(r => r.depo === _kzDepo);
   const fEkip  = document.getElementById('kz-admin-filter-ekip')?.value  || '';
   const fInsp  = document.getElementById('kz-admin-filter-inspector')?.value || '';
   const fSebep = document.getElementById('kz-admin-filter-sebep')?.value || '';
@@ -9178,6 +9183,7 @@ function renderKayipZamanDetayliTablo() {
         <td style="padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace">${(r.baslangic||'').substring(0,5)} – ${(r.bitis||'').substring(0,5)}</td>
         <td style="padding:6px 14px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
         <td style="padding:6px 14px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:5px;padding:1px 7px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
+        <td style="padding:6px 14px;font-size:11px;color:var(--muted)">${r.depo ? '🏭 '+_escapeHtml(r.depo) : ''}</td>
         <td style="padding:6px 14px;font-size:11px;color:var(--muted)">${_escapeHtml(r.aciklama||'')}</td>
       </tr>`).join('');
 
@@ -9230,6 +9236,18 @@ function renderKayipZamanDetayliTablo() {
       <span class="kz-tarih-ayrac">—</span>
       <input type="date" id="kz-date-end" value="${_kzEndDate}" onchange="_kzEndDate=this.value;_kzDetayPage=1;renderKayipZamanDetayliTablo()" class="kz-date-input">
       ${(_kzStartDate||_kzEndDate)?`<button onclick="_kzStartDate='';_kzEndDate='';_kzDetayPage=1;renderKayipZamanDetayliTablo()" class="kz-tarih-temizle">✕ Temizle</button>`:''}
+      <span class="kz-tarih-label" style="margin-left:14px">🏭 Depo</span>
+      <select onchange="_kzDepo=this.value;_kzDetayPage=1;renderKayipZamanAdminAll()" style="padding:5px 10px;border:1.5px solid var(--border2);border-radius:7px;font-size:12px;background:#fff;color:var(--navy);cursor:pointer;min-width:145px">
+        <option value="">Tüm Depolar</option>
+        <option value="Esenyurt Depo">Esenyurt Depo</option>
+        <option value="Titiz Depo">Titiz Depo</option>
+        <option value="Eroğlu Depo">Eroğlu Depo</option>
+        <option value="Yalova Depo">Yalova Depo</option>
+        <option value="Aksaray Depo">Aksaray Depo</option>
+        <option value="Silivri Depo">Silivri Depo</option>
+        <option value="Yılmaz Depo">Yılmaz Depo</option>
+      </select>
+      ${_kzDepo?`<button onclick="_kzDepo='';_kzDetayPage=1;renderKayipZamanAdminAll()" class="kz-tarih-temizle">✕ Depo</button>`:''}
     </div>
     ${topSebepler.length ? `<div class="kz-sebep-grid">${sebepKartlar}</div>` : ''}
     ${tableHtml}`;
@@ -9292,6 +9310,7 @@ function renderKayipZamanAdminListe() {
       <td style="padding:9px 12px;font-family:'DM Mono',monospace">${(r.baslangic||'').substring(0,5)} – ${(r.bitis||'').substring(0,5)}</td>
       <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
       <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
+      <td style="padding:9px 12px;color:var(--muted);font-size:11px">${r.depo ? '<span style="background:#E8F5E9;color:#2E7D32;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🏭 '+_escapeHtml(r.depo)+'</span>' : ''}</td>
       <td style="padding:9px 12px;color:var(--muted);font-size:11px">${_escapeHtml(r.aciklama||'')}</td>
     </tr>`).join('');
 
@@ -9348,6 +9367,7 @@ function showKayipZamanRaporGorunumu() {
   let records = [...kayipZamanData];
   if (_kzStartDate) records = records.filter(r => formatTarihKisa(r.tarih) >= _kzStartDate);
   if (_kzEndDate)   records = records.filter(r => formatTarihKisa(r.tarih) <= _kzEndDate);
+  if (_kzDepo)      records = records.filter(r => r.depo === _kzDepo);
   const fEkip  = document.getElementById('kz-admin-filter-ekip')?.value  || '';
   const fInsp  = document.getElementById('kz-admin-filter-inspector')?.value || '';
   const fSebep = document.getElementById('kz-admin-filter-sebep')?.value || '';
@@ -9707,6 +9727,7 @@ function exportKayipZamanExcel() {
   const fSebep = document.getElementById('kz-admin-filter-sebep')?.value || '';
   if (_kzStartDate) records = records.filter(r => formatTarihKisa(r.tarih) >= _kzStartDate);
   if (_kzEndDate)   records = records.filter(r => formatTarihKisa(r.tarih) <= _kzEndDate);
+  if (_kzDepo)      records = records.filter(r => r.depo === _kzDepo);
   if (fEkip)  records = records.filter(r => r.ekipYoneticisi === fEkip);
   if (fInsp)  records = records.filter(r => r.inspector === fInsp);
   if (fSebep) records = records.filter(r => r.sebep === fSebep);
