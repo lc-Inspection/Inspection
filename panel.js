@@ -8482,11 +8482,12 @@ async function saveKayipZaman() {
     // ── Başarılı: local cache'e ekle ────────────────────────────────────────
     kayipZamanData.push(record);
     if (msg) { msg.style.display = ''; setTimeout(() => { msg.style.display = 'none'; }, 3000); }
-    // Formu temizle
-    document.getElementById('kz-aciklama').value = '';
-    document.getElementById('kz-baslangic').value = '';
-    document.getElementById('kz-bitis').value = '';
-    document.getElementById('kz-depo').value = '';
+    // Formu temizle (null-safe)
+    const _el = id => document.getElementById(id);
+    if (_el('kz-aciklama'))  _el('kz-aciklama').value  = '';
+    if (_el('kz-baslangic')) _el('kz-baslangic').value = '';
+    if (_el('kz-bitis'))     _el('kz-bitis').value     = '';
+    if (_el('kz-depo'))      _el('kz-depo').value      = '';
     renderKayipZamanEkipListe();
     renderDuzeltilmisPerformansEkip();
   } catch(e) {
