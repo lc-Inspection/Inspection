@@ -1343,20 +1343,20 @@ function renderKlasmanAnaliz() {
           <div style="font-size:11px;color:var(--muted);margin-top:2px;">${formatTR(k.toplamAdet)} adet · ${k.inspectorSayisi} inspector</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:22px;font-weight:800;color:${barRenk};font-family:'DM Mono',monospace;line-height:1;">${gerceklesenOrt !== null ? gerceklesenOrt.toFixed(2)+'sn' : '—'}</div>
+          <div style="font-size:22px;font-weight:800;color:${barRenk};font-family:\'DM Mono\',monospace;line-height:1;">${gerceklesenOrt !== null ? gerceklesenOrt.toFixed(2)+'sn' : '—'}</div>
           <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;" data-i18n="actual_per_unit">Actual/Unit</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
         <div style="background:var(--lblue3);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;">
           <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">📐 Standart</div>
-          <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace;">${standart > 0 ? standart.toFixed(2)+'sn' : '—'}</div>
+          <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:\'DM Mono\',monospace;">${standart > 0 ? standart.toFixed(2)+'sn' : '—'}</div>
           <div style="font-size:10px;color:var(--muted2);margin-top:3px;" data-i18n="one_unit_check">1 unit inspection</div>
           ${istasyon > 0 ? `<div style="font-size:10px;color:var(--muted2);margin-top:1px;">+ ${istasyon.toFixed(2)}sn istasyon</div>` : ''}
         </div>
         <div style="background:${fark!==null&&fark<=0?'var(--lgreen)':standart===0?'var(--lamber)':'var(--lred)'};border:1px solid ${fark!==null&&fark<=0?'#B2DFDB':standart===0?'#FFE082':'#FFCDD2'};border-radius:10px;padding:12px 14px;">
           <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;" data-i18n="actual_label">⏱ Actual</div>
-          <div style="font-size:18px;font-weight:700;color:${barRenk};font-family:'DM Mono',monospace;">${gerceklesenOrt !== null ? gerceklesenOrt.toFixed(2)+'sn' : '—'}</div>
+          <div style="font-size:18px;font-weight:700;color:${barRenk};font-family:\'DM Mono\',monospace;">${gerceklesenOrt !== null ? gerceklesenOrt.toFixed(2)+'sn' : '—'}</div>
           <div style="font-size:10px;color:${barRenk};margin-top:3px;font-weight:600;">
             ${fark !== null ? (fark>0?'+':'')+fark.toFixed(2)+'sn fark' : 'Standart girilmemiş'}
             ${yuzdeFark !== null ? ` (${fark>0?'+':''}${yuzdeFark}%)` : ''}
@@ -1395,7 +1395,7 @@ function renderKlasmanAnaliz() {
       ].map(([ic,lb,cnt,col])=>`
         <div style="text-align:center;background:rgba(255,255,255,.1);border-radius:10px;padding:10px 16px;min-width:80px;">
           <div style="font-size:16px;">${ic}</div>
-          <div style="font-size:20px;font-weight:800;color:${col};font-family:'DM Mono',monospace;line-height:1.2;">${cnt}</div>
+          <div style="font-size:20px;font-weight:800;color:${col};font-family:\'DM Mono\',monospace;line-height:1.2;">${cnt}</div>
           <div style="font-size:9px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.5px;">${lb}</div>
         </div>`).join('')}
     </div>
@@ -1638,20 +1638,20 @@ function _renderKlAnalizUI(el) {
           <div style="font-size:11px;color:var(--muted);margin-top:2px;">${formatTR(k.toplamAdet)} adet · ${k.inspectorSayisi} inspector</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:22px;font-weight:800;color:${barRenk};font-family:'DM Mono',monospace;line-height:1;">${oranToplam !== null ? Math.round(oranToplam*100)+'%' : '—'}</div>
+          <div style="font-size:22px;font-weight:800;color:${barRenk};font-family:\'DM Mono\',monospace;line-height:1;">${oranToplam !== null ? Math.round(oranToplam*100)+'%' : '—'}</div>
           <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;">Toplam Oran</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
         <div style="background:var(--lblue3);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;">
           <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">📐 Standart (adet başı)</div>
-          <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace;">${standart > 0 ? standart.toFixed(2)+'sn' : '—'}</div>
+          <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:\'DM Mono\',monospace;">${standart > 0 ? standart.toFixed(2)+'sn' : '—'}</div>
           <div style="font-size:10px;color:var(--muted2);margin-top:3px;">1 adet ürün kontrol (ortalama)</div>
           ${istasyon > 0 ? `<div style="font-size:10px;color:var(--muted2);margin-top:1px;">+ ${istasyon.toFixed(2)}sn istasyon</div>` : ''}
         </div>
         <div style="background:${barRenk==='#00897B'?'var(--lgreen)':k.toplamStandartSure===0?'var(--lamber)':'var(--lred)'};border:1px solid ${barRenk==='#00897B'?'#B2DFDB':k.toplamStandartSure===0?'#FFE082':'#FFCDD2'};border-radius:10px;padding:12px 14px;">
           <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">⏱ Gerçekleşen (adet başı)</div>
-          <div style="font-size:18px;font-weight:700;color:${barRenk};font-family:'DM Mono',monospace;">${gerceklesenOrt !== null ? gerceklesenOrt.toFixed(2)+'sn' : '—'}</div>
+          <div style="font-size:18px;font-weight:700;color:${barRenk};font-family:\'DM Mono\',monospace;">${gerceklesenOrt !== null ? gerceklesenOrt.toFixed(2)+'sn' : '—'}</div>
           <div style="font-size:10px;color:${barRenk};margin-top:3px;font-weight:600;">
             ${farkSnGorsel !== null ? (farkSnGorsel>0?'+':'')+farkSnGorsel.toFixed(2)+'sn fark' : 'Standart girilmemiş'}
             ${yuzdeFark !== null ? ` (${yuzdeFark>0?'+':''}${yuzdeFark}%)` : ''}
@@ -1727,7 +1727,7 @@ function _renderKlAnalizUI(el) {
           style="text-align:center;background:rgba(255,255,255,.1);border-radius:10px;padding:10px 16px;min-width:80px;cursor:pointer;transition:background .15s;"
           onmouseover="this.style.background='rgba(255,255,255,.2)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">
           <div style="font-size:16px;">${ic}</div>
-          <div style="font-size:20px;font-weight:800;color:${col};font-family:'DM Mono',monospace;line-height:1.2;">${cnt}</div>
+          <div style="font-size:20px;font-weight:800;color:${col};font-family:\'DM Mono\',monospace;line-height:1.2;">${cnt}</div>
           <div style="font-size:9px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.5px;">${lb}</div>
         </div>`).join('')}
     </div>
@@ -1766,7 +1766,7 @@ function _renderKlAnalizUI(el) {
       <button onclick="_klAnalizFiltre='';_klAnalizSiralama='adet-desc';document.getElementById('kla-durum-filtre').value='';_klAnalizUygula()"
         style="padding:7px 14px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--white);cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all .15s;"
         onmouseover="this.style.background='var(--lblue3)'" onmouseout="this.style.background='var(--white)'">${(translations[currentLang]||translations.tr).reset}</button>
-      <span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-left:auto;">
+      <span style="font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace;margin-left:auto;">
         ${tumListe.length} / ${orijinal.length} klasman · Sayfa ${_klAnalizPage}/${totalPages}
       </span>
     </div>
@@ -2130,7 +2130,7 @@ function showSheetsHelp() {
         <div style="background:var(--lblue3);border:1px solid var(--lblue);border-radius:10px;padding:14px 16px">
           <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">📥 Adım 1 — Apps Script Dosyasını İndirin</div>
           <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Panelle birlikte gelen <strong>LCW_Klasman_Script.gs</strong> dosyasını indirin ve içeriğini kullanın.</p>
-          <div style="background:var(--navy);color:#adf;font-family:'DM Mono',monospace;font-size:10px;padding:10px 12px;border-radius:6px;white-space:pre-wrap">API_TOKEN = 'lcw-secret-2024'  ← Bunu değiştirin ve panele de girin
+          <div style="background:var(--navy);color:#adf;font-family:\'DM Mono\',monospace;font-size:10px;padding:10px 12px;border-radius:6px;white-space:pre-wrap">API_TOKEN = 'lcw-secret-2024'  ← Bunu değiştirin ve panele de girin
 SHEET_NAME = 'Klasmanlar'      ← Sekme adı (değiştirmeye gerek yok)</div>
         </div>
 
@@ -2387,7 +2387,7 @@ function showPerformansHowItWorks() {
         <div style="font-size:32px">📈</div>
         <div style="flex:1">
           <div style="font-size:12px;color:rgba(255,255,255,.65);margin-bottom:2px">Şu anki analiz</div>
-          <div style="font-size:15px;font-weight:700">${toplamInsp} inspector · Ort. Hız Performansı: <span style="color:#90CAF9;font-family:'DM Mono',monospace">${ortPerf}%</span></div>
+          <div style="font-size:15px;font-weight:700">${toplamInsp} inspector · Ort. Hız Performansı: <span style="color:#90CAF9;font-family:\'DM Mono\',monospace">${ortPerf}%</span></div>
         </div>
       </div>` : ''}
 
@@ -3419,15 +3419,15 @@ function showKlasmanSureOnerisi(klasmanId) {
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
         <div style="background:#fff;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;text-align:center">
           <div style="font-size:9.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">1 Birim Muayene</div>
-          <div style="font-size:19px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${oneriKontrol.toFixed(1)}<span style="font-size:11px;color:var(--muted2)">sn</span></div>
+          <div style="font-size:19px;font-weight:700;color:var(--navy);font-family:\'DM Mono\',monospace">${oneriKontrol.toFixed(1)}<span style="font-size:11px;color:var(--muted2)">sn</span></div>
         </div>
         <div style="background:#fff;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;text-align:center">
           <div style="font-size:9.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Ölçü Süresi</div>
-          <div style="font-size:19px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${oneriOlcu.toFixed(1)}<span style="font-size:11px;color:var(--muted2)">sn</span></div>
+          <div style="font-size:19px;font-weight:700;color:var(--navy);font-family:\'DM Mono\',monospace">${oneriOlcu.toFixed(1)}<span style="font-size:11px;color:var(--muted2)">sn</span></div>
         </div>
         <div style="background:#fff;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;text-align:center">
           <div style="font-size:9.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Ürün Kabul</div>
-          <div style="font-size:19px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${oneriKabul.toFixed(1)}<span style="font-size:11px;color:var(--muted2)">sn</span></div>
+          <div style="font-size:19px;font-weight:700;color:var(--navy);font-family:\'DM Mono\',monospace">${oneriKabul.toFixed(1)}<span style="font-size:11px;color:var(--muted2)">sn</span></div>
         </div>
       </div>
       <button onclick="applyKlasmanSureOnerisi(${k.id}, ${oneriKontrol.toFixed(1)}, ${oneriOlcu.toFixed(1)}, ${oneriKabul.toFixed(1)})"
@@ -3440,11 +3440,11 @@ function showKlasmanSureOnerisi(klasmanId) {
     <div style="background:var(--lblue3);border:1px solid var(--border2);border-radius:9px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--navy);line-height:1.7">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px">
         <span style="color:var(--muted)">Gerçekleşen (adet başı, ortalama)</span>
-        <strong style="font-family:'DM Mono',monospace">${gerceklesenAdetBasi.toFixed(2)} sn</strong>
+        <strong style="font-family:\'DM Mono\',monospace">${gerceklesenAdetBasi.toFixed(2)} sn</strong>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:4px">
         <span style="color:var(--muted)">Hedef (%20 zorlayıcı pay ile, = gerçekleşen × 0.80)</span>
-        <strong style="font-family:'DM Mono',monospace;color:#5E35B1">${hedefAdetBasi.toFixed(2)} sn</strong>
+        <strong style="font-family:\'DM Mono\',monospace;color:#5E35B1">${hedefAdetBasi.toFixed(2)} sn</strong>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted2)">
         <span>Veri kaynağı</span>
@@ -3519,10 +3519,10 @@ function showPerfSeviyeDetay(seviyeKey) {
     return `
       <tr style="border-bottom:1px solid var(--border2)">
         <td style="padding:9px 10px;font-weight:600;color:var(--navy);cursor:pointer" onclick="document.getElementById('perf-seviye-popup').style.display='none'; showInspectorDetail('${insp.ins.replace(/'/g, "\\'")}')">${_escapeHtml(_formatDisplayName(insp.ins))}</td>
-        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${insp.gunSayisi || 0} gün</td>
-        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${formatTR((insp.adet || 0))}</td>
+        <td style="padding:9px 10px;text-align:center;font-family:\'DM Mono\',monospace;color:var(--navy)">${insp.gunSayisi || 0} gün</td>
+        <td style="padding:9px 10px;text-align:center;font-family:\'DM Mono\',monospace;color:var(--navy)">${formatTR((insp.adet || 0))}</td>
         <td style="padding:9px 10px;text-align:center">${otHtml}</td>
-        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${perfColor}">${perf}%</td>
+        <td style="padding:9px 10px;text-align:center;font-family:\'DM Mono\',monospace;font-weight:700;color:${perfColor}">${perf}%</td>
       </tr>`;
   }).join('');
 
@@ -3547,9 +3547,9 @@ function showPerfSeviyeDetay(seviyeKey) {
     </div>
     <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:14px;padding-top:12px;border-top:2px solid var(--border2);font-size:12px">
       <span style="color:var(--muted)">Toplam <strong style="color:var(--navy)">${liste.length}</strong> inspector</span>
-      <span style="color:var(--muted)">Toplam Ürün: <strong style="color:var(--navy);font-family:'DM Mono',monospace">${formatTR(toplamAdet)}</strong></span>
-      <span style="color:var(--muted)">Ort. Çalışma Günü: <strong style="color:var(--navy);font-family:'DM Mono',monospace">${ortGun} gün</strong></span>
-      <span style="color:var(--muted)">Ort. Performans: <strong style="color:${tanim.color};font-family:'DM Mono',monospace">${ortPerf}%</strong></span>
+      <span style="color:var(--muted)">Toplam Ürün: <strong style="color:var(--navy);font-family:\'DM Mono\',monospace">${formatTR(toplamAdet)}</strong></span>
+      <span style="color:var(--muted)">Ort. Çalışma Günü: <strong style="color:var(--navy);font-family:\'DM Mono\',monospace">${ortGun} gün</strong></span>
+      <span style="color:var(--muted)">Ort. Performans: <strong style="color:${tanim.color};font-family:\'DM Mono\',monospace">${ortPerf}%</strong></span>
     </div>
     <div style="font-size:10px;color:var(--muted2);margin-top:8px">💡 Bir inspector adına tıklayarak detaylı analizini açabilirsiniz.</div>
   `;
@@ -4673,15 +4673,15 @@ function renderEditor(){
         <div style="background:linear-gradient(135deg,var(--lblue3) 0%,#fff 100%);border:1px solid var(--lblue);border-radius:10px;padding:16px">
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;text-align:center">
             <div>
-              <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace">${toplamSure.toFixed(0)}</div>
+              <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:\'DM Mono\',monospace">${toplamSure.toFixed(0)}</div>
               <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px" data-i18n="total_duration_label">Total Duration (s)</div>
             </div>
             <div>
-              <div style="font-size:18px;font-weight:700;color:var(--blue);font-family:'DM Mono',monospace">${k.istasyonlar.length}</div>
+              <div style="font-size:18px;font-weight:700;color:var(--blue);font-family:\'DM Mono\',monospace">${k.istasyonlar.length}</div>
               <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px" data-i18n="station_count">İstasyon Sayısı</div>
             </div>
             <div>
-              <div style="font-size:18px;font-weight:700;color:var(--green);font-family:'DM Mono',monospace">${(toplamSure/60).toFixed(1)}</div>
+              <div style="font-size:18px;font-weight:700;color:var(--green);font-family:\'DM Mono\',monospace">${(toplamSure/60).toFixed(1)}</div>
               <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Dakika/Adet</div>
             </div>
           </div>
@@ -5050,7 +5050,7 @@ function renderPerfTabloFromData(page) {
         <div style="flex:1;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;">
           <div style="width:${Math.min(100,kp)}%;height:100%;background:${kc};border-radius:3px;"></div>
         </div>
-        <div style="font-size:10px;font-weight:700;color:${kc};min-width:28px;text-align:right;font-family:'DM Mono',monospace;">${kp}%</div>
+        <div style="font-size:10px;font-weight:700;color:${kc};min-width:28px;text-align:right;font-family:\'DM Mono\',monospace;">${kp}%</div>
       </div>`;
     }).join('');
 
@@ -5069,7 +5069,7 @@ function renderPerfTabloFromData(page) {
       <!-- Rank badge -->
       <div style="position:absolute;top:14px;right:14px;width:22px;height:22px;border-radius:50%;
         background:${cm.accent};color:#fff;display:flex;align-items:center;justify-content:center;
-        font-size:9px;font-weight:700;font-family:'DM Mono',monospace;box-shadow:0 2px 6px ${cm.accent}44;">${globalIdx}</div>
+        font-size:9px;font-weight:700;font-family:\'DM Mono\',monospace;box-shadow:0 2px 6px ${cm.accent}44;">${globalIdx}</div>
 
       <!-- Header: avatar + isim + performans daire -->
       <div style="padding:14px 16px 12px;display:flex;align-items:center;gap:12px;">
@@ -5098,7 +5098,7 @@ function renderPerfTabloFromData(page) {
             <div style="width:46px;height:46px;border-radius:50%;background:#fff;
               display:flex;flex-direction:column;align-items:center;justify-content:center;
               box-shadow:inset 0 1px 3px rgba(0,0,0,.07);">
-              <div style="font-size:13px;font-weight:800;color:${displayCm.accent};font-family:'DM Mono',monospace;line-height:1;">${displayPerf}%</div>
+              <div style="font-size:13px;font-weight:800;color:${displayCm.accent};font-family:\'DM Mono\',monospace;line-height:1;">${displayPerf}%</div>
               <div style="font-size:7px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;">perf</div>
             </div>
           </div>
@@ -5117,7 +5117,7 @@ function renderPerfTabloFromData(page) {
             padding:7px 8px;display:flex;align-items:center;gap:7px;">
             <span style="font-size:14px;">${ic}</span>
             <div>
-              <div style="font-size:11px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace;line-height:1.2;">${val}</div>
+              <div style="font-size:11px;font-weight:700;color:var(--navy);font-family:\'DM Mono\',monospace;line-height:1.2;">${val}</div>
               <div style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">${lb}</div>
             </div>
           </div>`).join('')}
@@ -5178,7 +5178,7 @@ function renderPerfTabloFromData(page) {
           ].map(([ic,lb,cnt,col,bg])=>`
             <div style="background:${bg};border:1px solid ${col}33;border-radius:10px;padding:10px 14px;text-align:center;min-width:54px;">
               <div style="font-size:16px;">${ic}</div>
-              <div style="font-size:18px;font-weight:800;color:${col};font-family:'DM Mono',monospace;line-height:1;">${cnt}</div>
+              <div style="font-size:18px;font-weight:800;color:${col};font-family:\'DM Mono\',monospace;line-height:1;">${cnt}</div>
               <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">${lb}</div>
             </div>`).join('')}
         </div>
@@ -5951,11 +5951,11 @@ function performansHesapla(){
           <div style="font-size:10px;color:var(--muted2)">${row.gunSayisi || 0} ${(translations[currentLang]||translations.tr).working} · ${tarihDurumu}</div>
         </div>
       </div></td>
-      <td style="color:var(--muted);font-family:'DM Mono',monospace">${row.kayit}</td>
-      <td style="font-family:'DM Mono',monospace">${row.adet.toFixed(0)}</td>
-      <td style="font-family:'DM Mono',monospace">${fmtSure(row.standartSure)}</td>
-      <td style="font-family:'DM Mono',monospace">${fmtSure(row.mesaiSure)}</td>
-      <td style="font-family:'DM Mono',monospace">
+      <td style="color:var(--muted);font-family:\'DM Mono\',monospace">${row.kayit}</td>
+      <td style="font-family:\'DM Mono\',monospace">${row.adet.toFixed(0)}</td>
+      <td style="font-family:\'DM Mono\',monospace">${fmtSure(row.standartSure)}</td>
+      <td style="font-family:\'DM Mono\',monospace">${fmtSure(row.mesaiSure)}</td>
+      <td style="font-family:\'DM Mono\',monospace">
         <div>
           <span class="${performansClass}" style="font-weight:700;font-size:14px">${performans !== null ? performans+'%' : '—'}</span>
           <div style="font-size:9px;color:var(--muted);margin-top:1px">
@@ -5963,7 +5963,7 @@ function performansHesapla(){
           </div>
         </div>
       </td>
-      <td style="font-family:'DM Mono',monospace;background:${verimlilikHedef3 !== 100 ? 'linear-gradient(135deg,#FFFDE7,#fff)' : 'transparent'}">
+      <td style="font-family:\'DM Mono\',monospace;background:${verimlilikHedef3 !== 100 ? 'linear-gradient(135deg,#FFFDE7,#fff)' : 'transparent'}">
         <div>
           <span class="${vPerfClass}" style="font-weight:700;font-size:14px">${vPerf !== null ? vPerf+'%' : '—'}</span>
           <div style="font-size:9px;color:var(--muted);margin-top:1px">
@@ -7414,7 +7414,7 @@ function _showRecordingIndicator() {
     </style>`);
     document.body.appendChild(el);
   }
-  el.innerHTML = `<span style="width:9px;height:9px;background:#fff;border-radius:50%;display:inline-block;flex-shrink:0"></span> HD REC <span id="rec-progress" style="font-family:'DM Mono',monospace;font-size:11px;opacity:.85">0/?</span>`;
+  el.innerHTML = `<span style="width:9px;height:9px;background:#fff;border-radius:50%;display:inline-block;flex-shrink:0"></span> HD REC <span id="rec-progress" style="font-family:\'DM Mono\',monospace;font-size:11px;opacity:.85">0/?</span>`;
   el.style.display = 'flex';
 }
 
@@ -7581,20 +7581,20 @@ async function pullKlasmanAnalizFromSheets() {
               <div style="font-size:11px;color:var(--muted);margin-top:2px;">${formatTR((k.toplamAdet||0))} adet · ${k.inspectorSayisi||0} inspector</div>
             </div>
             <div style="text-align:right;">
-              <div style="font-size:22px;font-weight:800;color:${barRenk};font-family:'DM Mono',monospace;line-height:1;">${gerceklesen > 0 ? gerceklesen.toFixed(2)+'sn' : '—'}</div>
+              <div style="font-size:22px;font-weight:800;color:${barRenk};font-family:\'DM Mono\',monospace;line-height:1;">${gerceklesen > 0 ? gerceklesen.toFixed(2)+'sn' : '—'}</div>
               <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;">Gerçekleşen/Adet</div>
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
             <div style="background:var(--lblue3);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;">
               <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">📐 Standart</div>
-              <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace;">${std > 0 ? std.toFixed(2)+'sn' : '—'}</div>
+              <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:\'DM Mono\',monospace;">${std > 0 ? std.toFixed(2)+'sn' : '—'}</div>
               <div style="font-size:10px;color:var(--muted2);margin-top:3px;">1 adet ürün kontrol</div>
               ${k.istasyonSuresi > 0 ? `<div style="font-size:10px;color:var(--muted2);margin-top:1px;">+ ${k.istasyonSuresi.toFixed(2)}sn istasyon</div>` : ''}
             </div>
             <div style="background:${fark!==null&&fark<=0?'var(--lgreen)':fark!==null&&fark<=std*0.2?'var(--lamber)':'var(--lred)'};border:1px solid ${fark!==null&&fark<=0?'#B2DFDB':fark!==null&&fark<=std*0.2?'#FFE082':'#FFCDD2'};border-radius:10px;padding:12px 14px;">
               <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">⏱ Gerçekleşen</div>
-              <div style="font-size:18px;font-weight:700;color:${barRenk};font-family:'DM Mono',monospace;">${gerceklesen > 0 ? gerceklesen.toFixed(2)+'sn' : '—'}</div>
+              <div style="font-size:18px;font-weight:700;color:${barRenk};font-family:\'DM Mono\',monospace;">${gerceklesen > 0 ? gerceklesen.toFixed(2)+'sn' : '—'}</div>
               <div style="font-size:10px;color:${barRenk};margin-top:3px;font-weight:600;">${fark !== null ? (fark>0?'+':'')+fark.toFixed(2)+'sn fark' : '—'}${farkYuzde !== null ? ` (${fark>0?'+':''}${farkYuzde}%)` : ''}</div>
             </div>
           </div>
@@ -7628,7 +7628,7 @@ async function pullKlasmanAnalizFromSheets() {
           ${[['✅','Hedefte',hedefte,'#4CAF50'],['⚠️','Yakın',yakin,'#FFB74D'],['🔴','Yüksek',yuksek,'#EF9A9A'],['➖','Veri Yok',veriYok,'rgba(255,255,255,.5)']].map(([ic,lb,cnt,col])=>`
           <div style="text-align:center;background:rgba(255,255,255,.1);border-radius:10px;padding:10px 16px;min-width:80px;">
             <div style="font-size:16px;">${ic}</div>
-            <div style="font-size:20px;font-weight:800;color:${col};font-family:'DM Mono',monospace;line-height:1.2;">${cnt}</div>
+            <div style="font-size:20px;font-weight:800;color:${col};font-family:\'DM Mono\',monospace;line-height:1.2;">${cnt}</div>
             <div style="font-size:9px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.5px;">${lb}</div>
           </div>`).join('')}
         </div>
@@ -7739,7 +7739,7 @@ function renderUsersTable() {
       const safeUser = _escapeHtml(u.username);
       rows += `
         <tr style="border-bottom:1px solid var(--border2)">
-          <td style="padding:10px;font-weight:600;color:var(--navy);font-family:'DM Mono',monospace">${safeUser}</td>
+          <td style="padding:10px;font-weight:600;color:var(--navy);font-family:\'DM Mono\',monospace">${safeUser}</td>
           <td style="padding:10px">${badges}</td>
           <td style="padding:10px;text-align:right;white-space:nowrap">
             <button class="btn btn-sm" onclick="openUserModal('${safeUser}')">${t.edit_btn}</button>
@@ -7938,9 +7938,9 @@ function renderEkipAnaliz() {
       <tr>
         <td style="padding:10px 12px;font-weight:700;color:var(--muted);width:36px;text-align:center">${madalya}</td>
         <td style="padding:10px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(ins.ins))}</td>
-        <td style="padding:10px 12px;text-align:center"><span class="${perfClass}" style="font-weight:700;font-family:'DM Mono',monospace">${ins.performans || 0}%</span></td>
-        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--navy)">${formatTR((ins.adet || 0))}</td>
-        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${klasmanSayisi}</td>
+        <td style="padding:10px 12px;text-align:center"><span class="${perfClass}" style="font-weight:700;font-family:\'DM Mono\',monospace">${ins.performans || 0}%</span></td>
+        <td style="padding:10px 12px;text-align:center;font-family:\'DM Mono\',monospace;color:var(--navy)">${formatTR((ins.adet || 0))}</td>
+        <td style="padding:10px 12px;text-align:center;font-family:\'DM Mono\',monospace;color:var(--muted)">${klasmanSayisi}</td>
       </tr>
     `;
   }).join('');
@@ -7972,7 +7972,7 @@ function renderEkipAnaliz() {
         <div style="flex:1;background:var(--offwhite);border-radius:6px;height:22px;overflow:hidden">
           <div style="height:100%;width:${barYuzde}%;background:${b.color};border-radius:6px;transition:width .3s"></div>
         </div>
-        <div style="width:70px;text-align:right;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">${b.count} (${yuzde}%)</div>
+        <div style="width:70px;text-align:right;font-size:12px;font-family:\'DM Mono\',monospace;color:var(--muted);flex-shrink:0">${b.count} (${yuzde}%)</div>
       </div>
     `;
   }).join('');
@@ -7995,9 +7995,9 @@ function renderEkipAnaliz() {
         <div style="flex:1;background:var(--offwhite);border-radius:6px;height:22px;overflow:hidden">
           <div class="${perfClass}" style="height:100%;width:${barYuzde}%;background:currentColor;border-radius:6px;transition:width .3s"></div>
         </div>
-        <div style="width:64px;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">📅 ${gunSayisi} ${t.days_suffix}</div>
-        <div style="width:80px;text-align:right;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0" title="${t.ekip_analiz_daily_avg}">⌀ ${formatTR(gunlukOrt)}/${t.days_suffix_short}</div>
-        <div style="width:120px;text-align:right;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">${formatTR(adet)} (${pay}%)</div>
+        <div style="width:64px;text-align:center;font-size:11px;font-family:\'DM Mono\',monospace;color:var(--muted);flex-shrink:0">📅 ${gunSayisi} ${t.days_suffix}</div>
+        <div style="width:80px;text-align:right;font-size:11px;font-family:\'DM Mono\',monospace;color:var(--muted);flex-shrink:0" title="${t.ekip_analiz_daily_avg}">⌀ ${formatTR(gunlukOrt)}/${t.days_suffix_short}</div>
+        <div style="width:120px;text-align:right;font-size:12px;font-family:\'DM Mono\',monospace;color:var(--muted);flex-shrink:0">${formatTR(adet)} (${pay}%)</div>
       </div>
     `;
   }).join('');
@@ -8136,15 +8136,15 @@ async function renderTeamManagersSection() {
           ${total > 0 ? `
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
               <div style="text-align:center;padding:8px 4px;border-radius:8px;background:var(--lblue3);border:1px solid var(--border2)">
-                <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace;line-height:1">${total}</div>
+                <div style="font-size:18px;font-weight:700;color:var(--navy);font-family:\'DM Mono\',monospace;line-height:1">${total}</div>
                 <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-top:4px">${t.team_manager_member_count}</div>
               </div>
               <div style="text-align:center;padding:8px 4px;border-radius:8px;background:var(--lamber);border:1px solid #FFE082">
-                <div style="font-size:18px;font-weight:700;color:var(--amber);font-family:'DM Mono',monospace;line-height:1">${formatTR(totalAdet)}</div>
+                <div style="font-size:18px;font-weight:700;color:var(--amber);font-family:\'DM Mono\',monospace;line-height:1">${formatTR(totalAdet)}</div>
                 <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-top:4px">${t.team_manager_total_qty}</div>
               </div>
               <div style="text-align:center;padding:8px 4px;border-radius:8px;background:var(--lgreen);border:1px solid #B2DFDB">
-                <div style="font-size:18px;font-weight:700;color:${perfColor};font-family:'DM Mono',monospace;line-height:1">${avgPerf}%</div>
+                <div style="font-size:18px;font-weight:700;color:${perfColor};font-family:\'DM Mono\',monospace;line-height:1">${avgPerf}%</div>
                 <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-top:4px">${t.team_manager_avg_perf}</div>
               </div>
             </div>
@@ -8310,7 +8310,7 @@ async function toggleDigerEkipler(e) {
       : null;
     const perfColor = avgPerf === null ? 'var(--muted)' : getProgressColor(avgPerf);
     const perfStr = avgPerf !== null
-      ? `<span style="font-weight:700;color:${perfColor};font-family:'DM Mono',monospace">${avgPerf}%</span>`
+      ? `<span style="font-weight:700;color:${perfColor};font-family:\'DM Mono\',monospace">${avgPerf}%</span>`
       : `<span style="color:var(--muted);font-size:11px">—</span>`;
     return `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border2)">
@@ -8592,7 +8592,7 @@ function showKayipDetayPopup(inspectorName) {
           <div style="font-size:11px;color:var(--muted2);margin-top:2px">${r.baslangic ? r.baslangic.substring(0,5) : ''}${r.bitis ? ' – ' + r.bitis.substring(0,5) : ''}</div>
         </div>
         <div style="text-align:center">
-          <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;font-family:'DM Mono',monospace">${sure}</span>
+          <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">${sure}</span>
         </div>
         <div>
           <div style="font-size:12px;color:#E65100;font-weight:600">${SEBEP_IKONLAR && SEBEP_IKONLAR[sebep] ? SEBEP_IKONLAR[sebep] + ' ' : '⏸ '}${sebep}</div>
@@ -8697,8 +8697,8 @@ function renderDuzeltilmisPerformansEkip() {
     return `
       <tr style="border-bottom:1px solid var(--border2)">
         <td style="padding:10px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(ins.ins))}</td>
-        <td style="padding:10px 12px;text-align:center"><span class="${perfClass}" style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700">${perf}%</span></td>
-        <td style="padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;color:#C62828;font-weight:600">${kayipDk > 0 ? kayipSaat + ' s' : '&mdash;'}</td>
+        <td style="padding:10px 12px;text-align:center"><span class="${perfClass}" style="font-family:\'DM Mono\',monospace;font-size:16px;font-weight:700">${perf}%</span></td>
+        <td style="padding:10px 12px;text-align:center;font-family:\'DM Mono\',monospace;color:#C62828;font-weight:600">${kayipDk > 0 ? kayipSaat + ' s' : '&mdash;'}</td>
         <td style="padding:10px 12px;text-align:center">${kayipNotu}</td>
       </tr>`;
     }).join('');
@@ -8774,9 +8774,9 @@ function renderKayipZamanEkipListe() {
   const rows = pageRecords.map(r => `
     <tr style="border-bottom:1px solid var(--border2)">
       <td style="padding:9px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
-      <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${formatTarihKisa(r.tarih)}</td>
+      <td style="padding:9px 12px;font-family:\'DM Mono\',monospace;color:var(--muted)">${formatTarihKisa(r.tarih)}</td>
       <td style="padding:9px 12px;color:var(--muted)">${r.gun||''}</td>
-      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${r.baslangic?r.baslangic.substring(0,5):''} – ${r.bitis?r.bitis.substring(0,5):''}</td>
+      <td style="padding:9px 12px;font-family:\'DM Mono\',monospace">${r.baslangic?r.baslangic.substring(0,5):''} – ${r.bitis?r.bitis.substring(0,5):''}</td>
       <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
       <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
       <td style="padding:9px 12px;color:var(--muted);font-size:11px">${r.depo ? '<span style="background:#E8F5E9;color:#2E7D32;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🏭 '+_escapeHtml(r.depo)+'</span>' : ''}</td>
@@ -8822,7 +8822,7 @@ function renderKayipZamanEkipListe() {
     toplamEl.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-weight:600;color:var(--muted);margin-right:4px">Toplam:</span>${sebepStr}</div>
-        <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:4px 12px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700">⏸ ${(toplamDk/60).toFixed(1)} saat</span>
+        <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:4px 12px;font-family:\'DM Mono\',monospace;font-size:13px;font-weight:700">⏸ ${(toplamDk/60).toFixed(1)} saat</span>
       </div>`;
   }
 }
@@ -8994,9 +8994,9 @@ function renderSistemselCakismaBolumu() {
   const satirlar = Object.values(inspMap).sort(function(a,b){ return b.toplamSn - a.toplamSn; }).map(function(g) {
     const detaylar = g.kayitlar.map(function(k) {
       return '<tr style="background:#fff8f0;border-bottom:1px solid #ffe0b2">'
-        + '<td style="padding:5px 14px 5px 28px;font-size:11px;color:#795548;font-family:'DM Mono',monospace">'
+        + '<td style="padding:5px 14px 5px 28px;font-size:11px;color:#795548;font-family:\'DM Mono\',monospace">'
         +   fmtTarih(k.duzeltilmisBitis) + '</td>'
-        + '<td style="padding:5px 14px;font-size:11px;font-family:'DM Mono',monospace;color:#5d4037">'
+        + '<td style="padding:5px 14px;font-size:11px;font-family:\'DM Mono\',monospace;color:#5d4037">'
         +   fmtTime(k.duzeltilmisBitis) + ' – ' + fmtTime(k.gercekBitis) + '</td>'
         + '<td style="padding:5px 14px;text-align:center">'
         +   '<span style="background:#fff3e0;color:#e65100;border:1px solid #ffcc80;border-radius:5px;padding:1px 8px;font-size:11px;font-weight:700">'
@@ -9005,9 +9005,9 @@ function renderSistemselCakismaBolumu() {
         + '</tr>';
     }).join('');
 
-    return '<tr onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'table-row':'none'"'
+    return '<tr onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'table-row\':\'none\'"'
       + ' style="border-bottom:1px solid #ffe0b2;cursor:pointer;transition:background .15s"'
-      + ' onmouseover="this.style.background='#fff3e0'" onmouseout="this.style.background=''">'
+      + ' onmouseover="this.style.background=\'#fff3e0\'" onmouseout="this.style.background=\'\'">'
       + '<td style="padding:11px 14px;font-weight:700;color:#bf360c">'
       +   '<span style="font-size:11px;color:#bcaaa4;margin-right:6px">▶</span>'
       +   _escapeHtml(_formatDisplayName(g.isim)) + '</td>'
@@ -9015,7 +9015,7 @@ function renderSistemselCakismaBolumu() {
       +   '<span style="background:#fff3e0;color:#bf360c;border:1px solid #ffcc80;border-radius:5px;padding:2px 9px;font-size:11px;font-weight:600">'
       +   '⚙️ Sistemsel Hata</span></td>'
       + '<td style="padding:11px 14px;text-align:center">'
-      +   '<span style="background:#ffebee;color:#c62828;border-radius:7px;padding:4px 10px;font-size:13px;font-weight:700;font-family:'DM Mono',monospace">'
+      +   '<span style="background:#ffebee;color:#c62828;border-radius:7px;padding:4px 10px;font-size:13px;font-weight:700;font-family:\'DM Mono\',monospace">'
       +   fmtSaat(g.toplamSn) + '</span></td>'
       + '<td style="padding:11px 14px;font-size:11px;color:#9e9e9e">' + g.kayitlar.length + ' kayıt</td>'
       + '</tr>'
@@ -9030,11 +9030,11 @@ function renderSistemselCakismaBolumu() {
     +   '<span style="font-size:20px">⚙️</span>'
     +   '<div>'
     +     '<div style="color:#fff;font-weight:700;font-size:14px">Sistemsel Hata — Otomatik Tespit</div>'
-    +     '<div style="color:rgba(255,255,255,.8);font-size:11px">Excel'deki bitiş tarihi çakışmaları · Panel tarafından otomatik düzeltildi</div>'
+    +     '<div style="color:rgba(255,255,255,.8);font-size:11px">Excel\'deki bitiş tarihi çakışmaları · Panel tarafından otomatik düzeltildi</div>'
     +   '</div>'
     +   '<div style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap">'
     +     '<div style="text-align:center;background:rgba(0,0,0,.18);border-radius:8px;padding:6px 14px">'
-    +       '<div style="color:#fff;font-size:16px;font-weight:800;font-family:'DM Mono',monospace">' + fmtSaat(toplamKayipSn) + '</div>'
+    +       '<div style="color:#fff;font-size:16px;font-weight:800;font-family:\'DM Mono\',monospace">' + fmtSaat(toplamKayipSn) + '</div>'
     +       '<div style="color:rgba(255,255,255,.7);font-size:10px;margin-top:1px">Toplam Kayıp</div>'
     +     '</div>'
     +     '<div style="text-align:center;background:rgba(0,0,0,.18);border-radius:8px;padding:6px 14px">'
@@ -9098,12 +9098,12 @@ function renderKayipZamanAdminOzet() {
       <div style="display:flex;align-items:center;gap:7px">
         <span style="font-size:14px">📅</span>
         <span style="font-size:11.5px;color:var(--muted);font-weight:600">İlk Kayıt Tarihi:</span>
-        <span style="font-size:12.5px;color:var(--navy);font-weight:700;font-family:'DM Mono',monospace">${ilkTarihGorunum}</span>
+        <span style="font-size:12.5px;color:var(--navy);font-weight:700;font-family:\'DM Mono\',monospace">${ilkTarihGorunum}</span>
       </div>
       <span style="color:var(--border2)">|</span>
       <div style="display:flex;align-items:center;gap:7px">
         <span style="font-size:11.5px;color:var(--muted);font-weight:600">Son Kayıt Tarihi:</span>
-        <span style="font-size:12.5px;color:var(--navy);font-weight:700;font-family:'DM Mono',monospace">${sonTarihGorunum}</span>
+        <span style="font-size:12.5px;color:var(--navy);font-weight:700;font-family:\'DM Mono\',monospace">${sonTarihGorunum}</span>
       </div>
     </div>` : '';
 
@@ -9187,15 +9187,15 @@ function renderKayipZamanSebepOzetKartlari() {
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
         <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--red)">${(d.dk/60).toFixed(1)}s</div>
+          <div style="font-family:\'DM Mono\',monospace;font-size:16px;font-weight:700;color:var(--red)">${(d.dk/60).toFixed(1)}s</div>
           <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Bekleme Saati</div>
         </div>
         <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+formatTR(d.adet) : '—'}</div>
+          <div style="font-family:\'DM Mono\',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+formatTR(d.adet) : '—'}</div>
           <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Tah. Kayıp Adet</div>
         </div>
         <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.insSet.size}</div>
+          <div style="font-family:\'DM Mono\',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.insSet.size}</div>
           <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Inspector</div>
         </div>
       </div>
@@ -9209,10 +9209,10 @@ function renderKayipZamanSebepOzetKartlari() {
       <div style="width:170px;font-size:12px;font-weight:600;color:var(--navy);flex-shrink:0">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}</div>
       <div style="flex:1;height:22px;background:var(--offwhite);border-radius:6px;overflow:hidden;position:relative">
         <div style="height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;width:${pct}%;background:${barRenkler[i%barRenkler.length]}">
-          <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#fff">${(d.dk/60).toFixed(1)}s</span>
+          <span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:#fff">${(d.dk/60).toFixed(1)}s</span>
         </div>
       </div>
-      <div style="width:70px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);flex-shrink:0">${d.dk} dk</div>
+      <div style="width:70px;text-align:right;font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);flex-shrink:0">${d.dk} dk</div>
     </div>`;
   }).join('');
 
@@ -9354,16 +9354,16 @@ function renderKayipZamanDetayliTablo() {
     const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
     const perf = perfObj ? getOrijinalHamPerf(perfObj) : null;
     const perfSpan = perf !== null
-      ? `<span class="${getPerformanceClass(perf)}" style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700">${perf}%</span>
+      ? `<span class="${getPerformanceClass(perf)}" style="font-family:\'DM Mono\',monospace;font-size:15px;font-weight:700">${perf}%</span>
          <span style="background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:600;margin-left:6px">⏸ ${(dk/60).toFixed(1)}s değ.dışı</span>`
       : `<span style="color:var(--muted)">—</span>`;
 
     // Detay satirlari (gizli, tiklayinca acilir)
     const detayHtml = ks.map(r=>`
       <tr style="background:#fafafa;border-bottom:1px solid #f0f0f0">
-        <td style="padding:6px 14px 6px 24px;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">${formatTarihKisa(r.tarih)} ${r.gun?'('+r.gun+')':''}</td>
+        <td style="padding:6px 14px 6px 24px;font-size:11px;color:var(--muted);font-family:\'DM Mono\',monospace">${formatTarihKisa(r.tarih)} ${r.gun?'('+r.gun+')':''}</td>
         <td style="padding:6px 14px;font-size:11px;color:var(--muted)">${_escapeHtml(r.ekipYoneticisi||'')}</td>
-        <td style="padding:6px 14px;font-size:11px;font-family:'DM Mono',monospace">${(r.baslangic||'').substring(0,5)} – ${(r.bitis||'').substring(0,5)}</td>
+        <td style="padding:6px 14px;font-size:11px;font-family:\'DM Mono\',monospace">${(r.baslangic||'').substring(0,5)} – ${(r.bitis||'').substring(0,5)}</td>
         <td style="padding:6px 14px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
         <td style="padding:6px 14px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:5px;padding:1px 7px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
         <td style="padding:6px 14px;font-size:11px;color:var(--muted)">${r.depo ? '🏭 '+_escapeHtml(r.depo) : ''}</td>
@@ -9379,7 +9379,7 @@ function renderKayipZamanDetayliTablo() {
           </div>
         </td>
         <td style="padding:11px 14px">${perfSpan}</td>
-        <td style="padding:11px 14px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:7px;padding:4px 10px;font-size:13px;font-weight:700;font-family:'DM Mono',monospace">${(dk/60).toFixed(1)}s</span></td>
+        <td style="padding:11px 14px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:7px;padding:4px 10px;font-size:13px;font-weight:700;font-family:\'DM Mono\',monospace">${(dk/60).toFixed(1)}s</span></td>
         <td style="padding:11px 14px;font-size:11px;color:var(--muted)">${ks.length} kayıt</td>
       </tr>
       <tr id="${rowId}_detail" style="display:${isOpen?'table-row':'none'}">
@@ -9488,9 +9488,9 @@ function renderKayipZamanAdminListe() {
     <tr style="border-bottom:1px solid var(--border2)">
       <td style="padding:9px 12px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
       <td style="padding:9px 12px;font-size:11px;color:var(--muted)">${_escapeHtml(r.ekipYoneticisi||'')}</td>
-      <td style="padding:9px 12px;font-family:'DM Mono',monospace;color:var(--muted)">${formatTarihKisa(r.tarih)}</td>
+      <td style="padding:9px 12px;font-family:\'DM Mono\',monospace;color:var(--muted)">${formatTarihKisa(r.tarih)}</td>
       <td style="padding:9px 12px;color:var(--muted)">${r.gun||''}</td>
-      <td style="padding:9px 12px;font-family:'DM Mono',monospace">${(r.baslangic||'').substring(0,5)} – ${(r.bitis||'').substring(0,5)}</td>
+      <td style="padding:9px 12px;font-family:\'DM Mono\',monospace">${(r.baslangic||'').substring(0,5)} – ${(r.bitis||'').substring(0,5)}</td>
       <td style="padding:9px 12px;text-align:center"><span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${(r.sureDk/60).toFixed(1)}s</span></td>
       <td style="padding:9px 12px"><span style="background:var(--lblue3);color:var(--blue2);border-radius:6px;padding:2px 8px;font-size:11px">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
       <td style="padding:9px 12px;color:var(--muted);font-size:11px">${r.depo ? '<span style="background:#E8F5E9;color:#2E7D32;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🏭 '+_escapeHtml(r.depo)+'</span>' : ''}</td>
@@ -9535,7 +9535,7 @@ function renderKayipZamanAdminListe() {
     toplamEl.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border2)">
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="font-weight:600;color:var(--muted);font-size:12px;margin-right:4px">Toplam:</span>${badges}</div>
-        <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:4px 12px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700">⏸ ${(toplamDk/60).toFixed(1)} saat</span>
+        <span style="background:#FFEBEE;color:#C62828;border-radius:6px;padding:4px 12px;font-family:\'DM Mono\',monospace;font-size:13px;font-weight:700">⏸ ${(toplamDk/60).toFixed(1)} saat</span>
       </div>`;
   }
 }
@@ -9622,15 +9622,15 @@ function showKayipZamanRaporGorunumu() {
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
         <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--red)">${(d.dk/60).toFixed(1)}s</div>
+          <div style="font-family:\'DM Mono\',monospace;font-size:16px;font-weight:700;color:var(--red)">${(d.dk/60).toFixed(1)}s</div>
           <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Bekleme Saati</div>
         </div>
         <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+formatTR(d.adet) : '—'}</div>
+          <div style="font-family:\'DM Mono\',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.adetVarMi ? '~'+formatTR(d.adet) : '—'}</div>
           <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Tah. Kayıp Adet</div>
         </div>
         <div style="text-align:center;background:var(--offwhite);border-radius:9px;padding:9px 4px">
-          <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.insSet.size}</div>
+          <div style="font-family:\'DM Mono\',monospace;font-size:16px;font-weight:700;color:var(--navy)">${d.insSet.size}</div>
           <div style="font-size:8px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px">Inspector</div>
         </div>
       </div>
@@ -9645,10 +9645,10 @@ function showKayipZamanRaporGorunumu() {
       <div style="width:170px;font-size:12px;font-weight:600;color:var(--navy);flex-shrink:0">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}</div>
       <div style="flex:1;height:22px;background:var(--offwhite);border-radius:6px;overflow:hidden;position:relative">
         <div style="height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;width:${pct}%;background:${barRenkler[i%barRenkler.length]}">
-          <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#fff">${(d.dk/60).toFixed(1)}s</span>
+          <span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:#fff">${(d.dk/60).toFixed(1)}s</span>
         </div>
       </div>
-      <div style="width:70px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);flex-shrink:0">${d.dk} dk</div>
+      <div style="width:70px;text-align:right;font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);flex-shrink:0">${d.dk} dk</div>
     </div>`;
   }).join('');
 
@@ -9660,8 +9660,8 @@ function showKayipZamanRaporGorunumu() {
     <tr style="border-bottom:1px solid var(--border2)">
       <td style="padding:11px 16px;font-weight:700;color:var(--navy)">${_escapeHtml(_formatDisplayName(r.inspector))}</td>
       <td style="padding:11px 16px"><span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;font-size:11.5px;font-weight:600;background:var(--lblue3);color:var(--blue2)">${SEBEP_IKONLAR[r.sebep]||'📝'} ${_escapeHtml(r.sebep||'')}</span></td>
-      <td style="padding:11px 16px;text-align:center"><span style="display:inline-flex;padding:3px 10px;border-radius:6px;font-size:11.5px;font-weight:700;background:#FFEBEE;color:var(--red);font-family:'DM Mono',monospace">${(r.sureDk/60).toFixed(1)}s</span></td>
-      <td style="padding:11px 16px;text-align:center"><span style="display:inline-flex;padding:3px 10px;border-radius:6px;font-size:11.5px;font-weight:700;background:#F3E5F5;color:#7B1FA2;font-family:'DM Mono',monospace">${a !== null ? '~'+a : '—'}</span></td>
+      <td style="padding:11px 16px;text-align:center"><span style="display:inline-flex;padding:3px 10px;border-radius:6px;font-size:11.5px;font-weight:700;background:#FFEBEE;color:var(--red);font-family:\'DM Mono\',monospace">${(r.sureDk/60).toFixed(1)}s</span></td>
+      <td style="padding:11px 16px;text-align:center"><span style="display:inline-flex;padding:3px 10px;border-radius:6px;font-size:11.5px;font-weight:700;background:#F3E5F5;color:#7B1FA2;font-family:\'DM Mono\',monospace">${a !== null ? '~'+a : '—'}</span></td>
     </tr>`;
   }).join('');
 
@@ -9677,26 +9677,26 @@ function showKayipZamanRaporGorunumu() {
       </div>
       <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:8px 16px;font-size:11.5px;font-weight:600;text-align:right">
         Rapor Aralığı
-        <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;display:block;margin-top:2px">${tarihMetni}</span>
+        <span style="font-family:\'DM Mono\',monospace;font-size:13px;font-weight:700;display:block;margin-top:2px">${tarihMetni}</span>
       </div>
     </div>
 
     <div style="padding:24px 28px">
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px">
         <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px;border-top:3px solid var(--red)">
-          <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--navy)">${records.length}</div>
+          <div style="font-family:\'DM Mono\',monospace;font-size:24px;font-weight:700;color:var(--navy)">${records.length}</div>
           <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:6px">Toplam Kayıt</div>
         </div>
         <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px;border-top:3px solid var(--amber)">
-          <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--navy)">${(toplamDk/60).toFixed(1)}s</div>
+          <div style="font-family:\'DM Mono\',monospace;font-size:24px;font-weight:700;color:var(--navy)">${(toplamDk/60).toFixed(1)}s</div>
           <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:6px">Toplam Kayıp Süre</div>
         </div>
         <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px;border-top:3px solid var(--blue)">
-          <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--navy)">${toplamInsp}</div>
+          <div style="font-family:\'DM Mono\',monospace;font-size:24px;font-weight:700;color:var(--navy)">${toplamInsp}</div>
           <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:6px">Etkilenen Inspector</div>
         </div>
         <div style="background:#fff;border:1px solid var(--border2);border-radius:14px;padding:18px;border-top:3px solid var(--green)">
-          <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--navy)">${adetVarMiGenel ? '~'+formatTR(toplamAdetGenel) : '—'}</div>
+          <div style="font-family:\'DM Mono\',monospace;font-size:24px;font-weight:700;color:var(--navy)">${adetVarMiGenel ? '~'+formatTR(toplamAdetGenel) : '—'}</div>
           <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:6px">Tahmini Kayıp Adet</div>
         </div>
       </div>
@@ -9768,7 +9768,7 @@ function showKayipZamanSebepPopup() {
             <div style="font-size:13px;font-weight:600;color:var(--navy);display:flex;align-items:center;gap:6px">
               <span style="font-size:16px">${SEBEP_IKONLAR[sebep]||'📝'}</span>${_escapeHtml(sebep)}
             </div>
-            <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:#C62828">${saat}s <span style="font-size:11px;color:var(--muted);font-weight:400">(${yuzde}%)</span></div>
+            <div style="font-family:\'DM Mono\',monospace;font-size:14px;font-weight:700;color:#C62828">${saat}s <span style="font-size:11px;color:var(--muted);font-weight:400">(${yuzde}%)</span></div>
           </div>
           <div style="background:var(--offwhite);border-radius:6px;height:10px;overflow:hidden">
             <div style="height:100%;width:${barW}%;background:linear-gradient(90deg,#E53935,#FF7043);border-radius:6px"></div>
@@ -9777,7 +9777,7 @@ function showKayipZamanSebepPopup() {
     }).join('') + `
       <div style="border-top:1px solid var(--border2);padding-top:12px;margin-top:4px;display:flex;justify-content:space-between;font-size:13px">
         <span style="color:var(--muted)">Toplam</span>
-        <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--navy)">${(toplamDk/60).toFixed(1)} Saat</span>
+        <span style="font-family:\'DM Mono\',monospace;font-weight:700;color:var(--navy)">${(toplamDk/60).toFixed(1)} Saat</span>
       </div>`;
   }
   popup.style.display = 'flex';
@@ -9837,7 +9837,7 @@ function renderKayipZamanEkipGrid() {
         .map(([s,dk]) =>
           `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0">
             <span style="font-size:12px;color:#444">${SEBEP_IKONLAR[s]||'📝'} ${_escapeHtml(s)}</span>
-            <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</span>
+            <span style="font-family:\'DM Mono\',monospace;font-size:12px;font-weight:700;color:#C62828">${(dk/60).toFixed(1)}s</span>
           </div>`
         ).join('');
 
@@ -9853,13 +9853,13 @@ function renderKayipZamanEkipGrid() {
         const perfObj = performansData.find(p=>(p.ins||'').toLowerCase()===(isim||'').toLowerCase());
         const perf = perfObj ? getOrijinalHamPerf(perfObj) : null;
         const perfSpan = perf !== null
-          ? `<span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${perfColor(perf)}">${perf}%</span>`
+          ? `<span style="font-family:\'DM Mono\',monospace;font-size:14px;font-weight:700;color:${perfColor(perf)}">${perf}%</span>`
           : '';
         return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5">
             <span style="font-size:13px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(isim))}</span>
             <div style="display:flex;align-items:center;gap:8px">
               ${perfSpan}
-              <span style="background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace">⏸ ${(dk/60).toFixed(1)}s</span>
+              <span style="background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;font-family:\'DM Mono\',monospace">⏸ ${(dk/60).toFixed(1)}s</span>
             </div>
           </div>`;
       }).join('');
@@ -9874,7 +9874,7 @@ function renderKayipZamanEkipGrid() {
                 <div style="color:rgba(255,255,255,.6);font-size:11px;margin-top:2px">${Object.keys(inspMap).length} inspector &middot; ${kayitlar.length} kayıt</div>
               </div>
               <div style="display:flex;align-items:center;gap:8px">
-                <span style="background:#C62828;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;font-weight:700;font-family:'DM Mono',monospace">⏸ ${(toplamDk/60).toFixed(1)}s</span>
+                <span style="background:#C62828;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;font-weight:700;font-family:\'DM Mono\',monospace">⏸ ${(toplamDk/60).toFixed(1)}s</span>
                 <span style="color:#fff;font-size:14px">${isOpen?'▲':'▼'}</span>
               </div>
             </div>
@@ -9984,7 +9984,7 @@ function showSebepInspectorDetay(sebep) {
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)">
         <span style="font-size:13px;font-weight:600;color:var(--navy)">${_escapeHtml(_formatDisplayName(n))}</span>
         <div style="text-align:right">
-          <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:#C62828">${(d/60).toFixed(1)}s</span>
+          <span style="font-family:\'DM Mono\',monospace;font-size:13px;font-weight:700;color:#C62828">${(d/60).toFixed(1)}s</span>
           ${tahmin!==null ? `<div style="font-size:10px;color:#8E24AA;font-weight:600">~${tahmin} adet</div>` : ''}
         </div>
       </div>`;
@@ -9994,12 +9994,12 @@ function showSebepInspectorDetay(sebep) {
       <div style="max-height:340px;overflow-y:auto;margin-bottom:12px">${rows}</div>
       <div style="display:flex;justify-content:space-between;font-size:13px;border-top:2px solid var(--border2);padding-top:10px">
         <span style="color:var(--muted)">Toplam (${insEntries.length} inspector)</span>
-        <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--navy)">${(toplamDk/60).toFixed(1)} Saat</span>
+        <span style="font-family:\'DM Mono\',monospace;font-weight:700;color:var(--navy)">${(toplamDk/60).toFixed(1)} Saat</span>
       </div>
       ${adetVarMi ? `
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px">
         <span style="color:var(--muted)">Tahmini Kayıp Adet</span>
-        <span style="font-family:'DM Mono',monospace;font-weight:700;color:#8E24AA">~${formatTR(toplamTahminiAdet)} adet</span>
+        <span style="font-family:\'DM Mono\',monospace;font-weight:700;color:#8E24AA">~${formatTR(toplamTahminiAdet)} adet</span>
       </div>
       <div style="font-size:10px;color:var(--muted);margin-top:8px;font-style:italic">* Kişinin kendi ortalama hızına göre tahmini hesaplanmıştır, kesin değil.</div>` : ''}`;
   }
