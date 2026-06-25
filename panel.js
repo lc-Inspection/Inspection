@@ -8424,6 +8424,23 @@ async function saveKayipZaman() {
   const sureDk = saatFarkiDk(baslangic, bitis);
   if (sureDk <= 0) { alert('Bitiş saati başlangıçtan sonra olmalı.'); return; }
 
+  // ── 1. Katman: Frontend mükerrer kontrol (local cache üzerinden) ──────────
+  const mevcut = kayipZamanData.find(k =>
+    String(k.inspector || '').trim().toLowerCase() === String(inspector).trim().toLowerCase() &&
+    String(k.tarih     || '').trim() === String(tarih).trim() &&
+    String(k.baslangic || '').trim() === String(baslangic).trim()
+  );
+  if (mevcut) {
+    alert(
+      '⚠️ Mükerrer Kayıt!\n\n' +
+      inspector + ' için ' + tarih + ' tarihinde ' + baslangic +
+      ' saatinde zaten bir kayıp zaman girişi mevcut.\n\n' +
+      'Aynı kişi, aynı tarih ve aynı başlangıç saatiyle tekrar kayıt yapılamaz.'
+    );
+    return;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const url = appConfig.sheetsWebAppUrl;
   const token = appConfig.sheetsApiToken;
   if (!url) { alert('Sheets bağlantısı yapılandırılmamış.'); return; }
@@ -8448,12 +8465,21 @@ async function saveKayipZaman() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Kaydediliyor...'; }
 
   try {
-    await jsonpFetch(url, {
+    // ── 2. Katman: Backend mükerrer kontrol (sheets üzerinden) ─────────────
+    const resp = await jsonpFetch(url, {
       action: 'setKayipZaman',
       token,
       record: encodeURIComponent(JSON.stringify(record))
     });
-    // Optimistic update
+    if (resp && resp.status === 'duplicate') {
+      alert('⚠️ Mükerrer Kayıt!\n\n' + (resp.message || 'Bu kayıt zaten mevcut.'));
+      return;
+    }
+    if (resp && resp.status === 'error') {
+      alert('Hata: ' + (resp.message || 'Bilinmeyen hata'));
+      return;
+    }
+    // ── Başarılı: local cache'e ekle ────────────────────────────────────────
     kayipZamanData.push(record);
     if (msg) { msg.style.display = ''; setTimeout(() => { msg.style.display = 'none'; }, 3000); }
     // Formu temizle
