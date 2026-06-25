@@ -5482,19 +5482,34 @@ function performansHesapla(){
     return { idx, ins, parsedBas, parsedBit };
   });
 
-  // 2. Inspector + gün bazında grupla
+  // 2. Inspector bazında grupla (UTC kaymasını önlemek için yerel tarih kullan)
+  // NOT: toISOString() UTC döndürür — Türkiye UTC+3 olduğu için 00:00-02:59
+  // arası başlayan kayıtlar önceki güne atanır. Bunun yerine yerel yıl/ay/gün
+  // kullanarak doğru gruplama yapıyoruz.
+  // Ayrıca gruplama SADECE inspector bazında yapılır; gün ayrımı yapılmaz.
+  // Çünkü bir inspection farklı bir günde başlayıp farklı bir günde bitebilir
+  // ve cross-day çakışmalar da yakalanmalıdır. Sıralama zaten timestamp ile
+  // yapıldığından farklı günlerdeki kayıtlar da doğru sıralanır.
   const _insGunGruplari = {};
   _rowMeta.forEach(m => {
     if (!m.ins || !m.parsedBas || !m.parsedBit) return;
-    const gun = m.parsedBas.toISOString().slice(0, 10); // YYYY-MM-DD
+    // Yerel tarihi al (UTC kayması yok)
+    const y   = m.parsedBas.getFullYear();
+    const mo  = String(m.parsedBas.getMonth() + 1).padStart(2, '0');
+    const d   = String(m.parsedBas.getDate()).padStart(2, '0');
+    const gun = `${y}-${mo}-${d}`; // yerel YYYY-MM-DD
     const key = m.ins + '|' + gun;
     if (!_insGunGruplari[key]) _insGunGruplari[key] = [];
     _insGunGruplari[key].push(m);
   });
 
-  // 3. Her grupda başlangıç saatine göre sırala, çakışmaları düzelt
+  // 3. Her grupda başlangıç TAM TIMESTAMP'e göre sırala, çakışmaları düzelt
+  // Karşılaştırma tarih+saat bazında yapılır (sadece saat değil, tam Date nesnesi).
+  // Zincirleme düzeltme: A→B→C üçlüsünde A'nın düzeltilmiş bitişi B'nin
+  // başlangıcından büyükse tekrar kırpılır.
   Object.values(_insGunGruplari).forEach(grup => {
-    grup.sort((a, b) => a.parsedBas - b.parsedBas);
+    // Tam timestamp ile sırala (tarih + saat + dakika + saniye)
+    grup.sort((a, b) => a.parsedBas.getTime() - b.parsedBas.getTime());
     for (let i = 0; i < grup.length - 1; i++) {
       const current = grup[i];
       const next    = grup[i + 1];
@@ -5502,15 +5517,16 @@ function performansHesapla(){
       const effBit = _duzeltilmisBitisMap.has(current.idx)
         ? _duzeltilmisBitisMap.get(current.idx)
         : current.parsedBit;
-      // Çakışma: current efektif bitis > next baslangic
-      if (effBit > next.parsedBas) {
-        // Düzeltme: current bitiş = next başlangıç
+      // Çakışma kontrolü: tam tarih+saat karşılaştırması
+      // effBit > next.parsedBas → sonraki inspection başlamadan current bitmemiş
+      if (effBit.getTime() > next.parsedBas.getTime()) {
+        // Düzeltme: current bitiş = next başlangıç (tarih+saat tam eşleşme)
         _duzeltilmisBitisMap.set(current.idx, next.parsedBas);
         console.log(
           `⚠️ Çakışma düzeltildi [${current.ins}]: ` +
-          `${effBit.toLocaleTimeString('tr-TR')} → ` +
-          `${next.parsedBas.toLocaleTimeString('tr-TR')} ` +
-          `(sonraki kayıt: ${next.parsedBas.toLocaleTimeString('tr-TR')})`
+          `${effBit.toLocaleString('tr-TR')} → ` +
+          `${next.parsedBas.toLocaleString('tr-TR')} ` +
+          `(sonraki başlangıç: ${next.parsedBas.toLocaleString('tr-TR')})`
         );
       }
     }
