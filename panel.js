@@ -3255,6 +3255,87 @@ function updateSummaryStats(inspectors) {
   document.getElementById('avg-working-days').textContent = avgWorkingDays + ' ' + (translations[currentLang]||translations.tr).days_suffix;
   document.getElementById('total-products').textContent = formatTR(totalProducts);
 
+  // Çeyrek badge'ini güncelle
+  renderQuarterBadge(inspectors);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ÇEYREK BADGE — Dashboard başlığındaki Q1/Q2/Q3/Q4 göstergesi
+// Kayıt tarihlerine (baslangic / bitis) bakarak veri hangi çeyreklere ait
+// olduğunu hesaplar ve renkli chip olarak gösterir.
+//
+// Çeyrek tanımı (tabloya göre):
+//   Q1 → Şubat–Mart–Nisan    (aylar 2-3-4)
+//   Q2 → Mayıs–Haziran–Temmuz (aylar 5-6-7)
+//   Q3 → Ağustos–Eylül–Ekim  (aylar 8-9-10)
+//   Q4 → Kasım–Aralık–Ocak   (aylar 11-12-1)
+// ══════════════════════════════════════════════════════════════════════════════
+function _ayToQuarter(month) {
+  // month: 1-12
+  if (month >= 2 && month <= 4)  return 'Q1';
+  if (month >= 5 && month <= 7)  return 'Q2';
+  if (month >= 8 && month <= 10) return 'Q3';
+  return 'Q4'; // 11, 12, 1
+}
+
+const _QUARTER_META = {
+  Q1: { label: 'Q1 Inspector Performansları', months: 'Şub–Mar–Nis', cls: 'q1' },
+  Q2: { label: 'Q2 Inspector Performansları', months: 'May–Haz–Tem', cls: 'q2' },
+  Q3: { label: 'Q3 Inspector Performansları', months: 'Ağu–Eyl–Eki', cls: 'q3' },
+  Q4: { label: 'Q4 Inspector Performansları', months: 'Kas–Ara–Oca', cls: 'q4' },
+};
+
+function renderQuarterBadge(inspectors) {
+  const wrap = document.getElementById('quarter-badge-wrap');
+  const list = document.getElementById('quarter-badge-list');
+  if (!wrap || !list) return;
+
+  if (!inspectors || !inspectors.length) {
+    wrap.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+
+  // Tüm kayıtların tarihlerini topla → hangi çeyrekler var?
+  const quarterSet = new Set();
+  const quarterMinDate = {}; // her çeyreğin en erken tarihi (bilgi için)
+  const quarterMaxDate = {}; // her çeyreğin en son tarihi
+
+  inspectors.forEach(function(insp) {
+    Object.values(insp.klasmanlar || {}).forEach(function(kd) {
+      (kd.kayitlar || []).forEach(function(k) {
+        // Önce baslangic, yoksa bitis tarihini dene
+        var dateToCheck = k.baslangic || k.bitis;
+        if (!dateToCheck) return;
+        var d = dateToCheck instanceof Date ? dateToCheck : new Date(dateToCheck);
+        if (isNaN(d.getTime())) return;
+        var q = _ayToQuarter(d.getMonth() + 1); // getMonth() 0-indexed
+        quarterSet.add(q);
+        if (!quarterMinDate[q] || d < quarterMinDate[q]) quarterMinDate[q] = d;
+        if (!quarterMaxDate[q] || d > quarterMaxDate[q]) quarterMaxDate[q] = d;
+      });
+    });
+  });
+
+  if (quarterSet.size === 0) {
+    wrap.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+
+  // Sıralı çeyrekler
+  var orderedQ = ['Q1','Q2','Q3','Q4'].filter(function(q){ return quarterSet.has(q); });
+
+  list.innerHTML = orderedQ.map(function(q) {
+    var meta = _QUARTER_META[q];
+    var chipCls = orderedQ.length > 1 ? meta.cls : meta.cls;
+    return '<div class="quarter-chip ' + chipCls + '" title="' + meta.label + ' (' + meta.months + ')">' +
+      '<span class="qc-code">' + q + '</span>' +
+      '<span>' + meta.label + ' &nbsp;<small style="font-weight:500;opacity:.75">(' + meta.months + ')</small></span>' +
+    '</div>';
+  }).join('');
+
+  wrap.style.display = 'flex';
 }
 
 // ────────────────────────────
