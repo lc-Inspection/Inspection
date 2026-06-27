@@ -1035,6 +1035,10 @@ function _tr(s) {
     .replace(/û/g,'u').replace(/Û/g,'U');
 }
 
+// PDF guvenli deger yardimcilari
+function _n(v){ var n=parseFloat(v); return (isNaN(n)||!isFinite(n)) ? 0 : n; }
+function _s(v){ return (v===null||v===undefined) ? '---' : String(v); }
+
 function _aoPdfLoadLib(src, checkFn) {
   return new Promise(function(resolve, reject) {
     if (checkFn()) { resolve(); return; }
@@ -1071,7 +1075,7 @@ async function aoGeneratePdfAndMail() {
     var otSn      = insp.toplamMesaistiSaniye||0;
     var now       = new Date();
     var dateStr   = now.toLocaleDateString('tr-TR',{day:'2-digit',month:'long',year:'numeric'});
-    var inspName  = _tr(insp.ins||'Inspector');
+    var inspName  = _tr((insp.ins||'Inspector').trim())||'Inspector';
 
     // Klasman top listesi
     var klMap={};
@@ -1155,7 +1159,7 @@ async function aoGeneratePdfAndMail() {
     fill('#1976D2'); pdf.rect(0,39,W,3,'F');
 
     // LC logo
-    fill('#ffffff'); pdf.circle(M+7,14,6.5,'F');
+    fill('#ffffff'); pdf.circle(_n(M+7),14,6.5,'F');
     txt('#0B1F3A'); pdf.setFontSize(8.5); pdf.setFont('helvetica','bold');
     pdf.text('LC',M+7,17,{align:'center'});
 
@@ -1216,12 +1220,12 @@ async function aoGeneratePdfAndMail() {
       {v:otDk>0?otDk+'dk':'—', l:'OVERTIME',      c:otDk>0?'#E65100':'#9E9E9E'},
       {v:String(data.length),  l:'KAYIT SAYISI',  c:'#1565C0'}
     ];
-    var sW=(CW-(stats.length-1)*1.5)/stats.length;
+    var sW=Math.max(1,_n((CW-(stats.length-1)*1.5)/stats.length));
     stats.forEach(function(s,i){
       var sx=M+i*(sW+1.5);
       fill('#ffffff'); pdf.roundedRect(sx,y,sW,18,2,2,'F');
-      fill(s.c); pdf.rect(sx,y,sW,2.5,'F'); // üst renkli şerit (rounded değil)
-      pdf.roundedRect(sx,y,sW,2.5,1,0,'F');
+      fill(s.c); pdf.rect(sx,y,_n(sW),2.5,'F');
+
       txt(s.c); pdf.setFontSize(11); pdf.setFont('helvetica','bold');
       pdf.text(s.v, sx+sW/2, y+11,{align:'center'});
       txt('#5A7FA8'); pdf.setFontSize(5.5); pdf.setFont('helvetica','normal');
@@ -1236,7 +1240,7 @@ async function aoGeneratePdfAndMail() {
     y+=8;
 
     // Her grafik kartı: 3 eşit sütun
-    var gCardW=(CW-4)/3;   // 3 kart, aralarında 2mm
+    var gCardW=Math.max(1,_n((CW-4)/3));   // 3 kart, aralarında 2mm
     var gImgSz=32;          // grafik PNG boyutu mm — küçük ve şık
     var gLegendX;
 
@@ -1263,7 +1267,7 @@ async function aoGeneratePdfAndMail() {
       var gImgX = gx + (gCardW-gImgSz)/2;
       var gImgY = y+9;
       if(g.png){
-        pdf.addImage(g.png,'PNG', gImgX, gImgY, gImgSz, gImgSz);
+        if(g.png&&gImgSz>0)pdf.addImage(g.png,'PNG',_n(gImgX),_n(gImgY),_n(gImgSz),_n(gImgSz));
       } else {
         txt('#BBBBBB'); pdf.setFontSize(7);
         pdf.text('Veri Yok', gx+gCardW/2, gImgY+gImgSz/2,{align:'center'});
@@ -1324,8 +1328,7 @@ async function aoGeneratePdfAndMail() {
       pdf.text(String(kc),tx+tW*tC[3]/2,y+4.5,{align:'center'}); tx+=tW*tC[3];
       // Mini bar
       var bw=tW*tC[4]*0.88;
-      fill('#E3F2FD'); pdf.rect(tx+2,y+2.2,bw,2.8,'F');
-      fill('#1565C0'); pdf.rect(tx+2,y+2.2,bw*(k.adet/maxA),2.8,'F');
+      if(bw>0){fill('#E3F2FD');pdf.rect(tx+2,y+2.2,_n(bw),2.8,'F');fill('#1565C0');pdf.rect(tx+2,y+2.2,_n(bw*Math.min(k.adet/maxA,1)),2.8,'F');}
       y+=rH;
       stroke('#E8F0FE'); pdf.setLineWidth(0.1); pdf.line(M,y,M+tW,y);
     });
@@ -1368,7 +1371,7 @@ async function aoGeneratePdfAndMail() {
       if(oran!==null){
         var oc=hex2rgb(pHex(oran));
         pdf.setFillColor(oc[0],oc[1],oc[2]);
-        pdf.roundedRect(tx+2,y+1,tW*dC2[5]-4,rH-2,1.5,1.5,'F');
+        var orW=_n(tW*dC2[5]-4);if(orW>0)pdf.roundedRect(tx+2,y+1,orW,_n(rH-2),1.5,1.5,'F');
         txt('#ffffff'); pdf.setFont('helvetica','bold'); pdf.setFontSize(7);
         pdf.text('%'+oran,tx+tW*dC2[5]/2,y+4.5,{align:'center'});
       } else {
