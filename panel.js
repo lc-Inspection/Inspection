@@ -582,7 +582,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzT3d3il2wq1UHqDC_Q5tM8p48GJyMEIOXm435Fr-d19XQ9qcbn8Y8Co95b7yZpm2nX/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwVOekw3epKd9C0Oc1w0aBk5gqDdUX8Nq5iV_etzaNcCXoR4pe5nrpsgt9jBN0ehAEj/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -672,13 +672,11 @@ function jsonpFetch(url, params) {
       window.removeEventListener('message', handler);
       if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
       reject(new Error(
-        'Bağlantı başarısız (zaman aşımı).\n\n' +
-        '🔧 Apps Script Kontrol Listesi:\n' +
-        '1. Dağıtım → "Erişimi olan: Herkes" seçili mi?\n' +
-        '2. Apps Script kodu v5.1 ile güncellendi ve YENİ dağıtım yapıldı mı?\n' +
-        '3. Paneldeki URL doğru mu?'
+        'Google Sheets\'e bağlanamıldı (15 sn zaman aşımı).\n\n' +
+        'Bu geçici bir ağ yavaşlaşması olabilir.\n' +
+        'İnternet bağlantınızı kontrol edip tekrar deneyin.'
       ));
-    }, 8000);
+    }, 25000);
 
     function handler(event) {
       // Sadece Apps Script kaynaklarından gelen mesajları kabul et
@@ -4162,7 +4160,7 @@ function showInspectorDetail(inspectorName) {
       loadBanner.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;animation:ao-gspin .8s linear infinite;"></div> ' + (translations[currentLang]||translations.tr).loading_records;
       document.body.appendChild(loadBanner);
 
-      jsonpFetch(url, { action: 'getInspectorKayitlar', token, inspectorAdi: inspectorName.normalize('NFC').trim() })
+      jsonpFetch(url, { action: 'getInspectorKayitlar', token, inspectorAdi: inspectorName.normalize('NFC').trim().toUpperCase() })
         .then(data => {
           if (data.status === 'ok' && data.kayitlar && typeof data.kayitlar === 'object') {
             const insKlasmanKeys = Object.keys(inspector.klasmanlar);
