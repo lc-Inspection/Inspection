@@ -190,6 +190,13 @@ function aoRefreshSheetsData() {
     .finally(function() {
       var b = document.getElementById('ao-sheets-loading');
       if (b) b.remove();
+      // Buton her durumda enable'a don
+      var btn2 = document.getElementById('ao-refresh-btn');
+      if (btn2 && btn2.disabled) {
+        setTimeout(function() {
+          if (btn2) { btn2.innerHTML = '🔄 Veri Cek'; btn2.disabled = false; }
+        }, 3000);
+      }
     });
 }
 
@@ -293,14 +300,14 @@ function _aoRenderTop20() {
 
 // ── Yardımcı: Süre Format ──
 function _aoFmtSn(sn) {
-  if (!sn || sn <= 0) return '—';
+  if (!sn || sn <= 0) return '--';
   var s = Math.round(sn), h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sc = s%60;
   return h > 0 ? h+'s '+String(m).padStart(2,'0')+'d' : m > 0 ? m+'d '+String(sc).padStart(2,'0')+'sn' : sc+'sn';
 }
 function _aoFmtTarih(d) {
-  if (!d) return '—';
+  if (!d) return '--';
   var dt = (d instanceof Date) ? d : new Date(d);
-  if (isNaN(dt.getTime())) return '—';
+  if (isNaN(dt.getTime())) return '--';
   return dt.toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit'}) + ' ' + dt.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
 }
 function _aoPerfClass(p) { return p >= 100 ? '#00897B' : p >= 80 ? '#1565C0' : p >= 60 ? '#F57F17' : '#C62828'; }
@@ -846,7 +853,7 @@ function _pwaShowInstallGuide(msg) {
 
   // OT süresini formatla
   function fmtSn(sn) {
-    if (!sn || sn <= 0) return '—';
+    if (!sn || sn <= 0) return '--';
     var s = Math.round(sn), h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
     return h > 0 ? h+'s '+String(m).padStart(2,'0')+'d' : m+'d';
   }
@@ -1100,7 +1107,7 @@ async function aoGeneratePdfAndMail() {
     var activeBands=bands.filter(function(b){return b.n>0;});
 
     // ── Grafikler (küçük canvas = temiz PNG) ───────────────────────────────────
-    // 140px yeterli — jsPDF'e 38mm olarak basacağız, o çözünürlükte net görünür
+    // 140px yeterli -- jsPDF'e 38mm olarak basacağız, o çözünürlükte net görünür
     var CSZ = 140;
     var sandbox=document.createElement('div');
     sandbox.style.cssText='position:fixed;left:-9999px;top:0;background:#fff;';
@@ -1130,7 +1137,24 @@ async function aoGeneratePdfAndMail() {
     // ── PDF ───────────────────────────────────────────────────────────────────
     var jsPDF=window.jspdf.jsPDF;
     var pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    var W=210,H=297,M=14,CW=W-M*2; // content width
+    var W=210,H=297,M=14,CW=W-M*2;
+    // Guvenli text yazici: null/undefined/number'i stringe cevirir
+    var _origText = pdf.text.bind(pdf);
+    pdf.text = function(str, x, y, opts) {
+      var s = (str===null||str===undefined) ? '' : String(str);
+      // jsPDF sadece Latin-1 destekler, non-ASCII temizle
+      s = s.replace(/[\u0100-\uFFFF]/g, function(c){
+        var map={'\u015f':'s','\u015e':'S','\u0131':'i','\u0130':'I',
+                 '\u011f':'g','\u011e':'G','\u00fc':'u','\u00dc':'U',
+                 '\u00f6':'o','\u00d6':'O','\u00e7':'c','\u00c7':'C',
+                 '\u2014':'--','\u2013':'-','\u2026':'...',
+                 '\u2192':'>','\u2190':'<'};
+        return map[c]||'';
+      });
+      if(x!==undefined&&(isNaN(x)||!isFinite(x))) x=0;
+      if(y!==undefined&&(isNaN(y)||!isFinite(y))) y=0;
+      return _origText(s, _n(x), _n(y), opts);
+    };
 
     // Yardımcılar
     function hex2rgb(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
@@ -1145,7 +1169,7 @@ async function aoGeneratePdfAndMail() {
       fill('#0B1F3A'); pdf.rect(0,H-9,W,9,'F');
       fill('#1565C0'); pdf.rect(0,H-9,2,9,'F');
       txt('#90CAF9'); pdf.setFontSize(6.5); pdf.setFont('helvetica','normal');
-      pdf.text('KalibRe Inspection Performans  |  '+_tr(dateStr), M, H-3.5);
+      pdf.text('KalibRe Inspection Performans | '+_tr(dateStr), M, H-3.5);
       txt('#ffffff'); pdf.setFont('helvetica','bold');
       pdf.text('Sayfa '+page+' / '+total, W-M, H-3.5,{align:'right'});
     }
@@ -1197,9 +1221,9 @@ async function aoGeneratePdfAndMail() {
       'Calisma Gunu: '+(insp.gunSayisi||0)+' gun'
     ];
     var col2=[
-      'Standart Sure: '+(_aoFmtSn(totalStd)||'—'),
-      'Gerceklesen  : '+(totalFiil>0?_aoFmtSn(totalFiil):'—'),
-      'Overtime     : '+(otDk>0?otDk+' dk':'—')
+      'Standart Sure: '+(_aoFmtSn(totalStd)||'--'),
+      'Gerceklesen  : '+(totalFiil>0?_aoFmtSn(totalFiil):'--'),
+      'Overtime     : '+(otDk>0?otDk+' dk':'--')
     ];
     col1.forEach(function(t,i){pdf.text(t,M+9,y+18+i*5);});
     col2.forEach(function(t,i){pdf.text(t,M+90,y+18+i*5);});
@@ -1215,9 +1239,9 @@ async function aoGeneratePdfAndMail() {
     y+=38;
     var stats=[
       {v:fmtN(totalAdet),      l:'TOPLAM ADET',   c:'#1565C0'},
-      {v:_aoFmtSn(totalStd)||'—',l:'STANDART',    c:'#0B1F3A'},
-      {v:totalFiil>0?_aoFmtSn(totalFiil):'—',l:'GERCEKLESEN',c:'#00897B'},
-      {v:otDk>0?otDk+'dk':'—', l:'OVERTIME',      c:otDk>0?'#E65100':'#9E9E9E'},
+      {v:_aoFmtSn(totalStd)||'--',l:'STANDART',    c:'#0B1F3A'},
+      {v:totalFiil>0?_aoFmtSn(totalFiil):'--',l:'GERCEKLESEN',c:'#00897B'},
+      {v:otDk>0?otDk+'dk':'--', l:'OVERTIME',      c:otDk>0?'#E65100':'#9E9E9E'},
       {v:String(data.length),  l:'KAYIT SAYISI',  c:'#1565C0'}
     ];
     var sW=Math.max(1,_n((CW-(stats.length-1)*1.5)/stats.length));
@@ -1241,13 +1265,13 @@ async function aoGeneratePdfAndMail() {
 
     // Her grafik kartı: 3 eşit sütun
     var gCardW=Math.max(1,_n((CW-4)/3));   // 3 kart, aralarında 2mm
-    var gImgSz=32;          // grafik PNG boyutu mm — küçük ve şık
+    var gImgSz=32;          // grafik PNG boyutu mm -- küçük ve şık
     var gLegendX;
 
     [
       {title:'Klasman Dagilimi',    png:p1, legend:top8.map(function(k,i){return{l:_tr(k.ad).slice(0,15),v:fmtN(k.adet),c:klColors[i]||'#546E7A'};})},
       {title:'Perf. Bant Dagilimi', png:p2, legend:activeBands.map(function(b){return{l:b.l,v:b.n+' k.',c:b.c};})},
-      {title:'Mesai Dagilimi',      png:p3, legend:[{l:'Normal',v:_aoFmtSn(normalSn)||'—',c:'#1565C0'},{l:'Overtime',v:_aoFmtSn(otSn)||'—',c:'#E65100'}]}
+      {title:'Mesai Dagilimi',      png:p3, legend:[{l:'Normal',v:_aoFmtSn(normalSn)||'--',c:'#1565C0'},{l:'Overtime',v:_aoFmtSn(otSn)||'--',c:'#E65100'}]}
     ].forEach(function(g,gi){
       var gx = M + gi*(gCardW+2);
       var cardH = 78;
@@ -1263,7 +1287,7 @@ async function aoGeneratePdfAndMail() {
       txt('#0B1F3A'); pdf.setFontSize(6.5); pdf.setFont('helvetica','bold');
       pdf.text(g.title, gx+gCardW/2, y+5,{align:'center'});
 
-      // Grafik — ortada
+      // Grafik -- ortada
       var gImgX = gx + (gCardW-gImgSz)/2;
       var gImgY = y+9;
       if(g.png){
@@ -1273,7 +1297,7 @@ async function aoGeneratePdfAndMail() {
         pdf.text('Veri Yok', gx+gCardW/2, gImgY+gImgSz/2,{align:'center'});
       }
 
-      // Lejant — grafik altında
+      // Lejant -- grafik altında
       var ly = gImgY + gImgSz + 3;
       pdf.setFontSize(5.5); pdf.setFont('helvetica','normal');
       g.legend.slice(0,6).forEach(function(item){
@@ -1341,7 +1365,7 @@ async function aoGeneratePdfAndMail() {
     txt('#ffffff'); pdf.setFontSize(11); pdf.setFont('helvetica','bold');
     pdf.text('KAYIT DETAY TABLOSU', M, 11);
     txt('#90CAF9'); pdf.setFontSize(7.5); pdf.setFont('helvetica','normal');
-    pdf.text(inspName+' — Toplam '+data.length+' kayit', M, 16.5);
+    pdf.text(inspName+' -- Toplam '+data.length+' kayit', M, 16.5);
     y=24;
 
     var dC2=[0.32,0.09,0.14,0.14,0.16,0.15];
@@ -1358,15 +1382,15 @@ async function aoGeneratePdfAndMail() {
       var oran=(k.standartSure&&k.kayitFiiliSure)?Math.round(k.standartSure/k.kayitFiiliSure*100):null;
       tx=M;
       txt('#0B1F3A'); pdf.setFontSize(6.8); pdf.setFont('helvetica','normal');
-      var kn2=_tr(k.klasman||'—'); if(kn2.length>25)kn2=kn2.slice(0,25)+'…';
+      var kn2=_tr(k.klasman||'--'); if(kn2.length>25)kn2=kn2.slice(0,25)+'…';
       pdf.text(kn2,tx+2,y+4.3); tx+=tW*dC2[0];
       pdf.text(String(k.adet||0),tx+tW*dC2[1]/2,y+4.3,{align:'center'}); tx+=tW*dC2[1];
       txt('#1565C0');
-      pdf.text(_aoFmtSn(k.standartSure)||'—',tx+tW*dC2[2]/2,y+4.3,{align:'center'}); tx+=tW*dC2[2];
+      pdf.text(_aoFmtSn(k.standartSure)||'--',tx+tW*dC2[2]/2,y+4.3,{align:'center'}); tx+=tW*dC2[2];
       txt('#00897B');
-      pdf.text(k.kayitFiiliSure>0?_aoFmtSn(k.kayitFiiliSure):'—',tx+tW*dC2[3]/2,y+4.3,{align:'center'}); tx+=tW*dC2[3];
+      pdf.text(k.kayitFiiliSure>0?_aoFmtSn(k.kayitFiiliSure):'--',tx+tW*dC2[3]/2,y+4.3,{align:'center'}); tx+=tW*dC2[3];
       txt('#5A7FA8');
-      var ts=k.baslangic?_aoFmtTarih(k.baslangic instanceof Date?k.baslangic:new Date(k.baslangic)):'—';
+      var ts=k.baslangic?_aoFmtTarih(k.baslangic instanceof Date?k.baslangic:new Date(k.baslangic)):'--';
       pdf.text(ts,tx+tW*dC2[4]/2,y+4.3,{align:'center'}); tx+=tW*dC2[4];
       if(oran!==null){
         var oc=hex2rgb(pHex(oran));
@@ -1376,7 +1400,7 @@ async function aoGeneratePdfAndMail() {
         pdf.text('%'+oran,tx+tW*dC2[5]/2,y+4.5,{align:'center'});
       } else {
         txt('#BBBBBB'); pdf.setFont('helvetica','normal');
-        pdf.text('—',tx+tW*dC2[5]/2,y+4.3,{align:'center'});
+        pdf.text('--',tx+tW*dC2[5]/2,y+4.3,{align:'center'});
       }
       y+=rH;
       stroke('#E8F0FE'); pdf.setLineWidth(0.1); pdf.line(M,y,M+tW,y);
@@ -1395,8 +1419,8 @@ async function aoGeneratePdfAndMail() {
       '  Toplam Adet     : '+fmtN(totalAdet)+'\n'+
       '  Kayit Sayisi    : '+data.length+'\n'+
       '  Calisma Gunu    : '+(insp.gunSayisi||0)+'\n'+
-      '  Standart Sure   : '+(_aoFmtSn(totalStd)||'—')+'\n'+
-      '  Gerceklesen     : '+(totalFiil>0?_aoFmtSn(totalFiil):'—')+'\n'+
+      '  Standart Sure   : '+(_aoFmtSn(totalStd)||'--')+'\n'+
+      '  Gerceklesen     : '+(totalFiil>0?_aoFmtSn(totalFiil):'--')+'\n'+
       (otDk>0?'  Overtime       : '+otDk+' dk\n':'')+
       '\nDetayli rapor (PDF) ektedir.\n\nIyi calismalar,\nKalibRe Panel'
     );
