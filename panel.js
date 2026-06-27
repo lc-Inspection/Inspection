@@ -589,7 +589,7 @@ let appConfig = {
   sheetsWebAppUrl: DEFAULT_SHEETS_URL,
   sheetsViewUrl: '',
   sheetsApiToken: DEFAULT_API_TOKEN,
-  activeQuarters: []     // Son yüklenen verinin çeyrek listesi — Sheets Config'e kaydedilir
+  activeQuarters: []
 };
 
 // ────────────────────────────
@@ -710,13 +710,10 @@ async function pullConfigFromSheets() {
         if (keyInput) keyInput.value = data.config.geminiApiKey;
         console.log('✅ Gemini API anahtarı Sheets\'ten yüklendi');
       }
-      // Aktif çeyrek listesini yükle ve badge'i güncelle
-      if (Array.isArray(data.config.activeQuarters) && data.config.activeQuarters.length > 0) {
+            if (Array.isArray(data.config.activeQuarters) && data.config.activeQuarters.length > 0) {
         appConfig.activeQuarters = data.config.activeQuarters;
-        _restoreQuarterBadge(appConfig.activeQuarters);
-        console.log('✅ Aktif çeyrekler Sheets\'ten yüklendi:', appConfig.activeQuarters.join(', '));
       }
-      localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(appConfig));
+localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(appConfig));
       console.log('✅ Config Sheets\'ten çekildi');
       return true;
     }
@@ -821,9 +818,8 @@ function loadConfig() {
     if (saved) {
       const cfg = JSON.parse(saved);
       appConfig = { ...appConfig, ...cfg };
-      // localStorage'daki çeyrek listesini badge olarak hemen göster
       if (Array.isArray(cfg.activeQuarters) && cfg.activeQuarters.length > 0) {
-        setTimeout(function() { _restoreQuarterBadge(cfg.activeQuarters); }, 0);
+        setTimeout(function() { if (typeof _restoreQuarterBadge === 'function') _restoreQuarterBadge(cfg.activeQuarters); }, 500);
       }
     }
   } catch(e) {}
@@ -3267,112 +3263,72 @@ function updateSummaryStats(inspectors) {
   document.getElementById('avg-working-days').textContent = avgWorkingDays + ' ' + (translations[currentLang]||translations.tr).days_suffix;
   document.getElementById('total-products').textContent = formatTR(totalProducts);
 
-  // Çeyrek badge'ini güncelle
   renderQuarterBadge(inspectors);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ÇEYREK BADGE — Dashboard başlığındaki Q1/Q2/Q3/Q4 göstergesi
-// Kayıt tarihlerine (baslangic / bitis) bakarak veri hangi çeyreklere ait
-// olduğunu hesaplar ve renkli chip olarak gösterir.
-//
-// Çeyrek tanımı (tabloya göre):
-//   Q1 → Şubat–Mart–Nisan    (aylar 2-3-4)
-//   Q2 → Mayıs–Haziran–Temmuz (aylar 5-6-7)
-//   Q3 → Ağustos–Eylül–Ekim  (aylar 8-9-10)
-//   Q4 → Kasım–Aralık–Ocak   (aylar 11-12-1)
-// ══════════════════════════════════════════════════════════════════════════════
+// ― ÇEYREK BADGE ―
+// Q1(2-3-4) Q2(5-6-7) Q3(8-9-10) Q4(11-12-1)
 function _ayToQuarter(month) {
-  // month: 1-12
   if (month >= 2 && month <= 4)  return 'Q1';
   if (month >= 5 && month <= 7)  return 'Q2';
   if (month >= 8 && month <= 10) return 'Q3';
-  return 'Q4'; // 11, 12, 1
+  return 'Q4';
 }
 
-const _QUARTER_META = {
+var _QUARTER_META = {
   Q1: { label: 'Q1 Inspector Performansları', months: 'Şub–Mar–Nis', cls: 'q1' },
   Q2: { label: 'Q2 Inspector Performansları', months: 'May–Haz–Tem', cls: 'q2' },
   Q3: { label: 'Q3 Inspector Performansları', months: 'Ağu–Eyl–Eki', cls: 'q3' },
-  Q4: { label: 'Q4 Inspector Performansları', months: 'Kas–Ara–Oca', cls: 'q4' },
+  Q4: { label: 'Q4 Inspector Performansları', months: 'Kas–Ara–Oca', cls: 'q4' }
 };
 
+function _buildQuarterChips(qs) {
+  return qs.map(function(q) {
+    var m = _QUARTER_META[q]; if (!m) return '';
+    return '<div class="quarter-chip ' + m.cls + '">' +
+      '<span class="qc-code">' + q + '</span>' +
+      '<span>' + m.label + ' <small style="opacity:.7">(' + m.months + ')</small></span>' +
+    '</div>';
+  }).join('');
+}
+
+function _restoreQuarterBadge(quarters) {
+  var w = document.getElementById('quarter-badge-wrap');
+  var l = document.getElementById('quarter-badge-list');
+  if (!w || !l || !quarters || !quarters.length) return;
+  l.innerHTML = _buildQuarterChips(quarters);
+  w.style.display = 'flex';
+}
+
 function renderQuarterBadge(inspectors) {
-  const wrap = document.getElementById('quarter-badge-wrap');
-  const list = document.getElementById('quarter-badge-list');
-  if (!wrap || !list) return;
-
-  if (!inspectors || !inspectors.length) {
-    wrap.style.display = 'none';
-    list.innerHTML = '';
-    return;
-  }
-
-  // Tüm kayıtların tarihlerini topla → hangi çeyrekler var?
-  const quarterSet = new Set();
-  const quarterMinDate = {}; // her çeyreğin en erken tarihi (bilgi için)
-  const quarterMaxDate = {}; // her çeyreğin en son tarihi
-
+  var w = document.getElementById('quarter-badge-wrap');
+  var l = document.getElementById('quarter-badge-list');
+  if (!w || !l) return;
+  if (!inspectors || !inspectors.length) { w.style.display = 'none'; l.innerHTML = ''; return; }
+  var qs = {};
   inspectors.forEach(function(insp) {
     Object.values(insp.klasmanlar || {}).forEach(function(kd) {
       (kd.kayitlar || []).forEach(function(k) {
-        // Önce baslangic, yoksa bitis tarihini dene
-        var dateToCheck = k.baslangic || k.bitis;
-        if (!dateToCheck) return;
-        var d = dateToCheck instanceof Date ? dateToCheck : new Date(dateToCheck);
+        var dt = k.baslangic || k.bitis;
+        if (!dt) return;
+        var d = dt instanceof Date ? dt : new Date(dt);
         if (isNaN(d.getTime())) return;
-        var q = _ayToQuarter(d.getMonth() + 1); // getMonth() 0-indexed
-        quarterSet.add(q);
-        if (!quarterMinDate[q] || d < quarterMinDate[q]) quarterMinDate[q] = d;
-        if (!quarterMaxDate[q] || d > quarterMaxDate[q]) quarterMaxDate[q] = d;
+        qs[_ayToQuarter(d.getMonth() + 1)] = true;
       });
     });
   });
-
-  if (quarterSet.size === 0) {
-    wrap.style.display = 'none';
-    list.innerHTML = '';
-    return;
-  }
-
-  // Sıralı çeyrekler
-  var orderedQ = ['Q1','Q2','Q3','Q4'].filter(function(q){ return quarterSet.has(q); });
-
-  list.innerHTML = orderedQ.map(function(q) {
-    var meta = _QUARTER_META[q];
-    var chipCls = orderedQ.length > 1 ? meta.cls : meta.cls;
-    return '<div class="quarter-chip ' + chipCls + '" title="' + meta.label + ' (' + meta.months + ')">' +
-      '<span class="qc-code">' + q + '</span>' +
-      '<span>' + meta.label + ' &nbsp;<small style="font-weight:500;opacity:.75">(' + meta.months + ')</small></span>' +
-    '</div>';
-  }).join('');
-
-  wrap.style.display = 'flex';
-
-  // Çeyrek listesini config'e kaydet ve Sheets'e push et
-  if (orderedQ.length > 0 && JSON.stringify(orderedQ) !== JSON.stringify(appConfig.activeQuarters || [])) {
-    appConfig.activeQuarters = orderedQ;
+  var ordered = ['Q1','Q2','Q3','Q4'].filter(function(q) { return qs[q]; });
+  if (!ordered.length) { w.style.display = 'none'; l.innerHTML = ''; return; }
+  l.innerHTML = _buildQuarterChips(ordered);
+  w.style.display = 'flex';
+  if (JSON.stringify(ordered) !== JSON.stringify(appConfig.activeQuarters || [])) {
+    appConfig.activeQuarters = ordered;
     try { localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(appConfig)); } catch(e) {}
     clearTimeout(window._quarterPushTimer);
     window._quarterPushTimer = setTimeout(function() { pushConfigToSheets(); }, 3000);
   }
 }
 
-// Sheets'ten çekilen çeyrek listesiyle badge'i yeniden oluştur (veri olmadan)
-function _restoreQuarterBadge(quarters) {
-  var wrap = document.getElementById('quarter-badge-wrap');
-  var list = document.getElementById('quarter-badge-list');
-  if (!wrap || !list || !quarters || !quarters.length) return;
-  list.innerHTML = quarters.map(function(q) {
-    var meta = _QUARTER_META[q];
-    if (!meta) return '';
-    return '<div class="quarter-chip ' + meta.cls + '" title="' + meta.label + ' (' + meta.months + ')">' +
-      '<span class="qc-code">' + q + '</span>' +
-      '<span>' + meta.label + ' &nbsp;<small style="font-weight:500;opacity:.75">(' + meta.months + ')</small></span>' +
-    '</div>';
-  }).join('');
-  wrap.style.display = 'flex';
-}
 
 // ────────────────────────────
 // HEDEF VERİMLİLİK DEĞİŞİNCE
@@ -9983,3 +9939,6 @@ function showSebepInspectorDetay(sebep) {
 
   popup.style.display = 'flex';
 }
+      if (Array.isArray(data.config.activeQuarters) && data.config.activeQuarters.length > 0) {
+        appConfig.activeQuarters = data.config.activeQuarters;
+      }
