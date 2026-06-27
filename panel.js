@@ -3304,7 +3304,13 @@ function renderQuarterBadge(inspectors) {
   var w = document.getElementById('quarter-badge-wrap');
   var l = document.getElementById('quarter-badge-list');
   if (!w || !l) return;
-  if (!inspectors || !inspectors.length) { w.style.display = 'none'; l.innerHTML = ''; return; }
+  if (!inspectors || !inspectors.length) {
+    // Veri yokken kaydedilmiş çeyreği koru — Sheets'ten çekilmeden önce badge'i silme
+    if (!appConfig.activeQuarters || !appConfig.activeQuarters.length) {
+      w.style.display = 'none'; l.innerHTML = '';
+    }
+    return;
+  }
   var qs = {};
   inspectors.forEach(function(insp) {
     Object.values(insp.klasmanlar || {}).forEach(function(kd) {
