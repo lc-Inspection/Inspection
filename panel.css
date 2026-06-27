@@ -1,4 +1,3 @@
-
 /* Analiz Overlay Tablosu satır çizgileri */
 #ao-tablo-body tr {
   border-bottom: 1px solid #E8F2FD;
@@ -140,7 +139,7 @@ body {
 @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* ─── PAGE HEADER ─── */
-.ph { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; }
+.ph { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; gap: 14px; flex-wrap: wrap; }
 .ph-left h1 { font-size: 21px; font-weight: 600; color: var(--navy); letter-spacing: -.4px; }
 .ph-left p { font-size: 12px; color: var(--muted); margin-top: 3px; }
 .ph-buttons { display: flex; gap: 10px; align-items: center; }
@@ -1315,3 +1314,39 @@ label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; 
 
 /* Ekip Yöneticileri toggle hover */
 #team-managers-toggle:hover { background: linear-gradient(135deg, #D6EBFF 0%, #fff 100%); }
+
+/* ── ÇEYREK BADGE ── */
+.quarter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px 6px 10px;
+  border-radius: 99px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  cursor: default;
+  border: 2px solid transparent;
+  transition: transform .15s, box-shadow .15s;
+  white-space: nowrap;
+}
+.quarter-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.quarter-chip .qc-code {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: .4px;
+}
+/* Renk varyantları */
+.quarter-chip.q1 { background: #E8F5E9; border-color: #2E7D32; color: #1B5E20; }
+.quarter-chip.q1 .qc-code { background: #2E7D32; color: #fff; }
+.quarter-chip.q2 { background: #E3F2FD; border-color: #1565C0; color: #0D47A1; }
+.quarter-chip.q2 .qc-code { background: #1565C0; color: #fff; }
+.quarter-chip.q3 { background: #FFF8E1; border-color: #F57F17; color: #E65100; }
+.quarter-chip.q3 .qc-code { background: #F57F17; color: #fff; }
+.quarter-chip.q4 { background: #FCE4EC; border-color: #880E4F; color: #880E4F; }
+.quarter-chip.q4 .qc-code { background: #880E4F; color: #fff; }
+.quarter-chip.multi { background: #F3E5F5; border-color: #6A1B9A; color: #4A148C; }
+.quarter-chip.multi .qc-code { background: #6A1B9A; color: #fff; }
