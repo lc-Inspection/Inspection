@@ -782,7 +782,7 @@ async function autoFetchOnStartup() {
   // ── Tümünü kaydet ve render et ──
   saveData();
   updateSidebar();
-  renderDashboard();
+  renderDashboard(); renderQuarterBadge(performansData);
   renderPerfTabloFromData();
   renderTopInspectors();
   showStartupBanner(`✅ Sheets senkronizasyonu tamamlandı (${klasmanlar.length} klasman, ${performansData.length} inspector)`, 'success');
@@ -1854,7 +1854,7 @@ async function pullFromSheets() {
         console.warn('Performans çekme hatası (önemsiz):', perfErr.message);
       }
 
-      renderDashboard();       // inspector kartlarını performans verisiyle yeniden çiz
+      renderDashboard(); renderQuarterBadge(performansData);       // inspector kartlarını performans verisiyle yeniden çiz
       showSuccessMessage(`✅ ${count} ` + (translations[currentLang]||translations.tr).sheets_updated_count);
     } else {
       alert('❌ Geçersiz veri formatı döndü.\nApps Script doğru yapılandırıldı mı?');
@@ -2093,7 +2093,7 @@ async function pullPerformansFromSheets(silent = false) {
       performansData = fixVerimlilikPerf(restorePerformansDateObjects(data.performansData));
       // verimlilikPerf hedefVerimlilik'e göre yeniden hesaplandı
       saveData();
-      renderDashboard();
+      renderDashboard(); renderQuarterBadge(performansData);
       updateSidebar();
       renderTopInspectors();
       if (!silent) showSuccessMessage(`✅ ${performansData.length} ` + (translations[currentLang]||translations.tr).sheets_loaded_perf);
@@ -3301,16 +3301,8 @@ function _restoreQuarterBadge(quarters) {
 }
 
 function renderQuarterBadge(inspectors) {
-  var w = document.getElementById('quarter-badge-wrap');
-  var l = document.getElementById('quarter-badge-list');
-  if (!w || !l) return;
-  if (!inspectors || !inspectors.length) {
-    // Veri yokken kaydedilmiş çeyreği koru — Sheets'ten çekilmeden önce badge'i silme
-    if (!appConfig.activeQuarters || !appConfig.activeQuarters.length) {
-      w.style.display = 'none'; l.innerHTML = '';
-    }
-    return;
-  }
+  // Sadece gerçek veri varsa badge'i güncelle; hiçbir koşulda silme
+  if (!inspectors || !inspectors.length) return;
   var qs = {};
   inspectors.forEach(function(insp) {
     Object.values(insp.klasmanlar || {}).forEach(function(kd) {
@@ -3324,9 +3316,8 @@ function renderQuarterBadge(inspectors) {
     });
   });
   var ordered = ['Q1','Q2','Q3','Q4'].filter(function(q) { return qs[q]; });
-  if (!ordered.length) { w.style.display = 'none'; l.innerHTML = ''; return; }
-  l.innerHTML = _buildQuarterChips(ordered);
-  w.style.display = 'flex';
+  if (!ordered.length) return; // tarih yoksa badge'e dokunma
+  _restoreQuarterBadge(ordered);
   if (JSON.stringify(ordered) !== JSON.stringify(appConfig.activeQuarters || [])) {
     appConfig.activeQuarters = ordered;
     try { localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(appConfig)); } catch(e) {}
