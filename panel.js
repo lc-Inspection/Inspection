@@ -588,7 +588,8 @@ let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
   sheetsWebAppUrl: DEFAULT_SHEETS_URL,
   sheetsViewUrl: '',
-  sheetsApiToken: DEFAULT_API_TOKEN
+  sheetsApiToken: DEFAULT_API_TOKEN,
+  activeQuarters: []     // Son yüklenen verinin çeyrek listesi — Sheets Config'e kaydedilir
 };
 
 // ────────────────────────────
@@ -633,7 +634,8 @@ async function pushConfigToSheets() {
         token: token,
         config: {
           password: appConfig.password,
-          geminiApiKey: geminiKey
+          geminiApiKey: geminiKey,
+          activeQuarters: appConfig.activeQuarters || []
         }
       }),
       mode: 'no-cors'
@@ -707,6 +709,12 @@ async function pullConfigFromSheets() {
         const keyInput = document.getElementById('ao-gkey');
         if (keyInput) keyInput.value = data.config.geminiApiKey;
         console.log('✅ Gemini API anahtarı Sheets\'ten yüklendi');
+      }
+      // Aktif çeyrek listesini yükle ve badge'i güncelle
+      if (Array.isArray(data.config.activeQuarters) && data.config.activeQuarters.length > 0) {
+        appConfig.activeQuarters = data.config.activeQuarters;
+        _restoreQuarterBadge(appConfig.activeQuarters);
+        console.log('✅ Aktif çeyrekler Sheets\'ten yüklendi:', appConfig.activeQuarters.join(', '));
       }
       localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(appConfig));
       console.log('✅ Config Sheets\'ten çekildi');
@@ -813,6 +821,10 @@ function loadConfig() {
     if (saved) {
       const cfg = JSON.parse(saved);
       appConfig = { ...appConfig, ...cfg };
+      // localStorage'daki çeyrek listesini badge olarak hemen göster
+      if (Array.isArray(cfg.activeQuarters) && cfg.activeQuarters.length > 0) {
+        setTimeout(function() { _restoreQuarterBadge(cfg.activeQuarters); }, 0);
+      }
     }
   } catch(e) {}
   // URL her zaman sabit kalır — localStorage'daki eski değer görmezden gelinir (v5.2)
@@ -3335,6 +3347,30 @@ function renderQuarterBadge(inspectors) {
     '</div>';
   }).join('');
 
+  wrap.style.display = 'flex';
+
+  // Çeyrek listesini config'e kaydet ve Sheets'e push et
+  if (orderedQ.length > 0 && JSON.stringify(orderedQ) !== JSON.stringify(appConfig.activeQuarters || [])) {
+    appConfig.activeQuarters = orderedQ;
+    try { localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(appConfig)); } catch(e) {}
+    clearTimeout(window._quarterPushTimer);
+    window._quarterPushTimer = setTimeout(function() { pushConfigToSheets(); }, 3000);
+  }
+}
+
+// Sheets'ten çekilen çeyrek listesiyle badge'i yeniden oluştur (veri olmadan)
+function _restoreQuarterBadge(quarters) {
+  var wrap = document.getElementById('quarter-badge-wrap');
+  var list = document.getElementById('quarter-badge-list');
+  if (!wrap || !list || !quarters || !quarters.length) return;
+  list.innerHTML = quarters.map(function(q) {
+    var meta = _QUARTER_META[q];
+    if (!meta) return '';
+    return '<div class="quarter-chip ' + meta.cls + '" title="' + meta.label + ' (' + meta.months + ')">' +
+      '<span class="qc-code">' + q + '</span>' +
+      '<span>' + meta.label + ' &nbsp;<small style="font-weight:500;opacity:.75">(' + meta.months + ')</small></span>' +
+    '</div>';
+  }).join('');
   wrap.style.display = 'flex';
 }
 
