@@ -114,7 +114,7 @@ function aoRefreshSheetsData() {
     return list;
   };
 
-  jsonpFetch(url, { action: 'getInspectorKayitlar', token, inspectorAdi: inspector.ins.normalize('NFC').trim() })
+  jsonpFetch(url, { action: 'getInspectorKayitlar', token, inspectorAdi: inspector.ins.normalize('NFC').trim().toUpperCase() })
     .then(function(data) {
       if (data.status === 'ok' && data.kayitlar && typeof data.kayitlar === 'object') {
         const insKlasmanKeys = Object.keys(inspector.klasmanlar);
