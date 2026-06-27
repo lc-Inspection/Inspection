@@ -1013,3 +1013,422 @@ function _renderGunlukTablo() {
   tbody.innerHTML = rows;
 }
   
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PDF & MAİL — Detaylı Performans Raporu
+// Chart.js ile pasta grafikler → html2canvas → jsPDF → PDF indir + mailto aç
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function aoGeneratePdfAndMail() {
+  var btn = document.getElementById('ao-pdf-btn');
+  if (btn) { btn.textContent = '⏳ Hazırlanıyor...'; btn.disabled = true; }
+
+  try {
+    // ── Kütüphaneleri sırayla yükle ──────────────────────────────────────────
+    await _aoPdfLoadLib('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', function() { return !!window.html2canvas; });
+    await _aoPdfLoadLib('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',     function() { return !!(window.Chart); });
+    await _aoPdfLoadLib('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',       function() { return !!(window.jspdf && window.jspdf.jsPDF); });
+
+    // ── Veri hazırla ─────────────────────────────────────────────────────────
+    var insp    = _aoInspector;
+    var data    = _aoData;
+    var hedef   = _aoHedef;
+    var hamPerf = insp.genelHizPerf || 0;
+    var duzPerf = Math.round(hamPerf * (100 / hedef));
+    var totalAdet  = data.reduce(function(s,k){ return s + k.adet; }, 0);
+    var totalStd   = data.reduce(function(s,k){ return s + k.standartSure; }, 0);
+    var totalFiili = data.reduce(function(s,k){ return s + k.kayitFiiliSure; }, 0);
+    var overtimeDk = Math.round((insp.toplamMesaistiSaniye || 0) / 60);
+
+    // Klasman dağılımı (top 8 + diğer)
+    var klMap = {};
+    data.forEach(function(k) {
+      var ad = k.klasman || 'Diğer';
+      klMap[ad] = (klMap[ad] || 0) + (k.adet || 0);
+    });
+    var klList = Object.keys(klMap).map(function(ad){ return {ad:ad, adet:klMap[ad]}; })
+      .sort(function(a,b){ return b.adet - a.adet; });
+    var top8 = klList.slice(0, 8);
+    var digAdet = klList.slice(8).reduce(function(s,k){ return s + k.adet; }, 0);
+    if (digAdet > 0) top8.push({ad:'Diğer', adet:digAdet});
+
+    // Performans dağılımı pie: Mükemmel/İyi/Orta/Zayıf/Çok Zayıf
+    var perfBands = [
+      {label:'Mükemmel (≥95%)', color:'#00897B', count:0},
+      {label:'İyi (85-94%)',    color:'#1565C0', count:0},
+      {label:'Orta (70-84%)',   color:'#F57F17', count:0},
+      {label:'Zayıf (50-69%)', color:'#EF5350', count:0},
+      {label:'Çok Zayıf (<50%)',color:'#B71C1C', count:0}
+    ];
+    var kayitPerfs = data.map(function(k){
+      if (!k.standartSure || !k.kayitFiiliSure) return null;
+      return Math.round(k.standartSure / k.kayitFiiliSure * 100);
+    }).filter(function(p){ return p !== null; });
+    kayitPerfs.forEach(function(p){
+      if      (p >= 95) perfBands[0].count++;
+      else if (p >= 85) perfBands[1].count++;
+      else if (p >= 70) perfBands[2].count++;
+      else if (p >= 50) perfBands[3].count++;
+      else              perfBands[4].count++;
+    });
+    var perfBandsFiltered = perfBands.filter(function(b){ return b.count > 0; });
+
+    // Mesai vs Normal süre
+    var normalSn  = Math.max(0, (insp.mesaiSure || 0) - (insp.toplamMesaistiSaniye || 0));
+    var mesaistiSn = insp.toplamMesaistiSaniye || 0;
+
+    // ── Gizli canvas'lar oluştur ──────────────────────────────────────────────
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:180px;height:180px;background:#fff;';
+    document.body.appendChild(wrap);
+
+    async function makeChart(type, labels, values, colors, title) {
+      var c = document.createElement('canvas');
+      c.width = 180; c.height = 180;
+      var tmp = document.createElement('div');
+      tmp.style.cssText = 'width:180px;height:180px;background:#fff;';
+      tmp.appendChild(c);
+      wrap.appendChild(tmp);
+
+      var chart = new Chart(c.getContext('2d'), {
+        type: type,
+        data: {
+          labels: labels,
+          datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }]
+        },
+        options: {
+          animation: false,
+          responsive: false,
+          plugins: {
+            legend: { display: false },
+            title: { display: false }
+          }
+        }
+      });
+      // Chart.js render bekle
+      await new Promise(function(r){ setTimeout(r, 200); });
+      var png = c.toDataURL('image/png');
+      chart.destroy();
+      return png;
+    }
+
+    // Pasta 1: Klasman dağılımı
+    var klColors = ['#1565C0','#00897B','#F57F17','#8E24AA','#D84315','#00838F','#558B2F','#6D4C41','#546E7A'];
+    var klPng = await makeChart('doughnut',
+      top8.map(function(k){ return k.ad; }),
+      top8.map(function(k){ return k.adet; }),
+      klColors.slice(0, top8.length),
+      'Klasman Dağılımı'
+    );
+
+    // Pasta 2: Performans bant dağılımı (kayıt bazlı)
+    var perfPng = await makeChart('pie',
+      perfBandsFiltered.map(function(b){ return b.label; }),
+      perfBandsFiltered.map(function(b){ return b.count; }),
+      perfBandsFiltered.map(function(b){ return b.color; }),
+      'Performans Dağılımı'
+    );
+
+    // Pasta 3: Mesai vs Normal süre
+    var mesaiPng = (normalSn + mesaistiSn) > 0
+      ? await makeChart('pie',
+          ['Normal Mesai', 'Overtime'],
+          [normalSn, mesaistiSn],
+          ['#1565C0', '#E65100'],
+          'Mesai Dağılımı'
+        )
+      : null;
+
+    document.body.removeChild(wrap);
+
+    // ── jsPDF ile PDF oluştur ──────────────────────────────────────────────────
+    var jsPDF = window.jspdf.jsPDF;
+    var pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    var W = 210, H = 297;
+    var margin = 14;
+    var y = 0;
+
+    // ── Sayfa 1: Kapak ──
+    // Koyu header bar
+    pdf.setFillColor(11, 31, 58);
+    pdf.rect(0, 0, W, 38, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(18);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('INSPECTOR PERFORMANS RAPORU', margin, 16);
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('KalibRe Inspection Control System', margin, 24);
+
+    // Tarih
+    var now = new Date();
+    var dateStr = now.toLocaleDateString('tr-TR', {day:'2-digit',month:'long',year:'numeric'});
+    pdf.text(dateStr, W - margin, 24, { align: 'right' });
+
+    // Inspector bilgi kutusu
+    y = 46;
+    pdf.setFillColor(238, 247, 255);
+    pdf.roundedRect(margin, y, W - margin*2, 36, 3, 3, 'F');
+    pdf.setTextColor(11, 31, 58);
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(insp.ins || '—', margin + 5, y + 10);
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(90, 127, 168);
+
+    var perfColor24 = duzPerf >= 95 ? [0,137,123] : duzPerf >= 85 ? [21,101,192] : duzPerf >= 70 ? [245,127,23] : duzPerf >= 50 ? [239,83,80] : [183,28,28];
+    pdf.setTextColor.apply(pdf, perfColor24);
+    pdf.setFontSize(28);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(duzPerf + '%', W - margin - 5, y + 20, { align: 'right' });
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('DÜZ. PERFORMANS', W - margin - 5, y + 27, { align: 'right' });
+
+    pdf.setTextColor(90, 127, 168);
+    var metaBits = [
+      'Toplam Adet: ' + totalAdet.toLocaleString('tr-TR'),
+      'Kayit Sayisi: ' + data.length,
+      'Calisma Gunu: ' + (insp.gunSayisi || 0),
+      'Hedef: %' + hedef
+    ];
+    pdf.setFontSize(9);
+    metaBits.forEach(function(bit, i) {
+      pdf.text(bit, margin + 5, y + 20 + i * 5.5);
+    });
+
+    // ── 5 Özet Stat Kutusu ──
+    y += 44;
+    var statCards = [
+      {label:'TOPLAM ADET', val:totalAdet.toLocaleString('tr-TR'), color:[21,101,192]},
+      {label:'STANDART SURE', val:_aoFmtSn(totalStd), color:[11,31,58]},
+      {label:'GERCEKLESEN', val:totalFiili > 0 ? _aoFmtSn(totalFiili) : '—', color:[0,137,123]},
+      {label:'MESAI', val:_aoFmtSn(insp.mesaiSure||0), color:overtimeDk > 0 ? [230,81,0] : [11,31,58]},
+      {label:'KAYIT SAYISI', val:String(data.length), color:[11,31,58]}
+    ];
+    var cardW = (W - margin*2 - 8) / 5;
+    statCards.forEach(function(sc, i) {
+      var cx = margin + i * (cardW + 2);
+      pdf.setFillColor(250, 252, 255);
+      pdf.roundedRect(cx, y, cardW, 20, 2, 2, 'F');
+      pdf.setDrawColor(200, 220, 240);
+      pdf.roundedRect(cx, y, cardW, 20, 2, 2, 'S');
+      pdf.setTextColor.apply(pdf, sc.color);
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(sc.val, cx + cardW/2, y + 9, { align: 'center' });
+      pdf.setTextColor(90, 127, 168);
+      pdf.setFontSize(6.5);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(sc.label, cx + cardW/2, y + 16, { align: 'center' });
+    });
+
+    // ── Grafikler: 3 pasta yan yana ──
+    y += 26;
+    pdf.setTextColor(11, 31, 58);
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('GRAFIKLER', margin, y);
+    y += 4;
+    pdf.setDrawColor(21, 101, 192);
+    pdf.setLineWidth(0.4);
+    pdf.line(margin, y, W - margin, y);
+    y += 4;
+
+    var chartSize = 50;
+    var chartGap  = (W - margin*2 - chartSize*3) / 2;
+
+    function drawPie(pngData, title, legendItems, startX) {
+      // Grafik
+      pdf.addImage(pngData, 'PNG', startX, y, chartSize, chartSize);
+      // Başlık
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(11, 31, 58);
+      pdf.text(title, startX + chartSize/2, y - 2, { align: 'center' });
+      // Lejant
+      var ly = y + chartSize + 3;
+      pdf.setFontSize(6.5);
+      pdf.setFont('helvetica', 'normal');
+      legendItems.slice(0,6).forEach(function(item, ii) {
+        var r=parseInt(item.color.slice(1,3),16), g=parseInt(item.color.slice(3,5),16), b=parseInt(item.color.slice(5,7),16);
+        pdf.setFillColor(r,g,b);
+        pdf.rect(startX, ly, 3, 3, 'F');
+        pdf.setTextColor(60,60,80);
+        var lbl = item.label.length > 16 ? item.label.slice(0,16)+'…' : item.label;
+        pdf.text(lbl + ' (' + item.val + ')', startX + 4.5, ly + 2.5);
+        ly += 5;
+      });
+    }
+
+    // Pasta 1: Klasman
+    drawPie(klPng, 'Klasman Dagilimi',
+      top8.map(function(k,i){ return {label:k.ad, val:k.adet.toLocaleString('tr-TR'), color:klColors[i]||'#546E7A'}; }),
+      margin
+    );
+
+    // Pasta 2: Performans bantları
+    drawPie(perfPng, 'Performans Dagilimi (Kayit Bazli)',
+      perfBandsFiltered.map(function(b){ return {label:b.label, val:b.count+' kayit', color:b.color}; }),
+      margin + chartSize + chartGap
+    );
+
+    // Pasta 3: Mesai (opsiyonel)
+    if (mesaiPng) {
+      drawPie(mesaiPng, 'Mesai Dagilimi',
+        [{label:'Normal', val:_aoFmtSn(normalSn), color:'#1565C0'},
+         {label:'Overtime', val:_aoFmtSn(mesaistiSn), color:'#E65100'}],
+        margin + (chartSize + chartGap) * 2
+      );
+    }
+
+    // ── Sayfa 2: Top Klasmanlar Tablosu ──
+    pdf.addPage();
+    pdf.setFillColor(11, 31, 58);
+    pdf.rect(0, 0, W, 18, 'F');
+    pdf.setTextColor(255,255,255);
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('EN FAZLA KONTROL EDILEN KLASMANLAR — ' + (insp.ins || ''), margin, 12);
+
+    y = 26;
+    var colW = [(W - margin*2) * 0.50, (W - margin*2) * 0.25, (W - margin*2) * 0.25];
+
+    // Tablo header
+    pdf.setFillColor(21, 101, 192);
+    pdf.rect(margin, y, W - margin*2, 8, 'F');
+    pdf.setTextColor(255,255,255);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('KLASMAN', margin + 3, y + 5.5);
+    pdf.text('ADET', margin + colW[0] + colW[1]/2, y + 5.5, {align:'center'});
+    pdf.text('KAYIT SAYISI', margin + colW[0] + colW[1] + colW[2]/2, y + 5.5, {align:'center'});
+    y += 8;
+
+    klList.slice(0, 30).forEach(function(k, i) {
+      if (y > H - 20) { pdf.addPage(); y = 20; }
+      var rowH = 7;
+      pdf.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 251 : 255, 255);
+      pdf.rect(margin, y, W - margin*2, rowH, 'F');
+      pdf.setDrawColor(220, 235, 255);
+      pdf.rect(margin, y, W - margin*2, rowH, 'S');
+      pdf.setTextColor(11, 31, 58);
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'normal');
+      var kName = k.ad.length > 35 ? k.ad.slice(0,35)+'…' : k.ad;
+      pdf.text(String(i+1)+'. '+kName, margin + 3, y + 5);
+      pdf.text(k.adet.toLocaleString('tr-TR'), margin + colW[0] + colW[1]/2, y + 5, {align:'center'});
+      var kayit = data.filter(function(r){ return r.klasman === k.ad; }).length;
+      pdf.text(String(kayit), margin + colW[0] + colW[1] + colW[2]/2, y + 5, {align:'center'});
+      y += rowH;
+    });
+
+    // ── Sayfa 3: Kayıt Detay Tablosu ──
+    pdf.addPage();
+    pdf.setFillColor(11, 31, 58);
+    pdf.rect(0, 0, W, 18, 'F');
+    pdf.setTextColor(255,255,255);
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('KAYIT DETAY TABLOSU — ' + (insp.ins || ''), margin, 12);
+
+    y = 26;
+    var dColW = [(W-margin*2)*0.35, (W-margin*2)*0.12, (W-margin*2)*0.15, (W-margin*2)*0.15, (W-margin*2)*0.12, (W-margin*2)*0.11];
+    var dHeaders = ['KLASMAN','ADET','STANDART','GERCEK','BASLANGIC','ORAN%'];
+
+    pdf.setFillColor(21, 101, 192);
+    pdf.rect(margin, y, W - margin*2, 8, 'F');
+    pdf.setTextColor(255,255,255);
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica', 'bold');
+    var dX = margin;
+    dHeaders.forEach(function(h, i) {
+      pdf.text(h, dX + dColW[i]/2, y + 5.5, {align:'center'});
+      dX += dColW[i];
+    });
+    y += 8;
+
+    var sortedData = data.slice().sort(function(a,b){ return b.adet - a.adet; });
+    sortedData.slice(0, 60).forEach(function(k, i) {
+      if (y > H - 18) { pdf.addPage(); y = 20; }
+      var rH = 6.5;
+      pdf.setFillColor(i%2===0 ? 248:255, i%2===0 ? 251:255, 255);
+      pdf.rect(margin, y, W-margin*2, rH, 'F');
+
+      var oran = (k.standartSure && k.kayitFiiliSure) ? Math.round(k.standartSure/k.kayitFiiliSure*100) : null;
+      var oranColor = oran === null ? [150,150,150] : oran >= 95 ? [0,137,123] : oran >= 70 ? [245,127,23] : [183,28,28];
+
+      pdf.setTextColor(11,31,58);
+      pdf.setFontSize(7);
+      pdf.setFont('helvetica', 'normal');
+
+      var kx = margin;
+      var kName = (k.klasman||'—');
+      if (kName.length > 28) kName = kName.slice(0,28)+'…';
+      pdf.text(kName, kx+2, y+4.5); kx += dColW[0];
+      pdf.text(String(k.adet||0), kx+dColW[1]/2, y+4.5, {align:'center'}); kx += dColW[1];
+      pdf.text(_aoFmtSn(k.standartSure), kx+dColW[2]/2, y+4.5, {align:'center'}); kx += dColW[2];
+      pdf.text(k.kayitFiiliSure>0 ? _aoFmtSn(k.kayitFiiliSure):'—', kx+dColW[3]/2, y+4.5, {align:'center'}); kx += dColW[3];
+      var tarihStr = k.baslangic ? _aoFmtTarih(k.baslangic instanceof Date ? k.baslangic : new Date(k.baslangic)) : '—';
+      pdf.text(tarihStr, kx+dColW[4]/2, y+4.5, {align:'center'}); kx += dColW[4];
+      pdf.setTextColor.apply(pdf, oranColor);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(oran !== null ? '%'+oran : '—', kx+dColW[5]/2, y+4.5, {align:'center'});
+      y += rH;
+    });
+
+    // ── Footer her sayfaya ──
+    var pageCount = pdf.internal.getNumberOfPages();
+    for (var p = 1; p <= pageCount; p++) {
+      pdf.setPage(p);
+      pdf.setFillColor(11, 31, 58);
+      pdf.rect(0, H - 10, W, 10, 'F');
+      pdf.setTextColor(255,255,255);
+      pdf.setFontSize(7);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('KalibRe Inspection Performans | ' + dateStr, margin, H - 4);
+      pdf.text('Sayfa ' + p + ' / ' + pageCount, W - margin, H - 4, {align:'right'});
+    }
+
+    // ── PDF kaydet ──
+    var fileName = 'performans_' + (insp.ins || 'inspector').replace(/\s+/g,'_') + '_' + now.toISOString().slice(0,10) + '.pdf';
+    pdf.save(fileName);
+
+    // ── Mail aç (kısa özet ile) ──
+    var subject = encodeURIComponent('Performans Raporu — ' + (insp.ins||'') + ' — ' + dateStr);
+    var body = encodeURIComponent(
+      'Merhaba,\n\n' +
+      (insp.ins||'') + ' adlı inspector\'un performans raporu ekte sunulmaktadır.\n\n' +
+      '📊 Özet:\n' +
+      '  • Düzeltilmiş Performans : %' + duzPerf + '\n' +
+      '  • Toplam Adet           : ' + totalAdet.toLocaleString('tr-TR') + '\n' +
+      '  • Kayıt Sayısı          : ' + data.length + '\n' +
+      '  • Çalışma Günü          : ' + (insp.gunSayisi||0) + '\n' +
+      '  • Standart Süre         : ' + _aoFmtSn(totalStd) + '\n' +
+      '  • Gerçekleşen Süre      : ' + (totalFiili>0 ? _aoFmtSn(totalFiili) : '—') + '\n' +
+      (overtimeDk > 0 ? '  • Overtime              : ' + overtimeDk + ' dakika\n' : '') +
+      '\nDetaylı rapor (PDF) ektedir. KalibRe panelinden oluşturulmuştur.\n\n' +
+      'İyi çalışmalar.'
+    );
+    window.open('mailto:?subject=' + subject + '&body=' + body);
+
+  } catch(err) {
+    alert('PDF oluşturma hatası: ' + err.message);
+    console.error(err);
+  } finally {
+    if (btn) { btn.textContent = '📄 PDF & Mail'; btn.disabled = false; }
+  }
+}
+
+// Kütüphane yükleme yardımcısı
+function _aoPdfLoadLib(src, checkFn) {
+  return new Promise(function(resolve, reject) {
+    if (checkFn()) { resolve(); return; }
+    var s = document.createElement('script');
+    s.src = src;
+    s.onload  = function() { setTimeout(resolve, 100); };
+    s.onerror = function() { reject(new Error('Yüklenemedi: ' + src)); };
+    document.head.appendChild(s);
+  });
+}
