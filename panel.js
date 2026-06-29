@@ -5801,6 +5801,12 @@ function performansHesapla(){
     }
     const kl = inspectorMap[ins].klasmanlar[klasmanKey2];
 
+    // Ertesi güne geçen kayıtlar için normal/overtime sınırını belirle
+    // Bitiş farklı gündeyse başlangıç gününün 16:30’unu kullan
+    const _bitisSaatKontrol = (parsedBitis && parsedBaslangic && parsedBitis.toDateString() !== parsedBaslangic.toDateString())
+      ? (function(){ var d = new Date(parsedBaslangic); d.setHours(16,30,0,0); return d; })()
+      : parsedBitis;
+
     // 2.Kalite kayıtları VARSAYILAN OLARAK genel performans hesabından TAMAMEN
     // hariç tutulur (ne adet/standart süre payına, ne mesai/overtime paydasına
     // dahil edilir) — sadece kendi ayrı toplamlarında (toplam2Kalite*) izlenir.
@@ -5817,11 +5823,6 @@ function performansHesapla(){
       }
     } else {
       // Overtime toggle kontrolü: kapalıysa overtime kayıtları hesaba girmesin
-      // Ertesi güne geçen kayıtlar için bitiş saati ertesi gün sabahı olduğundan
-      // kayitNormalMi başlangıç günündeki 16:30 sınırına göre bakılmalı
-      const _bitisSaatKontrol = (parsedBitis && parsedBaslangic && parsedBitis.toDateString() !== parsedBaslangic.toDateString())
-        ? (function(){ var d = new Date(parsedBaslangic); d.setHours(16,30,0,0); return d; })()
-        : parsedBitis;
       const kayitNormalSayilir = kayitNormalMi(_bitisSaatKontrol);
       if (!_overtimeDahil && !kayitNormalSayilir) {
         // Overtime kaydı, toggle kapalı → atla (ne adet ne standart süre ekleme)
