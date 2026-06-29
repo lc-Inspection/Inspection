@@ -3687,6 +3687,122 @@ function on2KaliteDahilChange() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ÖRNEKLEME MODU DEĞİŞİNCE YENİDEN HESAPLAMA
+// excelRows yoksa (Sheets'ten yüklenmiş) performansData.rawKayitlar'dan hesaplar
+// ─────────────────────────────────────────────────────────────────────────────
+function yenidenHesaplaOrnekleme() {
+  // Excel verisi varsa performansHesapla() zaten doğru yapıyor
+  if (typeof excelRows !== 'undefined' && excelRows && excelRows.length > 0) {
+    performansHesapla();
+    return;
+  }
+
+  if (!performansData || !performansData.length) {
+    showFileStatus('⚠️ Örnekleme modunu değiştirmek için Excel dosyasını yükleyin.', 'var(--amber)');
+    return;
+  }
+
+  // rawKayitlar yoksa (eski Sheets verisi) uyar
+  if (!performansData[0].rawKayitlar) {
+    showFileStatus('⚠️ Bu veri örnekleme yeniden hesaplamayı desteklemiyor. Excel dosyasını yükleyin.', 'var(--amber)');
+    return;
+  }
+
+  const mod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
+  const verimlilikHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
+
+  performansData.forEach(inspector => {
+    if (!inspector.rawKayitlar || !inspector.rawKayitlar.length) return;
+
+    // klasman bazında yeniden topla
+    const klasmanToplam = {};
+    let yeniToplamAdet = 0;
+    let yeniToplamStandartSure = 0;
+    let yeniToplamStandartSureNormal = 0;
+    let yeniToplamStandartSureOvertime = 0;
+
+    inspector.rawKayitlar.forEach(kayit => {
+      // Örnekleme sonucu adeti yeniden hesapla
+      const yeniAdet = orneklemeAdet(kayit.adetHam || kayit.adet, mod);
+
+      // Standart süreyi yeniden hesapla
+      const olcuAdet     = yeniAdet <= 32 ? 6 : yeniAdet <= 125 ? 9 : 12;
+      const kabulKat     = yeniAdet <= 32 ? 0.5 : yeniAdet <= 80 ? 1.1 : yeniAdet <= 125 ? 1.2 : 1.3;
+      const olcuEk       = olcuAdet * (kayit.olcuSuresi || 0);
+      const kabulEk      = kabulKat * (kayit.kabulSuresi || 0);
+      let yeniStandart   = (kayit.kontrolAdetSuresi * yeniAdet) + olcuEk + kabulEk + (kayit.istasyonSuresi || 0);
+
+      // Kısa kayıt tavanı
+      if (kayit.kayitFiiliSure && kayit.kayitFiiliSure > 0 && kayit.kayitFiiliSure <= 600 && yeniStandart > kayit.kayitFiiliSure) {
+        yeniStandart = kayit.kayitFiiliSure;
+      }
+
+      const kl = kayit.klasman;
+      if (!klasmanToplam[kl]) klasmanToplam[kl] = { adet: 0, standartSure: 0, standartSureNormal: 0, standartSureOvertime: 0 };
+
+      // Overtime toggle kontrolü
+      const normalSayilir = kayit.normalMesai !== false;
+      if (!_overtimeDahil && !normalSayilir) {
+        klasmanToplam[kl].standartSureOvertime += yeniStandart;
+      } else {
+        if (!kayit.is2Kalite || _2KaliteDahil) {
+          klasmanToplam[kl].adet += yeniAdet;
+          klasmanToplam[kl].standartSure += yeniStandart;
+          yeniToplamAdet += yeniAdet;
+          yeniToplamStandartSure += yeniStandart;
+          if (normalSayilir) yeniToplamStandartSureNormal += yeniStandart;
+          else yeniToplamStandartSureOvertime += yeniStandart;
+        }
+      }
+
+      // kayit objesini de güncelle (detay görünümü için)
+      kayit.adet = yeniAdet;
+      kayit.standartSure = yeniStandart;
+    });
+
+    // inspector objesini güncelle
+    inspector.adet = yeniToplamAdet;
+    inspector.standartSure = yeniToplamStandartSure;
+    inspector.standartSureNormal = yeniToplamStandartSureNormal;
+    inspector.standartSureOvertime = yeniToplamStandartSureOvertime;
+
+    // klasmanlar objesini güncelle
+    Object.keys(klasmanToplam).forEach(kl => {
+      if (inspector.klasmanlar[kl]) {
+        inspector.klasmanlar[kl].adet = klasmanToplam[kl].adet;
+        inspector.klasmanlar[kl].standartSure = klasmanToplam[kl].standartSure;
+      }
+    });
+
+    // Performansı yeniden hesapla
+    const overtimeSn = inspector.toplamMesaistiSaniye || 0;
+    const normalMesaiSn = (inspector.mesaiSure || 0) - overtimeSn;
+    const payda = _overtimeDahil
+      ? (inspector.mesaiSure || 0)
+      : (normalMesaiSn > 0 ? normalMesaiSn : (inspector.mesaiSure || 0));
+
+    inspector.genelHizPerf  = payda > 0 ? Math.round((yeniToplamStandartSure / payda) * 100) : null;
+    inspector.genelPerformans = inspector.genelHizPerf;
+    inspector.verimlilikPerf  = inspector.genelHizPerf !== null
+      ? Math.round(inspector.genelHizPerf * (100 / verimlilikHedef))
+      : null;
+
+    // Klasman hizPerf dağılımı
+    if (inspector.genelHizPerf !== null && yeniToplamStandartSure > 0) {
+      Object.keys(inspector.klasmanlar).forEach(kl => {
+        const oran = (inspector.klasmanlar[kl].standartSure || 0) / yeniToplamStandartSure;
+        inspector.klasmanlar[kl].hizPerf = Math.round(oran * inspector.genelHizPerf);
+      });
+    }
+  });
+
+  renderDashboard();
+  renderPerfTabloFromData(1);
+  updateSidebar();
+  markPerformansUnsynced();
+}
+
 function onOvertimeDahilChange() {
   const checkbox = document.getElementById('inp-overtime-dahil');
   _overtimeDahil = !!(checkbox && checkbox.checked);
@@ -5811,7 +5927,7 @@ function performansHesapla(){
       }
     }
     const kayitNormalSayilir = kayitNormalMi(parsedBitis);
-    kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '', inspectionTipi: inspectionTipiRaw, is2Kalite });
+    kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, adetHam, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, olcuSuresi: klasmanInfo.olcuSuresi || 0, kabulSuresi: klasmanInfo.urunKabulSuresi || 0, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '', inspectionTipi: inspectionTipiRaw, is2Kalite });
 
     if (is2Kalite && !_2KaliteDahil) {
       // toplamAdet'e eklenmedi (yukarıda hariç tutuldu)
@@ -5937,6 +6053,10 @@ function performansHesapla(){
       ? Math.round((toplam2KaliteStandartSure / toplam2KaliteFiiliSure) * 100)
       : null;
 
+    // Ham kayıt listesi — örnekleme modu değişince yeniden hesaplama için
+    const rawKayitlar = Object.values(inspectorData.klasmanlar)
+      .flatMap(kl => kl.kayitlar);
+
     map[ins] = {
       ins: ins,
       adet: toplamAdet,
@@ -5967,7 +6087,8 @@ function performansHesapla(){
       toplam2KaliteAdet: toplam2KaliteAdet,
       toplam2KaliteStandartSure: toplam2KaliteStandartSure,
       toplam2KaliteFiiliSure: toplam2KaliteFiiliSure,
-      perf2Kalite: perf2Kalite
+      perf2Kalite: perf2Kalite,
+      rawKayitlar: rawKayitlar  // örnekleme yeniden hesaplama için ham liste
     };
 
     
