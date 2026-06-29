@@ -2900,16 +2900,19 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
 
     let sn = (gercekBit - gercekBas) / 1000;
 
-    // Mola saatleri (normal mesai)
-    const ogleB = new Date(gunBase); ogleB.setHours(11, 45, 0, 0);
-    const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0);
-    const cay1B = new Date(gunBase); cay1B.setHours(10, 0, 0, 0);
-    const cay1E = new Date(gunBase); cay1E.setHours(10, 15, 0, 0);
-    const cay2B = new Date(gunBase); cay2B.setHours(14, 0, 0, 0);
-    const cay2E = new Date(gunBase); cay2E.setHours(14, 15, 0, 0);
-    // Overtime yemek molası: 16:45–17:15 (30 dk)
-    const yemekB = new Date(gunBase); yemekB.setHours(16, 45, 0, 0);
-    const yemekE = new Date(gunBase); yemekE.setHours(17, 15, 0, 0);
+    // Mola saatleri
+    // Sabah çayı: 09:20–09:35 (15 dk)
+    // Öğle yemek: 11:45–12:25 (40 dk)
+    // Öğlen çayı: 14:00–14:10 (10 dk)
+    // OT yemek:   17:00–17:30 (30 dk)
+    const cay1B  = new Date(gunBase); cay1B.setHours(9,  20, 0, 0);
+    const cay1E  = new Date(gunBase); cay1E.setHours(9,  35, 0, 0);
+    const ogleB  = new Date(gunBase); ogleB.setHours(11, 45, 0, 0);
+    const ogleE  = new Date(gunBase); ogleE.setHours(12, 25, 0, 0);
+    const cay2B  = new Date(gunBase); cay2B.setHours(14,  0, 0, 0);
+    const cay2E  = new Date(gunBase); cay2E.setHours(14, 10, 0, 0);
+    const yemekB = new Date(gunBase); yemekB.setHours(17,  0, 0, 0);
+    const yemekE = new Date(gunBase); yemekE.setHours(17, 30, 0, 0);
 
     function kesisimSn(mB, mE, cB, cE) {
       const start = Math.max(mB.getTime(), cB.getTime());
@@ -2917,11 +2920,11 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
       return Math.max(0, (end - start) / 1000);
     }
 
-    const ogleDus  = kesisimSn(gercekBas, gercekBit, ogleB,  ogleE);
     const cay1Dus  = kesisimSn(gercekBas, gercekBit, cay1B,  cay1E);
+    const ogleDus  = kesisimSn(gercekBas, gercekBit, ogleB,  ogleE);
     const cay2Dus  = kesisimSn(gercekBas, gercekBit, cay2B,  cay2E);
     const yemekDus = kesisimSn(gercekBas, gercekBit, yemekB, yemekE);
-    const tumMola  = ogleDus + cay1Dus + cay2Dus + yemekDus;
+    const tumMola  = cay1Dus + ogleDus + cay2Dus + yemekDus;
 
     // Tüm çalışma mola saatindeyse molayı düşme (molada çalışmış sayılır)
     if (sn - tumMola > 0) {
@@ -3034,13 +3037,15 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
     } else if (enGecBitis >= mesaiBitis) {
       // 20:00 veya sonrası → 20:00'de kes (gece sayılmaz)
       gercekBitis = mesaiBitis;
-      // Overtime = 20:00 - 16:45 = 3.25 saat - 30dk yemek = 3 saat = 10800 sn
+      // Overtime = 20:00 - 16:45 = 195dk - 30dk yemek (17:00-17:30) = 165dk = 9900sn
       overtimeSn = (mesaiBitis - normalBitis) / 1000 - 1800; // 1800sn = 30dk yemek molası
     } else if (enGecBitis > normalBitis) {
       // 16:45 ile 20:00 arasında → mesai kaldı, gerçek bitiş saati
       gercekBitis = enGecBitis;
-      // 30dk yemek molası (16:45-17:15) eğer bitiş 17:15'i geçiyorsa tam 30dk, geçmiyorsa kısmi
-      const yemekMolaSn = Math.min(1800, Math.max(0, (enGecBitis.getTime() - normalBitis.getTime()) / 1000));
+      // 30dk yemek molası (17:00-17:30): bitiş 17:30'u geçiyorsa tam 30dk, geçmiyorsa kısmi
+      const yemekBasMs  = normalBitis.getTime() + 15 * 60 * 1000; // 17:00 (16:45 + 15dk)
+      const yemekBitMs  = yemekBasMs + 30 * 60 * 1000;            // 17:30
+      const yemekMolaSn = Math.max(0, (Math.min(enGecBitis.getTime(), yemekBitMs) - Math.min(enGecBitis.getTime(), yemekBasMs))) / 1000;
       overtimeSn = Math.max(0, (enGecBitis - normalBitis) / 1000 - yemekMolaSn);
     } else {
       // 16:45 veya öncesi → normal gün, overtime yok
@@ -3059,10 +3064,10 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
       return Math.max(0, (end - start) / 1000);
     }
 
-    sureSn -= molaDus(12, 0, 13, 0);   // öğle molası
-    sureSn -= molaDus(10, 0, 10, 15);  // sabah çayı
-    sureSn -= molaDus(15, 0, 15, 15);  // öğleden sonra çayı
-    sureSn -= molaDus(16, 45, 17, 15); // overtime yemek molası (30 dk)
+    sureSn -= molaDus( 9, 20,  9, 35); // sabah çayı (09:20–09:35)
+    sureSn -= molaDus(11, 45, 12, 25); // öğle yemek (11:45–12:25)
+    sureSn -= molaDus(14,  0, 14, 10); // öğlen çayı (14:00–14:10)
+    sureSn -= molaDus(17,  0, 17, 30); // OT yemek   (17:00–17:30)
 
     toplamMesaiSaniye += Math.max(sureSn, 0);
     toplamMesaistiSaniye += Math.max(overtimeSn, 0);
