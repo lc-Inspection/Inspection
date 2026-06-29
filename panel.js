@@ -2577,16 +2577,31 @@ function restorePerformansDateObjects(liste) {
 function fixVerimlilikPerf(liste) {
   if (!Array.isArray(liste) || liste.length === 0) return liste;
 
-  // 1) Sheets'ten gelen hedefVerimlilik değerini bul (ilk geçerli kayıttan al)
+  // Eğer yerelde henüz Sheets'e gönderilmemiş bir Hedef Verimlilik değişikliği
+  // varsa (örn. kullanıcı hedefi değiştirdi ama "Sheets'e Gönder" demedi),
+  // Sheets'ten gelen (eski) hedefVerimlilik değeri bu yerel değişikliği EZMEMELİ.
+  // Bu durumda yereldeki inp-verimlilik değeri referans alınır.
+  const perfPushBtn = document.getElementById('perf-push-btn');
+  const hasUnsyncedLocalChange = perfPushBtn && perfPushBtn.dataset.unsynced === '1';
+  const localInputEl = document.getElementById('inp-verimlilik');
+  const localHedefVal = localInputEl ? parseFloat(localInputEl.value) : NaN;
+
   let sheetsHedef = null;
-  for (const inspector of liste) {
-    if (inspector.hedefVerimlilik && inspector.hedefVerimlilik !== 100) {
-      sheetsHedef = inspector.hedefVerimlilik;
-      break;
+
+  if (hasUnsyncedLocalChange && !isNaN(localHedefVal) && localHedefVal > 0) {
+    // Yereldeki kaydedilmemiş hedefi koru — Sheets'ten gelen eski değeri kullanma.
+    sheetsHedef = localHedefVal;
+  } else {
+    // 1) Sheets'ten gelen hedefVerimlilik değerini bul (ilk geçerli kayıttan al)
+    for (const inspector of liste) {
+      if (inspector.hedefVerimlilik && inspector.hedefVerimlilik !== 100) {
+        sheetsHedef = inspector.hedefVerimlilik;
+        break;
+      }
     }
+    // Tümü 100 ise de al (en azından tutarlı olsun)
+    if (!sheetsHedef) sheetsHedef = liste[0]?.hedefVerimlilik || 100;
   }
-  // Tümü 100 ise de al (en azından tutarlı olsun)
-  if (!sheetsHedef) sheetsHedef = liste[0]?.hedefVerimlilik || 100;
 
   // 2) inp-verimlilik input'unu ve ornekleme-mod radio'sunu güncelle
   const inputEl = document.getElementById('inp-verimlilik');
