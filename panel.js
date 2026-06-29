@@ -131,7 +131,7 @@ const translations = {
     perf_verypoor:        'Çok Zayıf',
     stat_total_product2:  'TOPLAM ADET',
     std_duration_label:   'STANDART SÜRE',
-    adj_perf_label_upper: 'DÜZ. PERFORMANS',
+    adj_perf_label_upper: 'VERİMLİLİK PERF (%)',
     best_inspector_month: 'Ayın En İyi Inspector\'ü',
     // Final remaining keys
     excel_cols_hint:      'Excel dosyanızda A Klasman, R BakilacakMiktar, K BaşlamaTarihi, L BitişTarihi sütunları bulunmalıdır.',
@@ -167,7 +167,7 @@ const translations = {
     add_station:           '＋ İstasyon Ekle',
     adj_avg_perf:          'Düz. Ort. Performans:',
     adj_avg_short:         '⚡ Düz. Ort.:',
-    adj_perf_label:        'Düz. Performans',
+    adj_perf_label:        'Verimlilik Perf (%)',
     ai_custom_q:           '💬 Özel Soru Sor',
     ai_general:            '📊 Genel Performans Değerlendirmesi',
     ai_improve:            '💡 İyileştirme Önerileri',
@@ -4115,7 +4115,7 @@ function renderInspectorCards() {
               </div>
               ${currentHedef !== 100 ? `<div style="position:absolute;top:-6px;right:-6px;background:var(--amber);color:#fff;font-size:8px;font-weight:700;padding:2px 5px;border-radius:8px;line-height:1.2">H%${currentHedef}</div>` : ''}
             </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase" data-i18n="adj_perf_label">Düz. Performans</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase" data-i18n="adj_perf_label">Verimlilik Perf (%)</div>
             <div style="font-size:9px;color:${progressColor};font-weight:600;margin-top:1px">${performansSeviyesi}</div>
           </div>
         </div>
@@ -5396,8 +5396,8 @@ function renderPerfTabloFromData(page) {
   })();
 
   const verimlilikBaslik = hedef !== 100
-    ? `⚡ Düz. Performans <span style="font-size:9px;color:var(--amber)">(Hedef %${hedef})</span>`
-    : `⚡ Düz. Performans`;
+    ? `⚡ Verimlilik Perf (%) <span style="font-size:9px;color:var(--amber)">(Hedef %${hedef})</span>`
+    : `⚡ Verimlilik Perf (%)`;
 
   tablo.innerHTML = `
     <!-- RAPOR BAŞLIĞI -->
