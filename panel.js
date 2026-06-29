@@ -2922,9 +2922,12 @@ const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0);
 
 }
 
+// UYARI: Bu fonksiyon yalnızca Excel'den gelen inspector kayıtlarını (parsedBaslangic/parsedBitis) alır.
+// kayipZamanData buraya GİRMEMELİDİR — kayıp zaman girişleri performans hesabını etkilemez.
 function hesaplaInspectorFiiliSure(kayitlar) {
   const dilimler = [];
   kayitlar.forEach(r => {
+    // Güvenlik: kayipZamanData kayıtları parsedBaslangic/parsedBitis içermez, otomatik filtrelenir.
     if (!r.parsedBaslangic || !r.parsedBitis) return;
     dilimler.push([r.parsedBaslangic.getTime(), r.parsedBitis.getTime()]);
   });
@@ -2960,6 +2963,8 @@ function kayitNormalMi(bitisDate) {
   return toplamDk <= sinirDk;
 }
 
+// UYARI: Bu fonksiyon yalnızca Excel'den gelen inspectorData.kayitListesi'ni alır.
+// kayipZamanData buraya GİRMEMELİDİR — kayıp zaman mesai süresini ve performansı etkilemez.
 function hesaplaGunlukMesaiSuresi(kayitListesi) {
   if (!kayitListesi || kayitListesi.length === 0) return null;
 
@@ -8677,11 +8682,13 @@ function showKayipDetayPopup(inspectorName) {
   document.body.appendChild(modal);
 }
 
-// Düzeltilmiş mesai saatini hesapla: orijinal mesai - kayıp zaman
+// Kayıp zaman girişleri performansı ETKİLEMEZ — sadece belgeleme amaçlıdır.
+// Bu fonksiyon her zaman orijinal (kayıpsız) performansı döner.
+// kayipZamanData ile performansData/mesaiSure tamamen ayrı veri yapılarıdır;
+// birbirlerine karışmamalıdır.
 function getDuzeltilmisPerformans(inspector) {
-  // Yaklasim 1 - Notral Tut:
-  // Kayip zaman performansi ne arttirir ne dusurur.
-  // Performans aynen kalir, kayip sure sadece belgelenir.
+  // Kayıp zaman performansı ne artırır ne düşürür.
+  // Performans aynen kalır, kayıp süre sadece belgelenir.
   return getOrijinalHamPerf(inspector);
 }
 
