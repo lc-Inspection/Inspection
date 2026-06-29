@@ -3872,6 +3872,10 @@ function onHedefChange() {
     renderDashboard();
     renderPerfTabloFromData();
     updateSidebar();
+    // Hedef değişikliği localStorage'a kaydedilmeli — aksi halde sayfa
+    // yenilendiğinde eski (kaydedilmiş) hedef geri yüklenir ve verimlilikPerf
+    // yanlışlıkla ham performansa (genelHizPerf) döner.
+    saveData();
     // NOT: Otomatik Sheets push kaldırıldı — artık sadece "Sheets'e Gönder"
     // butonuna basıldığında gönderilir (bkz. manualPushPerformansToSheets).
     markPerformansUnsynced();
