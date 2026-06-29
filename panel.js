@@ -2709,7 +2709,9 @@ function saveData() {
           hacimPerf: v.hacimPerf
         };
       });
-      return { ...inspector, klasmanlar: klasmanlarTemiz };
+      // kayitlar dizisi localStorage kotasını aştığından hariç tutulur
+      const { kayitlar: _kayitlarAtla, rawKayitlar: _rawAtla, gunlukDetay: _gunlukAtla, kayitListesi: _kayitListesiAtla, ...inspectorTemiz } = inspector;
+      return { ...inspectorTemiz, klasmanlar: klasmanlarTemiz };
     });
     const data = {
       klasmanlar: klasmanlar,
@@ -4033,11 +4035,15 @@ function renderInspectorCards() {
   const currentHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
 
   const cards = currentPageInspectors.map(inspector => {
-    // Düz. Performans = Ham Performans × (100 / Hedef%) — kartlarda bu gösterilir
+    // Düz. Performans = Verimlilik Performansı — kartlarda verimlilikPerf gösterilir.
+    // verimlilikPerf = genelHizPerf × (100 / hedef) formülüyle hesaplanmış değerdir.
+    // Doğrudan bu alanı kullanarak fixVerimlilikPerf sonrası en güncel değeri alırız.
     const hamPerf = inspector.genelHizPerf;
-    const duzPerf = hamPerf !== null && hamPerf !== undefined
-      ? Math.round(hamPerf * (100 / currentHedef))
-      : null;
+    const duzPerf = (inspector.verimlilikPerf !== null && inspector.verimlilikPerf !== undefined)
+      ? inspector.verimlilikPerf
+      : (hamPerf !== null && hamPerf !== undefined
+          ? Math.round(hamPerf * (100 / currentHedef))
+          : null);
     const performansVal = duzPerf ?? 0;
     const performansClass = getPerformanceClass(performansVal);
     const performansText = duzPerf !== null ? duzPerf + '%' : '—';
