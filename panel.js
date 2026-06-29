@@ -5623,7 +5623,8 @@ function performansHesapla(){
       // çakışma düzeltmesine sokulmamalı — hesaplaGerceklesenSure zaten 16:30'da kesiyor.
       const currentGunSonu = new Date(current.parsedBas);
       currentGunSonu.setHours(20, 0, 0, 0);
-      const currentErteliGun = current.parsedBit && current.parsedBit > currentGunSonu;
+      // effBit üzerinden kontrol et (zincirleme düzeltmeden sonra da geçerli olsun)
+      const currentErteliGun = effBit && effBit > currentGunSonu;
       if (!currentErteliGun && effBit.getTime() > next.parsedBas.getTime()) {
         // Düzeltme: current bitiş = next başlangıç (tarih+saat tam eşleşme)
         _duzeltilmisBitisMap.set(current.idx, next.parsedBas);
