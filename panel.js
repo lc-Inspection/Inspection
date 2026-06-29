@@ -6023,9 +6023,31 @@ function performansHesapla(){
     // _overtimeDahil = true: tüm kayıtlar dahil, tüm mesai paydaya girer.
     const overtimeSn = mesaiHesap ? (mesaiHesap.toplamMesaistiSaniye || 0) : 0;
     const normalMesaiSn = mesaiSureSn - overtimeSn;
-    const performansPaydasi = _overtimeDahil
+    const performansPaydasiHam = _overtimeDahil
       ? mesaiSureSn
       : (normalMesaiSn > 0 ? normalMesaiSn : mesaiSureSn);
+
+    // ── Kayıp Zaman Düzeltmesi ──────────────────────────────────────────────
+    // Inspector'ın Excel'deki kayıtlarına ait tarihleri belirle (YYYY-MM-DD).
+    // Sadece bu tarihlerdeki kayıp zamanlar performans paydasından düşülür;
+    // böylece gerçek mesai = (mesai süresi − kayıp süre) hesaplaması yapılır.
+    // Bu ne ödül ne de ceza uygular: inspector kayıp zaman boyunca çalışmadığı
+    // için o süre mesai paydasından çıkarılır, performans oranı değişmez.
+    const insCalismaTarihleri = new Set(
+      (inspectorData.kayitListesi || [])
+        .map(r => {
+          if (!r.parsedBaslangic) return null;
+          return r.parsedBaslangic.toISOString().slice(0, 10); // "YYYY-MM-DD"
+        })
+        .filter(Boolean)
+    );
+    const kayipDkHesap = getKayipDakikaForInspectorByDates(ins, insCalismaTarihleri);
+    const kayipSnHesap = kayipDkHesap * 60;
+    // Paydayı azalt; hiçbir zaman sıfırın altına düşürme
+    const performansPaydasi = (performansPaydasiHam - kayipSnHesap) > 0
+      ? performansPaydasiHam - kayipSnHesap
+      : performansPaydasiHam;
+    // ────────────────────────────────────────────────────────────────────────
 
     if (performansPaydasi && performansPaydasi > fiiliSureSn * 0.1) {
       performans = Math.round((toplamStandartSure / performansPaydasi) * 100);
@@ -8778,6 +8800,32 @@ function getKayipDakikaForInspector(inspectorName) {
   const nameNorm = String(inspectorName || '').toLowerCase().trim();
   return kayipZamanData
     .filter(r => String(r.inspector || '').toLowerCase().trim() === nameNorm)
+    .reduce((sum, r) => sum + (r.sureDk || 0), 0);
+}
+
+// Belirli tarihlere (Date nesnesi dizisi) göre filtrelenmiş kayıp dakika toplamı.
+// kayipZamanData içindeki tarih alanı "YYYY-MM-DD" string formatındadır;
+// inspectorData.kayitListesi içindeki parsedBaslangic ise Date nesnesidir.
+// İkisini aynı "YYYY-MM-DD" string'e dönüştürerek karşılaştırıyoruz.
+function getKayipDakikaForInspectorByDates(inspectorName, dateSet) {
+  // dateSet: Set of "YYYY-MM-DD" strings (inspector'ın çalıştığı tarihler)
+  if (!dateSet || dateSet.size === 0) return 0;
+  const nameNorm = String(inspectorName || '').toLowerCase().trim();
+  return kayipZamanData
+    .filter(r => {
+      if (String(r.inspector || '').toLowerCase().trim() !== nameNorm) return false;
+      // r.tarih "YYYY-MM-DD" veya Date objesi olabilir — normalize et
+      let tarihStr = '';
+      if (r.tarih) {
+        const d = new Date(r.tarih);
+        if (!isNaN(d.getTime())) {
+          tarihStr = d.toISOString().slice(0, 10); // "YYYY-MM-DD"
+        } else {
+          tarihStr = String(r.tarih).trim().slice(0, 10);
+        }
+      }
+      return dateSet.has(tarihStr);
+    })
     .reduce((sum, r) => sum + (r.sureDk || 0), 0);
 }
 
