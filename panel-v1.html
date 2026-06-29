@@ -622,7 +622,7 @@
           <span style="font-size:15px">🔴</span>
           <div>
             <span style="font-size:12px;font-weight:600;color:var(--navy);white-space:nowrap">InspectionSonuc Kolonu</span>
-            <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4;">Inspection sonuç bilgisi için sütunu seçin. Performans hesabını etkilemez, yalnızca kayıt takibi içindir.</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4;">Sonuç <strong style="color:#E65100">Kaldı</strong> olan satırlarda örnekleme modu otomatik <strong>Kapalı</strong>'ya alınır → tüm adet kontrol edilir.</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px">
             <label style="margin:0;font-size:11px;color:var(--muted);white-space:nowrap">Sütun:</label>
@@ -640,13 +640,13 @@
             <span id="ornekleme-default-tag" style="display:none;font-size:10px;font-weight:600;color:#8E24AA;background:rgba(142,36,170,.1);padding:2px 8px;border-radius:99px;white-space:nowrap" data-i18n="sampling_default_label">Default (rows outside all periods)</span>
                         <div style="display:flex;gap:6px;align-items:center">
               <label style="margin:0;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--navy);padding:5px 11px;border-radius:7px;border:1.5px solid #CE93D8;background:#fff;transition:all .15s" id="lbl-ornekleme-kapat">
-                <input type="radio" name="ornekleme-mod" value="kapali" id="ornekleme-kapali" onchange="yenidenHesaplaOrnekleme()" checked style="width:auto;padding:0;border:none;box-shadow:none"> Kapalı
+                <input type="radio" name="ornekleme-mod" value="kapali" id="ornekleme-kapali" onchange="performansHesapla()" checked style="width:auto;padding:0;border:none;box-shadow:none"> Kapalı
               </label>
               <label style="margin:0;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--navy);padding:5px 11px;border-radius:7px;border:1.5px solid #CE93D8;background:#fff;transition:all .15s" id="lbl-ornekleme-bir">
-                <input type="radio" name="ornekleme-mod" value="bir" id="ornekleme-bir" onchange="yenidenHesaplaOrnekleme()" style="width:auto;padding:0;border:none;box-shadow:none"> Bir Alttan
+                <input type="radio" name="ornekleme-mod" value="bir" id="ornekleme-bir" onchange="performansHesapla()" style="width:auto;padding:0;border:none;box-shadow:none"> Bir Alttan
               </label>
               <label style="margin:0;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--navy);padding:5px 11px;border-radius:7px;border:1.5px solid #CE93D8;background:#fff;transition:all .15s" id="lbl-ornekleme-iki">
-                <input type="radio" name="ornekleme-mod" value="iki" id="ornekleme-iki" onchange="yenidenHesaplaOrnekleme()" style="width:auto;padding:0;border:none;box-shadow:none"> <span data-i18n="two_below">İki Alttan</span>
+                <input type="radio" name="ornekleme-mod" value="iki" id="ornekleme-iki" onchange="performansHesapla()" style="width:auto;padding:0;border:none;box-shadow:none"> <span data-i18n="two_below">İki Alttan</span>
               </label>
             </div>
             <div id="ornekleme-aciklama" style="font-size:11px;color:var(--muted);flex:1;min-width:200px">
