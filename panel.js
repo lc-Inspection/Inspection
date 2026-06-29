@@ -2665,6 +2665,15 @@ function loadData() {
       if (data.verimlilikHedef && document.getElementById('inp-verimlilik')) {
         document.getElementById('inp-verimlilik').value = data.verimlilikHedef;
       }
+      // 2.Kalite ve Overtime dahil etme ayarlarını geri yükle — checkbox'lar ve
+      // global bayraklar (_2KaliteDahil/_overtimeDahil) localStorage'daki son
+      // duruma göre senkronize edilir. Anahtar yoksa (eski kayıt) false kalır.
+      _2KaliteDahil = !!data.ikiKaliteDahil;
+      _overtimeDahil = !!data.overtimeDahil;
+      const _kaliteCb = document.getElementById('inp-2kalite-dahil');
+      if (_kaliteCb) _kaliteCb.checked = _2KaliteDahil;
+      const _otCb = document.getElementById('inp-overtime-dahil');
+      if (_otCb) _otCb.checked = _overtimeDahil;
       // performansData'yı yükle ve verimlilikPerf'i güncelle
       // (fixVerimlilikPerf inp-verimlilik'e yazılmış olan localStorage hedefini kullanır)
       const rawListe = restorePerformansDateObjects(data.performansData || []);
@@ -2733,6 +2742,10 @@ function saveData() {
       nextId: nextId,
       performansData: performansDataTemiz,
       verimlilikHedef: parseFloat(document.getElementById('inp-verimlilik')?.value) || 100,
+      // 2.Kalite ve Overtime dahil etme ayarları — checkbox durumlarının
+      // sayfa yenilenince/Sheets'ten çekilince sıfırlanmaması için saklanır.
+      ikiKaliteDahil: !!_2KaliteDahil,
+      overtimeDahil: !!_overtimeDahil,
       savedAt: new Date().toISOString()
     };
     localStorage.setItem('lc_inspection_data', JSON.stringify(data));
@@ -3706,6 +3719,9 @@ function showPerfSeviyeDetay(seviyeKey) {
 function on2KaliteDahilChange() {
   const checkbox = document.getElementById('inp-2kalite-dahil');
   _2KaliteDahil = !!(checkbox && checkbox.checked);
+  // Ayar değişikliği her durumda kalıcı olsun — sayfa yenilenince veya
+  // Sheets'ten otomatik veri çekilince checkbox sıfırlanmasın.
+  saveData();
 
   // Excel verisi (ham satırlar) elimizdeyse en güvenilir yol: sıfırdan yeniden hesapla.
   // Bu, is2Kalite ayrımının her aşamada (klasman toplamları, overtime, vb.) doğru
@@ -3843,6 +3859,9 @@ function yenidenHesaplaOrnekleme() {
 function onOvertimeDahilChange() {
   const checkbox = document.getElementById('inp-overtime-dahil');
   _overtimeDahil = !!(checkbox && checkbox.checked);
+  // Ayar değişikliği her durumda kalıcı olsun — sayfa yenilenince veya
+  // Sheets'ten otomatik veri çekilince checkbox sıfırlanmasın.
+  saveData();
 
   // Excel verisi varsa sıfırdan yeniden hesapla (en güvenilir yol)
   if (typeof excelRows !== 'undefined' && excelRows && excelRows.length > 0) {
@@ -3868,6 +3887,7 @@ function onOvertimeDahilChange() {
     renderDashboard();
     renderPerfTabloFromData(1);
     updateSidebar();
+    saveData();
   } else {
     showFileStatus('⚠️ Bu ayarın uygulanabilmesi için Excel dosyasını yükleyin.', 'var(--amber)');
   }
