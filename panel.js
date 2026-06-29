@@ -5619,7 +5619,12 @@ function performansHesapla(){
         : current.parsedBit;
       // Çakışma kontrolü: tam tarih+saat karşılaştırması
       // effBit > next.parsedBas → sonraki inspection başlamadan current bitmemiş
-      if (effBit.getTime() > next.parsedBas.getTime()) {
+      // Ertesi güne geçen kayıtlar (bitiş başlangıç gününün 20:00'ini aşıyorsa)
+      // çakışma düzeltmesine sokulmamalı — hesaplaGerceklesenSure zaten 16:30'da kesiyor.
+      const currentGunSonu = new Date(current.parsedBas);
+      currentGunSonu.setHours(20, 0, 0, 0);
+      const currentErteliGun = current.parsedBit && current.parsedBit > currentGunSonu;
+      if (!currentErteliGun && effBit.getTime() > next.parsedBas.getTime()) {
         // Düzeltme: current bitiş = next başlangıç (tarih+saat tam eşleşme)
         _duzeltilmisBitisMap.set(current.idx, next.parsedBas);
         console.log(
