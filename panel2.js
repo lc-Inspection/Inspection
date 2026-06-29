@@ -125,14 +125,19 @@ function aoRefreshSheetsData() {
             || insKlasmanKeys.find(function(k) { return norm(k) === norm(klasmanAd); });
           if (!hedefKey) return;
           inspector.klasmanlar[hedefKey].kayitlar = kayitlarArr.map(function(r) {
+            var bas = r.baslangic ? (function() { var d = new Date(r.baslangic); return isNaN(d.getTime()) ? null : d; })() : null;
+            var bit = r.bitis ? (function() { var d = new Date(r.bitis); return isNaN(d.getTime()) ? null : d; })() : null;
+            var fiiliSure = (bas && bit && typeof hesaplaGerceklesenSure === 'function')
+              ? (hesaplaGerceklesenSure(bas, bit) || r.kayitFiiliSure || 0)
+              : (r.kayitFiiliSure || 0);
             return Object.assign({}, r, {
               kontrolAdetSuresi: r.kontrolAdetSuresi || 0,
               istasyonSuresi: r.istasyonSuresi || 0,
               standartSure: r.standartSure || 0,
-              kayitFiiliSure: r.kayitFiiliSure || 0,
+              kayitFiiliSure: fiiliSure,
               tarihGecerli: r.tarihGecerli || false,
-              baslangic: r.baslangic ? (function() { var d = new Date(r.baslangic); return isNaN(d.getTime()) ? null : d; })() : null,
-              bitis: r.bitis ? (function() { var d = new Date(r.bitis); return isNaN(d.getTime()) ? null : d; })() : null
+              baslangic: bas,
+              bitis: bit
             });
           });
         });
