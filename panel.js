@@ -5703,7 +5703,6 @@ function performansHesapla(){
   let basariliTarihKayitlar = 0;
   let tarihHataliKayitlar = 0;
 
-  let kaldiSatirSayisi = 0;
 
   // ── ÇAKIŞMA DÜZELTMESİ (Sistematik Geç Kapanış Normalizasyonu) ───────────
   // Sorun: Sistemsel hata nedeniyle bir siparişin kapanışı sisteme yansımamış
@@ -5812,16 +5811,6 @@ function performansHesapla(){
       if (donemSonuc.exclude) return; // Bu satır hiçbir döneme girmiyor → tamamen atla
       satırOrneklemeMod = donemSonuc.mode;
     }
-    if (sonucCol) {
-      const sonucRaw = String(row[sonucCol] || '').trim();
-      // Türkçe karakter duyarsız karşılaştırma (ı→i, İ→i, ğ→g vs.)
-      const sonucNorm = sonucRaw.toLocaleLowerCase('tr-TR').replace(/ı/g,'i').replace(/İ/g,'i').replace(/ğ/g,'g').replace(/ş/g,'s').replace(/ö/g,'o').replace(/ü/g,'u').replace(/ç/g,'c');
-      if (sonucNorm === 'kaldi' || sonucNorm.includes('kaldi')) {
-        satırOrneklemeMod = 'kapali';
-        kaldiSatirSayisi++;
-      }
-    }
-
     const adet = orneklemeAdet(adetHam, satırOrneklemeMod);
 
     // InspectionYapilanDepo filtresi: sütun seçiliyse boş satırları atla
@@ -5964,14 +5953,7 @@ function performansHesapla(){
 
   // Kaldı özet göstergesi güncelle
   const kaldiOzet = document.getElementById('sonuc-kaldi-ozet');
-  if (kaldiOzet) {
-    if (sonucCol && kaldiSatirSayisi > 0) {
-      kaldiOzet.style.display = 'block';
-      kaldiOzet.textContent = '🔴 ' + kaldiSatirSayisi + ' satır "Kaldı" → Kapalı mod uygulandı';
-    } else {
-      kaldiOzet.style.display = 'none';
-    }
-  }
+  if (kaldiOzet) kaldiOzet.style.display = 'none';
 
   // Inspector bazında sonuç map'i oluştur
   const map = {};
