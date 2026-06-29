@@ -2855,15 +2855,45 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
   if (bitis <= baslangic) return null;
 
   // ── Ertesi güne geçen kayıt koruması ─────────────────────
-  // Başlangıç ve bitiş farklı takvim günlerindeyse (gece 00:00’ı geçen kayıt),
-  // bu kaydın o günün mesai bitiş saatinde (20:00) kapandığını bilemeyiz.
-  // Güvenli varsayım: başlangıç gününün 16:30’unda (normal mesai sonu) kapat.
+  // Ertesi güne geçen kayıt kuralı:
+  // Eğer bitiş, başlangıç gününün 20:00’ini aşıyorsa (farklı güne geçiyor),
+  // 1. dilim: başlangıç → o günün 16:30’u (normal mesai sonu)
+  // 2. dilim: ertesi gün 08:00 → gerçek bitiş (08:00 ile kapatılır)
+  // Her iki dilim ayrı hesaplanır ve toplanır.
   const baslangicGunSonu = new Date(baslangic);
   baslangicGunSonu.setHours(20, 0, 0, 0);
-  const baslangicNormalSonu = new Date(baslangic);
-  baslangicNormalSonu.setHours(16, 30, 0, 0);
   if (bitis > baslangicGunSonu) {
-    bitis = baslangicNormalSonu;
+    // İki dilim olarak hesapla
+    const gun1Bitis = new Date(baslangic); gun1Bitis.setHours(16, 30, 0, 0);
+    const gun2Bas   = new Date(bitis);     gun2Bas.setHours(8, 0, 0, 0);
+    // 1. dilim: başlangıç → 16:30 (eğer başlangıç zaten 16:30’dan sonraysa 0)
+    const sn1 = gun1Bitis > baslangic ? (function() {
+      const tmpBitis = gun1Bitis;
+      let s = (tmpBitis - baslangic) / 1000;
+      function kes(cBh, cBm, cEh, cEm) {
+        const gunBase = new Date(baslangic); gunBase.setHours(0,0,0,0);
+        const cB = new Date(gunBase); cB.setHours(cBh, cBm, 0, 0);
+        const cE = new Date(gunBase); cE.setHours(cEh, cEm, 0, 0);
+        return Math.max(0, (Math.min(tmpBitis,cE) - Math.max(baslangic,cB)) / 1000);
+      }
+      s -= kes(12,0,13,0); s -= kes(10,0,10,15); s -= kes(15,0,15,15);
+      return Math.max(0, s);
+    })() : 0;
+    // 2. dilim: 08:00 → gerçek bitiş (ertesi gün)
+    const sn2 = bitis > gun2Bas ? (function() {
+      const gun2000 = new Date(bitis); gun2000.setHours(20, 0, 0, 0);
+      const gun2Bit = bitis > gun2000 ? gun2000 : bitis;
+      let s = (gun2Bit - gun2Bas) / 1000;
+      function kes2(cBh, cBm, cEh, cEm) {
+        const gunBase = new Date(bitis); gunBase.setHours(0,0,0,0);
+        const cB = new Date(gunBase); cB.setHours(cBh, cBm, 0, 0);
+        const cE = new Date(gunBase); cE.setHours(cEh, cEm, 0, 0);
+        return Math.max(0, (Math.min(gun2Bit,cE) - Math.max(gun2Bas,cB)) / 1000);
+      }
+      s -= kes2(12,0,13,0); s -= kes2(10,0,10,15); s -= kes2(15,0,15,15);
+      return Math.max(0, s);
+    })() : 0;
+    return sn1 + sn2 > 0 ? sn1 + sn2 : null;
   }
   if (bitis <= baslangic) return null;
 
