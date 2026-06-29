@@ -131,7 +131,7 @@ const translations = {
     perf_verypoor:        'Çok Zayıf',
     stat_total_product2:  'TOPLAM ADET',
     std_duration_label:   'STANDART SÜRE',
-    adj_perf_label_upper: 'VERİMLİLİK PERF (%)',
+    adj_perf_label_upper: 'DÜZ. PERFORMANS',
     best_inspector_month: 'Ayın En İyi Inspector\'ü',
     // Final remaining keys
     excel_cols_hint:      'Excel dosyanızda A Klasman, R BakilacakMiktar, K BaşlamaTarihi, L BitişTarihi sütunları bulunmalıdır.',
@@ -167,7 +167,7 @@ const translations = {
     add_station:           '＋ İstasyon Ekle',
     adj_avg_perf:          'Düz. Ort. Performans:',
     adj_avg_short:         '⚡ Düz. Ort.:',
-    adj_perf_label:        'Verimlilik Perf (%)',
+    adj_perf_label:        'Düz. Performans',
     ai_custom_q:           '💬 Özel Soru Sor',
     ai_general:            '📊 Genel Performans Değerlendirmesi',
     ai_improve:            '💡 İyileştirme Önerileri',
@@ -2577,31 +2577,16 @@ function restorePerformansDateObjects(liste) {
 function fixVerimlilikPerf(liste) {
   if (!Array.isArray(liste) || liste.length === 0) return liste;
 
-  // Eğer yerelde henüz Sheets'e gönderilmemiş bir Hedef Verimlilik değişikliği
-  // varsa (örn. kullanıcı hedefi değiştirdi ama "Sheets'e Gönder" demedi),
-  // Sheets'ten gelen (eski) hedefVerimlilik değeri bu yerel değişikliği EZMEMELİ.
-  // Bu durumda yereldeki inp-verimlilik değeri referans alınır.
-  const perfPushBtn = document.getElementById('perf-push-btn');
-  const hasUnsyncedLocalChange = perfPushBtn && perfPushBtn.dataset.unsynced === '1';
-  const localInputEl = document.getElementById('inp-verimlilik');
-  const localHedefVal = localInputEl ? parseFloat(localInputEl.value) : NaN;
-
+  // 1) Sheets'ten gelen hedefVerimlilik değerini bul (ilk geçerli kayıttan al)
   let sheetsHedef = null;
-
-  if (hasUnsyncedLocalChange && !isNaN(localHedefVal) && localHedefVal > 0) {
-    // Yereldeki kaydedilmemiş hedefi koru — Sheets'ten gelen eski değeri kullanma.
-    sheetsHedef = localHedefVal;
-  } else {
-    // 1) Sheets'ten gelen hedefVerimlilik değerini bul (ilk geçerli kayıttan al)
-    for (const inspector of liste) {
-      if (inspector.hedefVerimlilik && inspector.hedefVerimlilik !== 100) {
-        sheetsHedef = inspector.hedefVerimlilik;
-        break;
-      }
+  for (const inspector of liste) {
+    if (inspector.hedefVerimlilik && inspector.hedefVerimlilik !== 100) {
+      sheetsHedef = inspector.hedefVerimlilik;
+      break;
     }
-    // Tümü 100 ise de al (en azından tutarlı olsun)
-    if (!sheetsHedef) sheetsHedef = liste[0]?.hedefVerimlilik || 100;
   }
+  // Tümü 100 ise de al (en azından tutarlı olsun)
+  if (!sheetsHedef) sheetsHedef = liste[0]?.hedefVerimlilik || 100;
 
   // 2) inp-verimlilik input'unu ve ornekleme-mod radio'sunu güncelle
   const inputEl = document.getElementById('inp-verimlilik');
@@ -2665,15 +2650,6 @@ function loadData() {
       if (data.verimlilikHedef && document.getElementById('inp-verimlilik')) {
         document.getElementById('inp-verimlilik').value = data.verimlilikHedef;
       }
-      // 2.Kalite ve Overtime dahil etme ayarlarını geri yükle — checkbox'lar ve
-      // global bayraklar (_2KaliteDahil/_overtimeDahil) localStorage'daki son
-      // duruma göre senkronize edilir. Anahtar yoksa (eski kayıt) false kalır.
-      _2KaliteDahil = !!data.ikiKaliteDahil;
-      _overtimeDahil = !!data.overtimeDahil;
-      const _kaliteCb = document.getElementById('inp-2kalite-dahil');
-      if (_kaliteCb) _kaliteCb.checked = _2KaliteDahil;
-      const _otCb = document.getElementById('inp-overtime-dahil');
-      if (_otCb) _otCb.checked = _overtimeDahil;
       // performansData'yı yükle ve verimlilikPerf'i güncelle
       // (fixVerimlilikPerf inp-verimlilik'e yazılmış olan localStorage hedefini kullanır)
       const rawListe = restorePerformansDateObjects(data.performansData || []);
@@ -2733,19 +2709,13 @@ function saveData() {
           hacimPerf: v.hacimPerf
         };
       });
-      // kayitlar dizisi localStorage kotasını aştığından hariç tutulur
-      const { kayitlar: _kayitlarAtla, rawKayitlar: _rawAtla, gunlukDetay: _gunlukAtla, kayitListesi: _kayitListesiAtla, ...inspectorTemiz } = inspector;
-      return { ...inspectorTemiz, klasmanlar: klasmanlarTemiz };
+      return { ...inspector, klasmanlar: klasmanlarTemiz };
     });
     const data = {
       klasmanlar: klasmanlar,
       nextId: nextId,
       performansData: performansDataTemiz,
       verimlilikHedef: parseFloat(document.getElementById('inp-verimlilik')?.value) || 100,
-      // 2.Kalite ve Overtime dahil etme ayarları — checkbox durumlarının
-      // sayfa yenilenince/Sheets'ten çekilince sıfırlanmaması için saklanır.
-      ikiKaliteDahil: !!_2KaliteDahil,
-      overtimeDahil: !!_overtimeDahil,
       savedAt: new Date().toISOString()
     };
     localStorage.setItem('lc_inspection_data', JSON.stringify(data));
@@ -3719,9 +3689,6 @@ function showPerfSeviyeDetay(seviyeKey) {
 function on2KaliteDahilChange() {
   const checkbox = document.getElementById('inp-2kalite-dahil');
   _2KaliteDahil = !!(checkbox && checkbox.checked);
-  // Ayar değişikliği her durumda kalıcı olsun — sayfa yenilenince veya
-  // Sheets'ten otomatik veri çekilince checkbox sıfırlanmasın.
-  saveData();
 
   // Excel verisi (ham satırlar) elimizdeyse en güvenilir yol: sıfırdan yeniden hesapla.
   // Bu, is2Kalite ayrımının her aşamada (klasman toplamları, overtime, vb.) doğru
@@ -3859,9 +3826,6 @@ function yenidenHesaplaOrnekleme() {
 function onOvertimeDahilChange() {
   const checkbox = document.getElementById('inp-overtime-dahil');
   _overtimeDahil = !!(checkbox && checkbox.checked);
-  // Ayar değişikliği her durumda kalıcı olsun — sayfa yenilenince veya
-  // Sheets'ten otomatik veri çekilince checkbox sıfırlanmasın.
-  saveData();
 
   // Excel verisi varsa sıfırdan yeniden hesapla (en güvenilir yol)
   if (typeof excelRows !== 'undefined' && excelRows && excelRows.length > 0) {
@@ -3887,7 +3851,6 @@ function onOvertimeDahilChange() {
     renderDashboard();
     renderPerfTabloFromData(1);
     updateSidebar();
-    saveData();
   } else {
     showFileStatus('⚠️ Bu ayarın uygulanabilmesi için Excel dosyasını yükleyin.', 'var(--amber)');
   }
@@ -3907,10 +3870,6 @@ function onHedefChange() {
     renderDashboard();
     renderPerfTabloFromData();
     updateSidebar();
-    // Hedef değişikliği localStorage'a kaydedilmeli — aksi halde sayfa
-    // yenilendiğinde eski (kaydedilmiş) hedef geri yüklenir ve verimlilikPerf
-    // yanlışlıkla ham performansa (genelHizPerf) döner.
-    saveData();
     // NOT: Otomatik Sheets push kaldırıldı — artık sadece "Sheets'e Gönder"
     // butonuna basıldığında gönderilir (bkz. manualPushPerformansToSheets).
     markPerformansUnsynced();
@@ -4074,15 +4033,11 @@ function renderInspectorCards() {
   const currentHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
 
   const cards = currentPageInspectors.map(inspector => {
-    // Düz. Performans = Verimlilik Performansı — kartlarda verimlilikPerf gösterilir.
-    // verimlilikPerf = genelHizPerf × (100 / hedef) formülüyle hesaplanmış değerdir.
-    // Doğrudan bu alanı kullanarak fixVerimlilikPerf sonrası en güncel değeri alırız.
+    // Düz. Performans = Ham Performans × (100 / Hedef%) — kartlarda bu gösterilir
     const hamPerf = inspector.genelHizPerf;
-    const duzPerf = (inspector.verimlilikPerf !== null && inspector.verimlilikPerf !== undefined)
-      ? inspector.verimlilikPerf
-      : (hamPerf !== null && hamPerf !== undefined
-          ? Math.round(hamPerf * (100 / currentHedef))
-          : null);
+    const duzPerf = hamPerf !== null && hamPerf !== undefined
+      ? Math.round(hamPerf * (100 / currentHedef))
+      : null;
     const performansVal = duzPerf ?? 0;
     const performansClass = getPerformanceClass(performansVal);
     const performansText = duzPerf !== null ? duzPerf + '%' : '—';
@@ -4154,7 +4109,7 @@ function renderInspectorCards() {
               </div>
               ${currentHedef !== 100 ? `<div style="position:absolute;top:-6px;right:-6px;background:var(--amber);color:#fff;font-size:8px;font-weight:700;padding:2px 5px;border-radius:8px;line-height:1.2">H%${currentHedef}</div>` : ''}
             </div>
-            <div style="font-size:10px;color:var(--muted);margin-top:5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase" data-i18n="adj_perf_label">Verimlilik Perf (%)</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase" data-i18n="adj_perf_label">Düz. Performans</div>
             <div style="font-size:9px;color:${progressColor};font-weight:600;margin-top:1px">${performansSeviyesi}</div>
           </div>
         </div>
@@ -5435,8 +5390,8 @@ function renderPerfTabloFromData(page) {
   })();
 
   const verimlilikBaslik = hedef !== 100
-    ? `⚡ Verimlilik Perf (%) <span style="font-size:9px;color:var(--amber)">(Hedef %${hedef})</span>`
-    : `⚡ Verimlilik Perf (%)`;
+    ? `⚡ Düz. Performans <span style="font-size:9px;color:var(--amber)">(Hedef %${hedef})</span>`
+    : `⚡ Düz. Performans`;
 
   tablo.innerHTML = `
     <!-- RAPOR BAŞLIĞI -->
@@ -6068,31 +6023,9 @@ function performansHesapla(){
     // _overtimeDahil = true: tüm kayıtlar dahil, tüm mesai paydaya girer.
     const overtimeSn = mesaiHesap ? (mesaiHesap.toplamMesaistiSaniye || 0) : 0;
     const normalMesaiSn = mesaiSureSn - overtimeSn;
-    const performansPaydasiHam = _overtimeDahil
+    const performansPaydasi = _overtimeDahil
       ? mesaiSureSn
       : (normalMesaiSn > 0 ? normalMesaiSn : mesaiSureSn);
-
-    // ── Kayıp Zaman Düzeltmesi ──────────────────────────────────────────────
-    // Inspector'ın Excel'deki kayıtlarına ait tarihleri belirle (YYYY-MM-DD).
-    // Sadece bu tarihlerdeki kayıp zamanlar performans paydasından düşülür;
-    // böylece gerçek mesai = (mesai süresi − kayıp süre) hesaplaması yapılır.
-    // Bu ne ödül ne de ceza uygular: inspector kayıp zaman boyunca çalışmadığı
-    // için o süre mesai paydasından çıkarılır, performans oranı değişmez.
-    const insCalismaTarihleri = new Set(
-      (inspectorData.kayitListesi || [])
-        .map(r => {
-          if (!r.parsedBaslangic) return null;
-          return r.parsedBaslangic.toISOString().slice(0, 10); // "YYYY-MM-DD"
-        })
-        .filter(Boolean)
-    );
-    const kayipDkHesap = getKayipDakikaForInspectorByDates(ins, insCalismaTarihleri);
-    const kayipSnHesap = kayipDkHesap * 60;
-    // Paydayı azalt; hiçbir zaman sıfırın altına düşürme
-    const performansPaydasi = (performansPaydasiHam - kayipSnHesap) > 0
-      ? performansPaydasiHam - kayipSnHesap
-      : performansPaydasiHam;
-    // ────────────────────────────────────────────────────────────────────────
 
     if (performansPaydasi && performansPaydasi > fiiliSureSn * 0.1) {
       performans = Math.round((toplamStandartSure / performansPaydasi) * 100);
@@ -8845,32 +8778,6 @@ function getKayipDakikaForInspector(inspectorName) {
   const nameNorm = String(inspectorName || '').toLowerCase().trim();
   return kayipZamanData
     .filter(r => String(r.inspector || '').toLowerCase().trim() === nameNorm)
-    .reduce((sum, r) => sum + (r.sureDk || 0), 0);
-}
-
-// Belirli tarihlere (Date nesnesi dizisi) göre filtrelenmiş kayıp dakika toplamı.
-// kayipZamanData içindeki tarih alanı "YYYY-MM-DD" string formatındadır;
-// inspectorData.kayitListesi içindeki parsedBaslangic ise Date nesnesidir.
-// İkisini aynı "YYYY-MM-DD" string'e dönüştürerek karşılaştırıyoruz.
-function getKayipDakikaForInspectorByDates(inspectorName, dateSet) {
-  // dateSet: Set of "YYYY-MM-DD" strings (inspector'ın çalıştığı tarihler)
-  if (!dateSet || dateSet.size === 0) return 0;
-  const nameNorm = String(inspectorName || '').toLowerCase().trim();
-  return kayipZamanData
-    .filter(r => {
-      if (String(r.inspector || '').toLowerCase().trim() !== nameNorm) return false;
-      // r.tarih "YYYY-MM-DD" veya Date objesi olabilir — normalize et
-      let tarihStr = '';
-      if (r.tarih) {
-        const d = new Date(r.tarih);
-        if (!isNaN(d.getTime())) {
-          tarihStr = d.toISOString().slice(0, 10); // "YYYY-MM-DD"
-        } else {
-          tarihStr = String(r.tarih).trim().slice(0, 10);
-        }
-      }
-      return dateSet.has(tarihStr);
-    })
     .reduce((sum, r) => sum + (r.sureDk || 0), 0);
 }
 
