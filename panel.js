@@ -5802,10 +5802,11 @@ function performansHesapla(){
     const kl = inspectorMap[ins].klasmanlar[klasmanKey2];
 
     // Ertesi güne geçen kayıtlar için normal/overtime sınırını belirle
-    // Bitiş farklı gündeyse başlangıç gününün 16:30’unu kullan
-    const _bitisSaatKontrol = (parsedBitis && parsedBaslangic && parsedBitis.toDateString() !== parsedBaslangic.toDateString())
-      ? (function(){ var d = new Date(parsedBaslangic); d.setHours(16,30,0,0); return d; })()
-      : parsedBitis;
+    // Bitiş farklı gündeyse BAŞLAŞLA BAŞLANGIÇ saatine göre normal/overtime kararı ver:
+    // Başlangıç 16:30'dan önceyse → normal (bitiş ertesi güne geçmiş olsa da bu parti normal mesaide alındı)
+    // Başlangıç 16:30'dan sonraysa → overtime (parti overtime saatinde başlamış)
+    const _erteliGun = parsedBitis && parsedBaslangic && parsedBitis.toDateString() !== parsedBaslangic.toDateString();
+    const _bitisSaatKontrol = _erteliGun ? parsedBaslangic : parsedBitis;
 
     // 2.Kalite kayıtları VARSAYILAN OLARAK genel performans hesabından TAMAMEN
     // hariç tutulur (ne adet/standart süre payına, ne mesai/overtime paydasına
