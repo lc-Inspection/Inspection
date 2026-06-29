@@ -1929,16 +1929,7 @@ const listeTemiz = liste.map(inspector => {
   Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
     klasmanlarTemiz[k] = {
       adet: v.adet, standartSure: v.standartSure,
-      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf,
-      // örnekleme yeniden hesaplama için ham kayıtları Sheets'e gönder
-      kayitlar: (v.kayitlar || []).map(r => ({
-        klasman: r.klasman, adetHam: r.adetHam ?? r.adet, adet: r.adet,
-        standartSure: r.standartSure, kayitFiiliSure: r.kayitFiiliSure,
-        kontrolAdetSuresi: r.kontrolAdetSuresi, olcuSuresi: r.olcuSuresi || 0,
-        kabulSuresi: r.kabulSuresi || 0, istasyonSuresi: r.istasyonSuresi || 0,
-        baslangic: r.baslangic, bitis: r.bitis, tarihGecerli: r.tarihGecerli,
-        normalMesai: r.normalMesai, is2Kalite: r.is2Kalite || false
-      }))
+      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
     };
   });
   return {
@@ -2619,21 +2610,10 @@ function fixVerimlilikPerf(liste) {
   renderOrneklemeDonemleri();
 
   // 3) Her inspector'ın verimlilikPerf ve hedefVerimlilik'ini güncelle
-  // + rawKayitlar oluştur (Sheets'ten gelen klasman.kayitlar dizilerinden)
   liste.forEach(inspector => {
     inspector.hedefVerimlilik = sheetsHedef;
     if (inspector.genelHizPerf !== null && inspector.genelHizPerf !== undefined) {
       inspector.verimlilikPerf = Math.round(inspector.genelHizPerf * (100 / sheetsHedef));
-    }
-    // rawKayitlar yoksa klasmanlar içindeki kayitlar dizisinden oluştur
-    if (!inspector.rawKayitlar) {
-      const ham = [];
-      Object.values(inspector.klasmanlar || {}).forEach(kl => {
-        if (Array.isArray(kl.kayitlar)) {
-          kl.kayitlar.forEach(k => ham.push(k));
-        }
-      });
-      if (ham.length > 0) inspector.rawKayitlar = ham;
     }
   });
   return liste;
@@ -2888,51 +2868,30 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
     return dilimler;
   }
 
-  function hesaplaTekilGun(gunBas, gunBit, sonrakiGunVarMi) {
+  function hesaplaTekilGun(gunBas, gunBit) {
     // O günün referans tarihi
     const gunBase = new Date(gunBas);
     gunBase.setHours(0, 0, 0, 0);
 
-    const gun8      = new Date(gunBase); gun8.setHours(8, 0, 0, 0);
-    const gun1645   = new Date(gunBase); gun1645.setHours(16, 45, 0, 0);
-    const gun2000   = new Date(gunBase); gun2000.setHours(20, 0, 0, 0);
+    const gun8 = new Date(gunBase); gun8.setHours(8, 0, 0, 0);
+    const gun2030 = new Date(gunBase); gun2030.setHours(20, 0, 0, 0);
 
     // Gün başlangıcı: 08:00'den önce ise 08:00'e çek
     const gercekBas = gunBas < gun8 ? gun8 : gunBas;
-
-    // Sabaha sarkma kırpması:
-    // Bu dilim bir sonraki güne bağlıysa (kayıt ertesi güne sarmışsa) VE
-    // dilimin bitişi 20:00'i aşıyorsa (yani gün sonu 23:59:59 veya sonraki gün)
-    // → o günün bitişini 16:45'e kırp.
-    // Mantık: inspector en geç mesai sonunda (16:45) ürünü bırakmış,
-    // gece devam etmemiş, sabah devam etmiştir.
-    // Not: sonrakiGunVarMi=true → bu dilim tek günlük değil, ertesi güne devam var.
-    let gercekBit;
-    if (sonrakiGunVarMi && gunBit.getTime() >= gun2000.getTime()) {
-      // Ertesi güne saran kayıt: bitiş 16:45'e kırp (inspector mesai sonunda bırakmıştır)
-      gercekBit = gun1645;
-    } else {
-      // Normal: 20:00 üst sınırını uygula
-      gercekBit = gunBit > gun2000 ? gun2000 : gunBit;
-    }
+    // Gün bitişi: 20:00'den sonra ise 20:00'e kırp
+    const gercekBit = gunBit > gun2030 ? gun2030 : gunBit;
 
     if (gercekBit <= gercekBas) return 0;
 
     let sn = (gercekBit - gercekBas) / 1000;
 
     // Mola saatleri
-    // Sabah çayı: 09:20–09:35 (15 dk)
-    // Öğle yemek: 11:45–12:25 (40 dk)
-    // Öğlen çayı: 14:00–14:10 (10 dk)
-    // OT yemek:   17:00–17:30 (30 dk)
-    const cay1B  = new Date(gunBase); cay1B.setHours(9,  20, 0, 0);
-    const cay1E  = new Date(gunBase); cay1E.setHours(9,  35, 0, 0);
-    const ogleB  = new Date(gunBase); ogleB.setHours(11, 45, 0, 0);
-    const ogleE  = new Date(gunBase); ogleE.setHours(12, 25, 0, 0);
-    const cay2B  = new Date(gunBase); cay2B.setHours(14,  0, 0, 0);
-    const cay2E  = new Date(gunBase); cay2E.setHours(14, 10, 0, 0);
-    const yemekB = new Date(gunBase); yemekB.setHours(17,  0, 0, 0);
-    const yemekE = new Date(gunBase); yemekE.setHours(17, 30, 0, 0);
+    const ogleB = new Date(gunBase); ogleB.setHours(11, 45, 0, 0);
+const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0); 
+    const cay1B = new Date(gunBase); cay1B.setHours(10, 0, 0, 0);
+    const cay1E = new Date(gunBase); cay1E.setHours(10, 15, 0, 0);
+    const cay2B = new Date(gunBase); cay2B.setHours(14, 0, 0, 0);
+    const cay2E = new Date(gunBase); cay2E.setHours(14, 15, 0, 0);
 
     function kesisimSn(mB, mE, cB, cE) {
       const start = Math.max(mB.getTime(), cB.getTime());
@@ -2940,11 +2899,10 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
       return Math.max(0, (end - start) / 1000);
     }
 
-    const cay1Dus  = kesisimSn(gercekBas, gercekBit, cay1B,  cay1E);
-    const ogleDus  = kesisimSn(gercekBas, gercekBit, ogleB,  ogleE);
-    const cay2Dus  = kesisimSn(gercekBas, gercekBit, cay2B,  cay2E);
-    const yemekDus = kesisimSn(gercekBas, gercekBit, yemekB, yemekE);
-    const tumMola  = cay1Dus + ogleDus + cay2Dus + yemekDus;
+    const ogleDus = kesisimSn(gercekBas, gercekBit, ogleB, ogleE);
+    const cay1Dus = kesisimSn(gercekBas, gercekBit, cay1B, cay1E);
+    const cay2Dus = kesisimSn(gercekBas, gercekBit, cay2B, cay2E);
+    const tumMola = ogleDus + cay1Dus + cay2Dus;
 
     // Tüm çalışma mola saatindeyse molayı düşme (molada çalışmış sayılır)
     if (sn - tumMola > 0) {
@@ -2956,10 +2914,8 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
   // Gün dilimlerine böl ve her günü ayrı hesapla
   const dilimler = gunDilimleriOlustur(baslangic, bitis);
   let toplamSn = 0;
-  dilimler.forEach(function(d, idx) {
-    // Sonraki gün var mı? → bu dilim ertesi güne devam eden bir ara gün
-    const sonrakiGunVarMi = idx < dilimler.length - 1;
-    toplamSn += hesaplaTekilGun(d[0], d[1], sonrakiGunVarMi);
+  dilimler.forEach(function(d) {
+    toplamSn += hesaplaTekilGun(d[0], d[1]);
   });
 
   return toplamSn > 0 ? toplamSn : (bitis > baslangic ? 1 : null);
@@ -3007,28 +2963,13 @@ function kayitNormalMi(bitisDate) {
 function hesaplaGunlukMesaiSuresi(kayitListesi) {
   if (!kayitListesi || kayitListesi.length === 0) return null;
 
-  // Her gün için o günün en geç bitiş saatini bul.
-  // Sabaha sarkma tespiti: eğer bir kaydın bitiş günü başlangıç gününden farklıysa
-  // o başlangıç günü için bitiş olarak 16:45 kullanılır (inspector mesai sonunda bırakmıştır).
+  // Her gün için o günün en geç bitiş saatini bul
   const gunBitisSaatleri = {}; // key: toDateString(), value: en geç bitis Date
 
   kayitListesi.forEach(kayit => {
     if (!kayit.parsedBaslangic) return;
     const gun = kayit.parsedBaslangic.toDateString();
-    let bitis = kayit.parsedBitis || null;
-
-    // Sabaha sarkma kontrolü: bitiş farklı bir güne aitse bu gün için 16:45'e kırp
-    if (bitis) {
-      const basGun = new Date(kayit.parsedBaslangic); basGun.setHours(0,0,0,0);
-      const bitGun = new Date(bitis); bitGun.setHours(0,0,0,0);
-      if (bitGun > basGun) {
-        // Ertesi güne sarkmış → bu günün bitiş saatini 16:45 yap
-        const kırpılmışBitis = new Date(basGun);
-        kırpılmışBitis.setHours(16, 45, 0, 0);
-        bitis = kırpılmışBitis;
-      }
-    }
-
+    const bitis = kayit.parsedBitis || null;
     if (!gunBitisSaatleri[gun]) {
       gunBitisSaatleri[gun] = bitis;
     } else if (bitis && bitis > gunBitisSaatleri[gun]) {
@@ -3057,16 +2998,12 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
     } else if (enGecBitis >= mesaiBitis) {
       // 20:00 veya sonrası → 20:00'de kes (gece sayılmaz)
       gercekBitis = mesaiBitis;
-      // Overtime = 20:00 - 16:45 = 195dk - 30dk yemek (17:00-17:30) = 165dk = 9900sn
-      overtimeSn = (mesaiBitis - normalBitis) / 1000 - 1800; // 1800sn = 30dk yemek molası
+      // Overtime = 20:00 - 16:45 = 3.25 saat - öğle sonrası çay (15:00-15:15 normalBitis'ten sonra sayılmaz)
+      overtimeSn = (mesaiBitis - normalBitis) / 1000; // 3.5 saat = 12600 sn
     } else if (enGecBitis > normalBitis) {
       // 16:45 ile 20:00 arasında → mesai kaldı, gerçek bitiş saati
       gercekBitis = enGecBitis;
-      // 30dk yemek molası (17:00-17:30): bitiş 17:30'u geçiyorsa tam 30dk, geçmiyorsa kısmi
-      const yemekBasMs  = normalBitis.getTime() + 15 * 60 * 1000; // 17:00 (16:45 + 15dk)
-      const yemekBitMs  = yemekBasMs + 30 * 60 * 1000;            // 17:30
-      const yemekMolaSn = Math.max(0, (Math.min(enGecBitis.getTime(), yemekBitMs) - Math.min(enGecBitis.getTime(), yemekBasMs))) / 1000;
-      overtimeSn = Math.max(0, (enGecBitis - normalBitis) / 1000 - yemekMolaSn);
+      overtimeSn = (enGecBitis - normalBitis) / 1000;
     } else {
       // 16:45 veya öncesi → normal gün, overtime yok
       gercekBitis = normalBitis;
@@ -3084,10 +3021,9 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
       return Math.max(0, (end - start) / 1000);
     }
 
-    sureSn -= molaDus( 9, 20,  9, 35); // sabah çayı (09:20–09:35)
-    sureSn -= molaDus(11, 45, 12, 25); // öğle yemek (11:45–12:25)
-    sureSn -= molaDus(14,  0, 14, 10); // öğlen çayı (14:00–14:10)
-    sureSn -= molaDus(17,  0, 17, 30); // OT yemek   (17:00–17:30)
+    sureSn -= molaDus(12, 0, 13, 0);   // öğle molası
+    sureSn -= molaDus(10, 0, 10, 15);  // sabah çayı
+    sureSn -= molaDus(15, 0, 15, 15);  // öğleden sonra çayı
 
     toplamMesaiSaniye += Math.max(sureSn, 0);
     toplamMesaistiSaniye += Math.max(overtimeSn, 0);
@@ -3705,122 +3641,6 @@ function on2KaliteDahilChange() {
   if (performansData && performansData.length > 0) {
     showFileStatus('⚠️ Bu ayarın uygulanabilmesi için Excel dosyasını tekrar yükleyin (ham veri gerekiyor).', 'var(--amber)');
   }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ÖRNEKLEME MODU DEĞİŞİNCE YENİDEN HESAPLAMA
-// excelRows yoksa (Sheets'ten yüklenmiş) performansData.rawKayitlar'dan hesaplar
-// ─────────────────────────────────────────────────────────────────────────────
-function yenidenHesaplaOrnekleme() {
-  // Excel verisi varsa performansHesapla() zaten doğru yapıyor
-  if (typeof excelRows !== 'undefined' && excelRows && excelRows.length > 0) {
-    performansHesapla();
-    return;
-  }
-
-  if (!performansData || !performansData.length) {
-    showFileStatus('⚠️ Örnekleme modunu değiştirmek için Excel dosyasını yükleyin.', 'var(--amber)');
-    return;
-  }
-
-  // rawKayitlar yoksa (eski Sheets verisi) uyar
-  if (!performansData[0].rawKayitlar) {
-    showFileStatus('⚠️ Bu veri örnekleme yeniden hesaplamayı desteklemiyor. Excel dosyasını yükleyin.', 'var(--amber)');
-    return;
-  }
-
-  const mod = document.querySelector('input[name="ornekleme-mod"]:checked')?.value || 'kapali';
-  const verimlilikHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
-
-  performansData.forEach(inspector => {
-    if (!inspector.rawKayitlar || !inspector.rawKayitlar.length) return;
-
-    // klasman bazında yeniden topla
-    const klasmanToplam = {};
-    let yeniToplamAdet = 0;
-    let yeniToplamStandartSure = 0;
-    let yeniToplamStandartSureNormal = 0;
-    let yeniToplamStandartSureOvertime = 0;
-
-    inspector.rawKayitlar.forEach(kayit => {
-      // Örnekleme sonucu adeti yeniden hesapla
-      const yeniAdet = orneklemeAdet(kayit.adetHam || kayit.adet, mod);
-
-      // Standart süreyi yeniden hesapla
-      const olcuAdet     = yeniAdet <= 32 ? 6 : yeniAdet <= 125 ? 9 : 12;
-      const kabulKat     = yeniAdet <= 32 ? 0.5 : yeniAdet <= 80 ? 1.1 : yeniAdet <= 125 ? 1.2 : 1.3;
-      const olcuEk       = olcuAdet * (kayit.olcuSuresi || 0);
-      const kabulEk      = kabulKat * (kayit.kabulSuresi || 0);
-      let yeniStandart   = (kayit.kontrolAdetSuresi * yeniAdet) + olcuEk + kabulEk + (kayit.istasyonSuresi || 0);
-
-      // Kısa kayıt tavanı
-      if (kayit.kayitFiiliSure && kayit.kayitFiiliSure > 0 && kayit.kayitFiiliSure <= 600 && yeniStandart > kayit.kayitFiiliSure) {
-        yeniStandart = kayit.kayitFiiliSure;
-      }
-
-      const kl = kayit.klasman;
-      if (!klasmanToplam[kl]) klasmanToplam[kl] = { adet: 0, standartSure: 0, standartSureNormal: 0, standartSureOvertime: 0 };
-
-      // Overtime toggle kontrolü
-      const normalSayilir = kayit.normalMesai !== false;
-      if (!_overtimeDahil && !normalSayilir) {
-        klasmanToplam[kl].standartSureOvertime += yeniStandart;
-      } else {
-        if (!kayit.is2Kalite || _2KaliteDahil) {
-          klasmanToplam[kl].adet += yeniAdet;
-          klasmanToplam[kl].standartSure += yeniStandart;
-          yeniToplamAdet += yeniAdet;
-          yeniToplamStandartSure += yeniStandart;
-          if (normalSayilir) yeniToplamStandartSureNormal += yeniStandart;
-          else yeniToplamStandartSureOvertime += yeniStandart;
-        }
-      }
-
-      // kayit objesini de güncelle (detay görünümü için)
-      kayit.adet = yeniAdet;
-      kayit.standartSure = yeniStandart;
-    });
-
-    // inspector objesini güncelle
-    inspector.adet = yeniToplamAdet;
-    inspector.standartSure = yeniToplamStandartSure;
-    inspector.standartSureNormal = yeniToplamStandartSureNormal;
-    inspector.standartSureOvertime = yeniToplamStandartSureOvertime;
-
-    // klasmanlar objesini güncelle
-    Object.keys(klasmanToplam).forEach(kl => {
-      if (inspector.klasmanlar[kl]) {
-        inspector.klasmanlar[kl].adet = klasmanToplam[kl].adet;
-        inspector.klasmanlar[kl].standartSure = klasmanToplam[kl].standartSure;
-      }
-    });
-
-    // Performansı yeniden hesapla
-    const overtimeSn = inspector.toplamMesaistiSaniye || 0;
-    const normalMesaiSn = (inspector.mesaiSure || 0) - overtimeSn;
-    const payda = _overtimeDahil
-      ? (inspector.mesaiSure || 0)
-      : (normalMesaiSn > 0 ? normalMesaiSn : (inspector.mesaiSure || 0));
-
-    inspector.genelHizPerf  = payda > 0 ? Math.round((yeniToplamStandartSure / payda) * 100) : null;
-    inspector.genelPerformans = inspector.genelHizPerf;
-    inspector.verimlilikPerf  = inspector.genelHizPerf !== null
-      ? Math.round(inspector.genelHizPerf * (100 / verimlilikHedef))
-      : null;
-
-    // Klasman hizPerf dağılımı
-    if (inspector.genelHizPerf !== null && yeniToplamStandartSure > 0) {
-      Object.keys(inspector.klasmanlar).forEach(kl => {
-        const oran = (inspector.klasmanlar[kl].standartSure || 0) / yeniToplamStandartSure;
-        inspector.klasmanlar[kl].hizPerf = Math.round(oran * inspector.genelHizPerf);
-      });
-    }
-  });
-
-  renderDashboard();
-  renderPerfTabloFromData(1);
-  updateSidebar();
-  markPerformansUnsynced();
 }
 
 function onOvertimeDahilChange() {
@@ -5703,6 +5523,7 @@ function performansHesapla(){
   let basariliTarihKayitlar = 0;
   let tarihHataliKayitlar = 0;
 
+  let kaldiSatirSayisi = 0;
 
   // ── ÇAKIŞMA DÜZELTMESİ (Sistematik Geç Kapanış Normalizasyonu) ───────────
   // Sorun: Sistemsel hata nedeniyle bir siparişin kapanışı sisteme yansımamış
@@ -5811,6 +5632,16 @@ function performansHesapla(){
       if (donemSonuc.exclude) return; // Bu satır hiçbir döneme girmiyor → tamamen atla
       satırOrneklemeMod = donemSonuc.mode;
     }
+    if (sonucCol) {
+      const sonucRaw = String(row[sonucCol] || '').trim();
+      // Türkçe karakter duyarsız karşılaştırma (ı→i, İ→i, ğ→g vs.)
+      const sonucNorm = sonucRaw.toLocaleLowerCase('tr-TR').replace(/ı/g,'i').replace(/İ/g,'i').replace(/ğ/g,'g').replace(/ş/g,'s').replace(/ö/g,'o').replace(/ü/g,'u').replace(/ç/g,'c');
+      if (sonucNorm === 'kaldi' || sonucNorm.includes('kaldi')) {
+        satırOrneklemeMod = 'kapali';
+        kaldiSatirSayisi++;
+      }
+    }
+
     const adet = orneklemeAdet(adetHam, satırOrneklemeMod);
 
     // InspectionYapilanDepo filtresi: sütun seçiliyse boş satırları atla
@@ -5936,7 +5767,7 @@ function performansHesapla(){
       }
     }
     const kayitNormalSayilir = kayitNormalMi(parsedBitis);
-    kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, adetHam, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, olcuSuresi: klasmanInfo.olcuSuresi || 0, kabulSuresi: klasmanInfo.urunKabulSuresi || 0, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '', inspectionTipi: inspectionTipiRaw, is2Kalite });
+    kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '', inspectionTipi: inspectionTipiRaw, is2Kalite });
 
     if (is2Kalite && !_2KaliteDahil) {
       // toplamAdet'e eklenmedi (yukarıda hariç tutuldu)
@@ -5953,7 +5784,14 @@ function performansHesapla(){
 
   // Kaldı özet göstergesi güncelle
   const kaldiOzet = document.getElementById('sonuc-kaldi-ozet');
-  if (kaldiOzet) kaldiOzet.style.display = 'none';
+  if (kaldiOzet) {
+    if (sonucCol && kaldiSatirSayisi > 0) {
+      kaldiOzet.style.display = 'block';
+      kaldiOzet.textContent = '🔴 ' + kaldiSatirSayisi + ' satır "Kaldı" → Kapalı mod uygulandı';
+    } else {
+      kaldiOzet.style.display = 'none';
+    }
+  }
 
   // Inspector bazında sonuç map'i oluştur
   const map = {};
@@ -6055,10 +5893,6 @@ function performansHesapla(){
       ? Math.round((toplam2KaliteStandartSure / toplam2KaliteFiiliSure) * 100)
       : null;
 
-    // Ham kayıt listesi — örnekleme modu değişince yeniden hesaplama için
-    const rawKayitlar = Object.values(inspectorData.klasmanlar)
-      .flatMap(kl => kl.kayitlar);
-
     map[ins] = {
       ins: ins,
       adet: toplamAdet,
@@ -6089,8 +5923,7 @@ function performansHesapla(){
       toplam2KaliteAdet: toplam2KaliteAdet,
       toplam2KaliteStandartSure: toplam2KaliteStandartSure,
       toplam2KaliteFiiliSure: toplam2KaliteFiiliSure,
-      perf2Kalite: perf2Kalite,
-      rawKayitlar: rawKayitlar  // örnekleme yeniden hesaplama için ham liste
+      perf2Kalite: perf2Kalite
     };
 
     
