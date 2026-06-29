@@ -2873,16 +2873,13 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
     const gunBase = new Date(gunBas);
     gunBase.setHours(0, 0, 0, 0);
 
-    const gun8    = new Date(gunBase); gun8.setHours(8, 0, 0, 0);
-    const gun1630 = new Date(gunBase); gun1630.setHours(16, 30, 0, 0);
-    const gun2000 = new Date(gunBase); gun2000.setHours(20, 0, 0, 0);
+    const gun8 = new Date(gunBase); gun8.setHours(8, 0, 0, 0);
+    const gun2030 = new Date(gunBase); gun2030.setHours(20, 0, 0, 0);
 
     // Gün başlangıcı: 08:00'den önce ise 08:00'e çek
     const gercekBas = gunBas < gun8 ? gun8 : gunBas;
-    // Eğer bu dilim ertesi güne geçen kaydın ilk günüyse (23:59:59'da biter)
-    // o günün 16:30'unda kes. Diğer durumlarda 20:00'de kes.
-    const _ilkGunDilimi = gunBit.getHours() === 23 && gunBit.getMinutes() === 59 && gunBit.getSeconds() === 59;
-    const gercekBit = _ilkGunDilimi ? gun1630 : (gunBit > gun2000 ? gun2000 : gunBit);
+    // Gün bitişi: 20:00'den sonra ise 20:00'e kırp
+    const gercekBit = gunBit > gun2030 ? gun2030 : gunBit;
 
     if (gercekBit <= gercekBas) return 0;
 
