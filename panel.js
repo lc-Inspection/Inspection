@@ -2868,30 +2868,48 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
     return dilimler;
   }
 
-  function hesaplaTekilGun(gunBas, gunBit) {
+  function hesaplaTekilGun(gunBas, gunBit, sonrakiGunVarMi) {
     // O günün referans tarihi
     const gunBase = new Date(gunBas);
     gunBase.setHours(0, 0, 0, 0);
 
-    const gun8 = new Date(gunBase); gun8.setHours(8, 0, 0, 0);
-    const gun2030 = new Date(gunBase); gun2030.setHours(20, 0, 0, 0);
+    const gun8      = new Date(gunBase); gun8.setHours(8, 0, 0, 0);
+    const gun1645   = new Date(gunBase); gun1645.setHours(16, 45, 0, 0);
+    const gun2000   = new Date(gunBase); gun2000.setHours(20, 0, 0, 0);
 
     // Gün başlangıcı: 08:00'den önce ise 08:00'e çek
     const gercekBas = gunBas < gun8 ? gun8 : gunBas;
-    // Gün bitişi: 20:00'den sonra ise 20:00'e kırp
-    const gercekBit = gunBit > gun2030 ? gun2030 : gunBit;
+
+    // Sabaha sarkma kırpması:
+    // Bu dilim bir sonraki güne bağlıysa (kayıt ertesi güne sarmışsa) VE
+    // dilimin bitişi 20:00'i aşıyorsa (yani gün sonu 23:59:59 veya sonraki gün)
+    // → o günün bitişini 16:45'e kırp.
+    // Mantık: inspector en geç mesai sonunda (16:45) ürünü bırakmış,
+    // gece devam etmemiş, sabah devam etmiştir.
+    // Not: sonrakiGunVarMi=true → bu dilim tek günlük değil, ertesi güne devam var.
+    let gercekBit;
+    if (sonrakiGunVarMi && gunBit.getTime() >= gun2000.getTime()) {
+      // Ertesi güne saran kayıt: bitiş 16:45'e kırp (inspector mesai sonunda bırakmıştır)
+      gercekBit = gun1645;
+    } else {
+      // Normal: 20:00 üst sınırını uygula
+      gercekBit = gunBit > gun2000 ? gun2000 : gunBit;
+    }
 
     if (gercekBit <= gercekBas) return 0;
 
     let sn = (gercekBit - gercekBas) / 1000;
 
-    // Mola saatleri
+    // Mola saatleri (normal mesai)
     const ogleB = new Date(gunBase); ogleB.setHours(11, 45, 0, 0);
-const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0); 
+    const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0);
     const cay1B = new Date(gunBase); cay1B.setHours(10, 0, 0, 0);
     const cay1E = new Date(gunBase); cay1E.setHours(10, 15, 0, 0);
     const cay2B = new Date(gunBase); cay2B.setHours(14, 0, 0, 0);
     const cay2E = new Date(gunBase); cay2E.setHours(14, 15, 0, 0);
+    // Overtime yemek molası: 16:45–17:15 (30 dk)
+    const yemekB = new Date(gunBase); yemekB.setHours(16, 45, 0, 0);
+    const yemekE = new Date(gunBase); yemekE.setHours(17, 15, 0, 0);
 
     function kesisimSn(mB, mE, cB, cE) {
       const start = Math.max(mB.getTime(), cB.getTime());
@@ -2899,10 +2917,11 @@ const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0);
       return Math.max(0, (end - start) / 1000);
     }
 
-    const ogleDus = kesisimSn(gercekBas, gercekBit, ogleB, ogleE);
-    const cay1Dus = kesisimSn(gercekBas, gercekBit, cay1B, cay1E);
-    const cay2Dus = kesisimSn(gercekBas, gercekBit, cay2B, cay2E);
-    const tumMola = ogleDus + cay1Dus + cay2Dus;
+    const ogleDus  = kesisimSn(gercekBas, gercekBit, ogleB,  ogleE);
+    const cay1Dus  = kesisimSn(gercekBas, gercekBit, cay1B,  cay1E);
+    const cay2Dus  = kesisimSn(gercekBas, gercekBit, cay2B,  cay2E);
+    const yemekDus = kesisimSn(gercekBas, gercekBit, yemekB, yemekE);
+    const tumMola  = ogleDus + cay1Dus + cay2Dus + yemekDus;
 
     // Tüm çalışma mola saatindeyse molayı düşme (molada çalışmış sayılır)
     if (sn - tumMola > 0) {
@@ -2914,8 +2933,10 @@ const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0);
   // Gün dilimlerine böl ve her günü ayrı hesapla
   const dilimler = gunDilimleriOlustur(baslangic, bitis);
   let toplamSn = 0;
-  dilimler.forEach(function(d) {
-    toplamSn += hesaplaTekilGun(d[0], d[1]);
+  dilimler.forEach(function(d, idx) {
+    // Sonraki gün var mı? → bu dilim ertesi güne devam eden bir ara gün
+    const sonrakiGunVarMi = idx < dilimler.length - 1;
+    toplamSn += hesaplaTekilGun(d[0], d[1], sonrakiGunVarMi);
   });
 
   return toplamSn > 0 ? toplamSn : (bitis > baslangic ? 1 : null);
@@ -2963,13 +2984,28 @@ function kayitNormalMi(bitisDate) {
 function hesaplaGunlukMesaiSuresi(kayitListesi) {
   if (!kayitListesi || kayitListesi.length === 0) return null;
 
-  // Her gün için o günün en geç bitiş saatini bul
+  // Her gün için o günün en geç bitiş saatini bul.
+  // Sabaha sarkma tespiti: eğer bir kaydın bitiş günü başlangıç gününden farklıysa
+  // o başlangıç günü için bitiş olarak 16:45 kullanılır (inspector mesai sonunda bırakmıştır).
   const gunBitisSaatleri = {}; // key: toDateString(), value: en geç bitis Date
 
   kayitListesi.forEach(kayit => {
     if (!kayit.parsedBaslangic) return;
     const gun = kayit.parsedBaslangic.toDateString();
-    const bitis = kayit.parsedBitis || null;
+    let bitis = kayit.parsedBitis || null;
+
+    // Sabaha sarkma kontrolü: bitiş farklı bir güne aitse bu gün için 16:45'e kırp
+    if (bitis) {
+      const basGun = new Date(kayit.parsedBaslangic); basGun.setHours(0,0,0,0);
+      const bitGun = new Date(bitis); bitGun.setHours(0,0,0,0);
+      if (bitGun > basGun) {
+        // Ertesi güne sarkmış → bu günün bitiş saatini 16:45 yap
+        const kırpılmışBitis = new Date(basGun);
+        kırpılmışBitis.setHours(16, 45, 0, 0);
+        bitis = kırpılmışBitis;
+      }
+    }
+
     if (!gunBitisSaatleri[gun]) {
       gunBitisSaatleri[gun] = bitis;
     } else if (bitis && bitis > gunBitisSaatleri[gun]) {
@@ -2998,12 +3034,14 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
     } else if (enGecBitis >= mesaiBitis) {
       // 20:00 veya sonrası → 20:00'de kes (gece sayılmaz)
       gercekBitis = mesaiBitis;
-      // Overtime = 20:00 - 16:45 = 3.25 saat - öğle sonrası çay (15:00-15:15 normalBitis'ten sonra sayılmaz)
-      overtimeSn = (mesaiBitis - normalBitis) / 1000; // 3.5 saat = 12600 sn
+      // Overtime = 20:00 - 16:45 = 3.25 saat - 30dk yemek = 3 saat = 10800 sn
+      overtimeSn = (mesaiBitis - normalBitis) / 1000 - 1800; // 1800sn = 30dk yemek molası
     } else if (enGecBitis > normalBitis) {
       // 16:45 ile 20:00 arasında → mesai kaldı, gerçek bitiş saati
       gercekBitis = enGecBitis;
-      overtimeSn = (enGecBitis - normalBitis) / 1000;
+      // 30dk yemek molası (16:45-17:15) eğer bitiş 17:15'i geçiyorsa tam 30dk, geçmiyorsa kısmi
+      const yemekMolaSn = Math.min(1800, Math.max(0, (enGecBitis.getTime() - normalBitis.getTime()) / 1000));
+      overtimeSn = Math.max(0, (enGecBitis - normalBitis) / 1000 - yemekMolaSn);
     } else {
       // 16:45 veya öncesi → normal gün, overtime yok
       gercekBitis = normalBitis;
@@ -3024,6 +3062,7 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
     sureSn -= molaDus(12, 0, 13, 0);   // öğle molası
     sureSn -= molaDus(10, 0, 10, 15);  // sabah çayı
     sureSn -= molaDus(15, 0, 15, 15);  // öğleden sonra çayı
+    sureSn -= molaDus(16, 45, 17, 15); // overtime yemek molası (30 dk)
 
     toplamMesaiSaniye += Math.max(sureSn, 0);
     toplamMesaistiSaniye += Math.max(overtimeSn, 0);
