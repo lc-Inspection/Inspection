@@ -2868,18 +2868,27 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
     return dilimler;
   }
 
-  function hesaplaTekilGun(gunBas, gunBit) {
+  function hesaplaTekilGun(gunBas, gunBit, sonrakiGunVarMi) {
     // O günün referans tarihi
     const gunBase = new Date(gunBas);
     gunBase.setHours(0, 0, 0, 0);
 
-    const gun8 = new Date(gunBase); gun8.setHours(8, 0, 0, 0);
-    const gun2030 = new Date(gunBase); gun2030.setHours(20, 0, 0, 0);
+    const gun8    = new Date(gunBase); gun8.setHours(8,  0, 0, 0);
+    const gun1645 = new Date(gunBase); gun1645.setHours(16, 45, 0, 0);
+    const gun2000 = new Date(gunBase); gun2000.setHours(20,  0, 0, 0);
 
     // Gün başlangıcı: 08:00'den önce ise 08:00'e çek
     const gercekBas = gunBas < gun8 ? gun8 : gunBas;
-    // Gün bitişi: 20:00'den sonra ise 20:00'e kırp
-    const gercekBit = gunBit > gun2030 ? gun2030 : gunBit;
+
+    // Ertesi güne saran kayıt: inspector mesai sonunda (16:45) ürünü bırakmış,
+    // gece devam etmemiş, sabah devam etmiştir. Bu yüzden o günün bitiş saatini
+    // 16:45'e kırp. Aksi hâlde 23:59:59'a kadar çalışmış gibi hesaplanır.
+    let gercekBit;
+    if (sonrakiGunVarMi && gunBit.getTime() >= gun2000.getTime()) {
+      gercekBit = gun1645;
+    } else {
+      gercekBit = gunBit > gun2000 ? gun2000 : gunBit;
+    }
 
     if (gercekBit <= gercekBas) return 0;
 
@@ -2887,10 +2896,10 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
 
     // Mola saatleri
     const ogleB = new Date(gunBase); ogleB.setHours(11, 45, 0, 0);
-const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0); 
-    const cay1B = new Date(gunBase); cay1B.setHours(10, 0, 0, 0);
+    const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0);
+    const cay1B = new Date(gunBase); cay1B.setHours(10,  0, 0, 0);
     const cay1E = new Date(gunBase); cay1E.setHours(10, 15, 0, 0);
-    const cay2B = new Date(gunBase); cay2B.setHours(14, 0, 0, 0);
+    const cay2B = new Date(gunBase); cay2B.setHours(14,  0, 0, 0);
     const cay2E = new Date(gunBase); cay2E.setHours(14, 15, 0, 0);
 
     function kesisimSn(mB, mE, cB, cE) {
@@ -2914,8 +2923,10 @@ const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0);
   // Gün dilimlerine böl ve her günü ayrı hesapla
   const dilimler = gunDilimleriOlustur(baslangic, bitis);
   let toplamSn = 0;
-  dilimler.forEach(function(d) {
-    toplamSn += hesaplaTekilGun(d[0], d[1]);
+  dilimler.forEach(function(d, idx) {
+    // Sonraki gün var mı? → bu dilim ertesi güne devam eden bir ara gün
+    const sonrakiGunVarMi = idx < dilimler.length - 1;
+    toplamSn += hesaplaTekilGun(d[0], d[1], sonrakiGunVarMi);
   });
 
   return toplamSn > 0 ? toplamSn : (bitis > baslangic ? 1 : null);
