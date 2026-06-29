@@ -1929,7 +1929,16 @@ const listeTemiz = liste.map(inspector => {
   Object.entries(inspector.klasmanlar || {}).forEach(([k, v]) => {
     klasmanlarTemiz[k] = {
       adet: v.adet, standartSure: v.standartSure,
-      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf
+      kayitFiiliSure: v.kayitFiiliSure, hizPerf: v.hizPerf, hacimPerf: v.hacimPerf,
+      // örnekleme yeniden hesaplama için ham kayıtları Sheets'e gönder
+      kayitlar: (v.kayitlar || []).map(r => ({
+        klasman: r.klasman, adetHam: r.adetHam ?? r.adet, adet: r.adet,
+        standartSure: r.standartSure, kayitFiiliSure: r.kayitFiiliSure,
+        kontrolAdetSuresi: r.kontrolAdetSuresi, olcuSuresi: r.olcuSuresi || 0,
+        kabulSuresi: r.kabulSuresi || 0, istasyonSuresi: r.istasyonSuresi || 0,
+        baslangic: r.baslangic, bitis: r.bitis, tarihGecerli: r.tarihGecerli,
+        normalMesai: r.normalMesai, is2Kalite: r.is2Kalite || false
+      }))
     };
   });
   return {
@@ -2610,10 +2619,21 @@ function fixVerimlilikPerf(liste) {
   renderOrneklemeDonemleri();
 
   // 3) Her inspector'ın verimlilikPerf ve hedefVerimlilik'ini güncelle
+  // + rawKayitlar oluştur (Sheets'ten gelen klasman.kayitlar dizilerinden)
   liste.forEach(inspector => {
     inspector.hedefVerimlilik = sheetsHedef;
     if (inspector.genelHizPerf !== null && inspector.genelHizPerf !== undefined) {
       inspector.verimlilikPerf = Math.round(inspector.genelHizPerf * (100 / sheetsHedef));
+    }
+    // rawKayitlar yoksa klasmanlar içindeki kayitlar dizisinden oluştur
+    if (!inspector.rawKayitlar) {
+      const ham = [];
+      Object.values(inspector.klasmanlar || {}).forEach(kl => {
+        if (Array.isArray(kl.kayitlar)) {
+          kl.kayitlar.forEach(k => ham.push(k));
+        }
+      });
+      if (ham.length > 0) inspector.rawKayitlar = ham;
     }
   });
   return liste;
