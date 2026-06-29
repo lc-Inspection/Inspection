@@ -5817,7 +5817,12 @@ function performansHesapla(){
       }
     } else {
       // Overtime toggle kontrolü: kapalıysa overtime kayıtları hesaba girmesin
-      const kayitNormalSayilir = kayitNormalMi(parsedBitis);
+      // Ertesi güne geçen kayıtlar için bitiş saati ertesi gün sabahı olduğundan
+      // kayitNormalMi başlangıç günündeki 16:30 sınırına göre bakılmalı
+      const _bitisSaatKontrol = (parsedBitis && parsedBaslangic && parsedBitis.toDateString() !== parsedBaslangic.toDateString())
+        ? (function(){ var d = new Date(parsedBaslangic); d.setHours(16,30,0,0); return d; })()
+        : parsedBitis;
+      const kayitNormalSayilir = kayitNormalMi(_bitisSaatKontrol);
       if (!_overtimeDahil && !kayitNormalSayilir) {
         // Overtime kaydı, toggle kapalı → atla (ne adet ne standart süre ekleme)
         kl.toplamStandartSureOvertime = (kl.toplamStandartSureOvertime||0) + standartSure;
@@ -5834,14 +5839,14 @@ function performansHesapla(){
         }
       }
     }
-    const kayitNormalSayilir = kayitNormalMi(parsedBitis);
+    const kayitNormalSayilir = kayitNormalMi(_bitisSaatKontrol);
     kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '', inspectionTipi: inspectionTipiRaw, is2Kalite });
 
     if (is2Kalite && !_2KaliteDahil) {
       // toplamAdet'e eklenmedi (yukarıda hariç tutuldu)
     } else {
       // Overtime toggle kapalıysa overtime kayıtları adet toplamına da girmesin
-      const kayitNormalSayilir2 = kayitNormalMi(parsedBitis);
+      const kayitNormalSayilir2 = kayitNormalMi(_bitisSaatKontrol);
       if (!_overtimeDahil && !kayitNormalSayilir2) {
         // overtime kaydı, toggle kapalı → atla
       } else {
