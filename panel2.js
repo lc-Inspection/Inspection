@@ -951,8 +951,13 @@ function _renderGunlukTablo() {
     var gunStr  = bas.toDateString();
     var gunBase = new Date(gunStr);
 
-    var normalSn = winOverlapSn(bas, bit, 8, 0, 16, 30, gunBase);
-    var otSn     = winOverlapSn(bas, bit, 16, 30, 20, 0, gunBase);
+    // Ertesi güne geçen kayıt koruması: bitiş bu günün 20:00'ini aşıyorsa 16:30'da kes
+    var gunMesaiBitis = new Date(gunBase); gunMesaiBitis.setHours(20, 0, 0, 0);
+    var gunNormalBitis = new Date(gunBase); gunNormalBitis.setHours(16, 30, 0, 0);
+    var bitDuzeltilmis = bit > gunMesaiBitis ? gunNormalBitis : bit;
+
+    var normalSn = winOverlapSn(bas, bitDuzeltilmis, 8, 0, 16, 30, gunBase);
+    var otSn     = winOverlapSn(bas, bitDuzeltilmis, 16, 30, 20, 0, gunBase);
     var totalSn  = normalSn + otSn;
 
     if (!gunMap[gunStr]) {
