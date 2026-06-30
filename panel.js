@@ -2601,7 +2601,7 @@ function fixVerimlilikPerf(liste) {
   const tarihliCb = document.getElementById('ornekleme-tarihli-aktif');
   if (tarihliCb) tarihliCb.checked = sheetsTarihliAktif;
   orneklemeDonemleri = sheetsTarihliAktif
-    ? sheetsDonemler.map(p => ({ start: p.start || '', end: p.end || '', mode: p.mode || 'kapali' }))
+    ? sheetsDonemler.map(p => ({ start: p.start || '', end: p.end || '', mode: p.mode || 'kapali', depo: _normalizeOrneklemeDepo(p.depo) }))
     : [];
   const tarihliWrap = document.getElementById('ornekleme-donemler-wrap');
   if (tarihliWrap) tarihliWrap.style.display = sheetsTarihliAktif ? 'flex' : 'none';
@@ -5354,7 +5354,7 @@ function toggleOrneklemeDonemleri() {
   if (tag)  tag.style.display  = aktif ? 'inline-block' : 'none';
   if (aktif && orneklemeDonemleri.length === 0) {
     // İlk açılışta kullanım kolaylığı için bir dönem ekle
-    orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali', depo: '' });
+    orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali', depo: [] });
   }
   renderOrneklemeDonemleri();
   performansHesapla();
@@ -5379,9 +5379,16 @@ function getOrneklemeDepoListesi() {
   return ORNEKLEME_DEPO_LISTESI_FALLBACK;
 }
 
+// Eski tek-seçim (string) formatından yeni çoklu-seçim (array) formatına dönüştürür
+function _normalizeOrneklemeDepo(depo) {
+  if (Array.isArray(depo)) return depo.filter(Boolean);
+  if (depo) return [depo];
+  return [];
+}
+
 function addOrneklemeDonemi() {
   if (orneklemeDonemleri.length >= ORNEKLEME_DONEM_MAX) return;
-  orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali', depo: '' });
+  orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali', depo: [] });
   renderOrneklemeDonemleri();
   performansHesapla();
 }
@@ -5396,7 +5403,11 @@ function onOrneklemeDonemChange(el) {
   const idx = parseInt(el.dataset.idx, 10);
   const field = el.dataset.field;
   if (!orneklemeDonemleri[idx]) return;
-  orneklemeDonemleri[idx][field] = el.value;
+  if (field === 'depo' && el.multiple) {
+    orneklemeDonemleri[idx].depo = Array.from(el.selectedOptions).map(o => o.value).filter(Boolean);
+  } else {
+    orneklemeDonemleri[idx][field] = el.value;
+  }
   performansHesapla();
 }
 
@@ -5409,9 +5420,12 @@ function renderOrneklemeDonemleri() {
 
   listEl.innerHTML = orneklemeDonemleri.map((p, idx) => {
     const depoListesi = getOrneklemeDepoListesi();
-    // Mevcut kayıtlı depo değeri listede yoksa (ör. farklı bir Excel yüklendi)
+    const depoSecili = _normalizeOrneklemeDepo(p.depo);
+    p.depo = depoSecili; // eski string formatını kalıcı olarak array'e çevir
+    // Mevcut kayıtlı depo değerleri listede yoksa (ör. farklı bir Excel yüklendi)
     // yine de seçenek olarak göster, veri kaybolmasın
-    const depoSecenekleri = (p.depo && !depoListesi.includes(p.depo)) ? [p.depo, ...depoListesi] : depoListesi;
+    const eksikDepolar = depoSecili.filter(d => !depoListesi.includes(d));
+    const depoSecenekleri = [...eksikDepolar, ...depoListesi];
     return `
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #E1BEE7;border-radius:7px;padding:6px 10px">
       <span style="font-size:11px;font-weight:700;color:#8E24AA;min-width:14px">${idx + 1}.</span>
@@ -5425,11 +5439,11 @@ function renderOrneklemeDonemleri() {
         <option value="bir" ${p.mode === 'bir' ? 'selected' : ''}>${t.mode_bir}</option>
         <option value="iki" ${p.mode === 'iki' ? 'selected' : ''}>${t.mode_iki}</option>
       </select>
-      <label style="font-size:10.5px;color:var(--muted);margin:0">🏭 Depo</label>
-      <select data-idx="${idx}" data-field="depo" onchange="onOrneklemeDonemChange(this)" style="width:auto;padding:4px 8px;font-size:12px">
-        <option value="">Tüm Depolar</option>
-        ${depoSecenekleri.map(d => `<option value="${d}" ${p.depo === d ? 'selected' : ''}>${d}</option>`).join('')}
+      <label style="font-size:10.5px;color:var(--muted);margin:0" title="Ctrl/Cmd basılı tutarak birden fazla depo seçebilirsiniz. Hiçbiri seçili değilse tüm depolara uygulanır.">🏭 Depo(lar) ⓘ</label>
+      <select multiple data-idx="${idx}" data-field="depo" onchange="onOrneklemeDonemChange(this)" size="${Math.min(4, Math.max(2, depoSecenekleri.length))}" style="width:160px;padding:4px 6px;font-size:11.5px">
+        ${depoSecenekleri.map(d => `<option value="${d}" ${depoSecili.includes(d) ? 'selected' : ''}>${d}</option>`).join('')}
       </select>
+      <span style="font-size:10px;color:var(--muted)">${depoSecili.length === 0 ? '(Tüm Depolar)' : depoSecili.length + ' depo seçili'}</span>
       <button type="button" onclick="removeOrneklemeDonemi(${idx})" title="${t.sampling_period_remove}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:14px;padding:2px 6px;margin-left:auto">✕</button>
     </div>
   `;
@@ -5458,9 +5472,10 @@ function getOrneklemeModForDate(date, depoVal) {
     const startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
     const endDate   = new Date(ey, em - 1, ed, 23, 59, 59, 999);
     if (date >= startDate && date <= endDate) {
-      // Dönemin depo kısıtı varsa, satırın deposu eşleşmiyorsa bu dönemi atla
-      // (depo belirtilmemiş dönem = tüm depolar için geçerli, eski davranış)
-      if (p.depo && p.depo !== String(depoVal || '').trim()) continue;
+      // Dönemin depo kısıtı varsa, satırın deposu listede yoksa bu dönemi atla
+      // (depo seçilmemiş/boş dizi = tüm depolar için geçerli, eski davranış)
+      const depoKisiti = _normalizeOrneklemeDepo(p.depo);
+      if (depoKisiti.length > 0 && !depoKisiti.includes(String(depoVal || '').trim())) continue;
       return { mode: p.mode, exclude: false };
     }
   }
