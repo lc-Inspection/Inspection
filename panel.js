@@ -2601,7 +2601,7 @@ function fixVerimlilikPerf(liste) {
   const tarihliCb = document.getElementById('ornekleme-tarihli-aktif');
   if (tarihliCb) tarihliCb.checked = sheetsTarihliAktif;
   orneklemeDonemleri = sheetsTarihliAktif
-    ? sheetsDonemler.map(p => ({ start: p.start || '', end: p.end || '', mode: p.mode || 'kapali', depo: _normalizeOrneklemeDepo(p.depo) }))
+    ? sheetsDonemler.map(p => ({ start: p.start || '', end: p.end || '', mode: p.mode || 'kapali' }))
     : [];
   const tarihliWrap = document.getElementById('ornekleme-donemler-wrap');
   if (tarihliWrap) tarihliWrap.style.display = sheetsTarihliAktif ? 'flex' : 'none';
@@ -5354,41 +5354,15 @@ function toggleOrneklemeDonemleri() {
   if (tag)  tag.style.display  = aktif ? 'inline-block' : 'none';
   if (aktif && orneklemeDonemleri.length === 0) {
     // İlk açılışta kullanım kolaylığı için bir dönem ekle
-    orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali', depo: [] });
+    orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali' });
   }
   renderOrneklemeDonemleri();
   performansHesapla();
 }
 
-// Yüklü Excel'deki InspectionYapilanDepo sütunundan benzersiz depo isimlerini çeker.
-// Sütun seçilmemişse veya veri yoksa, eski sabit listeye düşer (geriye dönük uyumluluk).
-const ORNEKLEME_DEPO_LISTESI_FALLBACK = ['Esenyurt Depo','Titiz Depo','Eroğlu Depo','Yalova Depo','Aksaray Depo','Silivri Depo','Yılmaz Depo'];
-
-function getOrneklemeDepoListesi() {
-  const yapilanDepoCol = document.getElementById('col-yapilan-depo')?.value || '';
-  if (yapilanDepoCol && excelRows.length) {
-    const set = new Set();
-    excelRows.forEach(row => {
-      const v = String(row[yapilanDepoCol] ?? '').trim();
-      if (v) set.add(v);
-    });
-    if (set.size > 0) {
-      return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
-    }
-  }
-  return ORNEKLEME_DEPO_LISTESI_FALLBACK;
-}
-
-// Eski tek-seçim (string) formatından yeni çoklu-seçim (array) formatına dönüştürür
-function _normalizeOrneklemeDepo(depo) {
-  if (Array.isArray(depo)) return depo.filter(Boolean);
-  if (depo) return [depo];
-  return [];
-}
-
 function addOrneklemeDonemi() {
   if (orneklemeDonemleri.length >= ORNEKLEME_DONEM_MAX) return;
-  orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali', depo: [] });
+  orneklemeDonemleri.push({ start: '', end: '', mode: 'kapali' });
   renderOrneklemeDonemleri();
   performansHesapla();
 }
@@ -5407,16 +5381,6 @@ function onOrneklemeDonemChange(el) {
   performansHesapla();
 }
 
-function toggleOrneklemeDonemDepo(idx, depoAdi, isaretli) {
-  if (!orneklemeDonemleri[idx]) return;
-  const mevcut = new Set(_normalizeOrneklemeDepo(orneklemeDonemleri[idx].depo));
-  if (isaretli) mevcut.add(depoAdi); else mevcut.delete(depoAdi);
-  orneklemeDonemleri[idx].depo = Array.from(mevcut);
-  // Sadece seçili sayısı/etiket metnini güncellemek için tam yeniden çiz
-  renderOrneklemeDonemleri();
-  performansHesapla();
-}
-
 function renderOrneklemeDonemleri() {
   const listEl = document.getElementById('ornekleme-donemler-list');
   const addBtn = document.getElementById('btn-ornekleme-donem-ekle');
@@ -5424,15 +5388,7 @@ function renderOrneklemeDonemleri() {
   if (!listEl) return;
   const t = translations[currentLang] || translations.tr;
 
-  listEl.innerHTML = orneklemeDonemleri.map((p, idx) => {
-    const depoListesi = getOrneklemeDepoListesi();
-    const depoSecili = _normalizeOrneklemeDepo(p.depo);
-    p.depo = depoSecili; // eski string formatını kalıcı olarak array'e çevir
-    // Mevcut kayıtlı depo değerleri listede yoksa (ör. farklı bir Excel yüklendi)
-    // yine de seçenek olarak göster, veri kaybolmasın
-    const eksikDepolar = depoSecili.filter(d => !depoListesi.includes(d));
-    const depoSecenekleri = [...eksikDepolar, ...depoListesi];
-    return `
+  listEl.innerHTML = orneklemeDonemleri.map((p, idx) => `
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #E1BEE7;border-radius:7px;padding:6px 10px">
       <span style="font-size:11px;font-weight:700;color:#8E24AA;min-width:14px">${idx + 1}.</span>
       <label style="font-size:10.5px;color:var(--muted);margin:0" data-i18n="sampling_period_start">${t.sampling_period_start}</label>
@@ -5445,22 +5401,9 @@ function renderOrneklemeDonemleri() {
         <option value="bir" ${p.mode === 'bir' ? 'selected' : ''}>${t.mode_bir}</option>
         <option value="iki" ${p.mode === 'iki' ? 'selected' : ''}>${t.mode_iki}</option>
       </select>
-      <label style="font-size:10.5px;color:var(--muted);margin:0" title="Birden fazla depo işaretleyebilirsiniz. Hiçbiri işaretli değilse tüm depolara uygulanır.">🏭 Depo(lar) ⓘ</label>
-      <div style="display:flex;flex-wrap:wrap;gap:4px;max-width:280px;padding:4px;border:1.5px solid var(--border2,#ddd);border-radius:7px;background:#FAFAFE">
-        ${depoSecenekleri.map(d => {
-          const secili = depoSecili.includes(d);
-          const dEsc = d.replace(/'/g, "\\'");
-          return `<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:3px 8px;border-radius:5px;font-size:11px;border:1px solid ${secili ? '#8E24AA' : '#E0D4E8'};background:${secili ? '#F3E5F7' : '#fff'};color:${secili ? '#6A1B7A' : 'var(--navy)'};font-weight:${secili ? '600' : '400'}">
-            <input type="checkbox" data-idx="${idx}" ${secili ? 'checked' : ''} onchange="toggleOrneklemeDonemDepo(${idx}, '${dEsc}', this.checked)" style="width:12px;height:12px;margin:0;cursor:pointer;accent-color:#8E24AA">
-            ${d}
-          </label>`;
-        }).join('')}
-      </div>
-      <span style="font-size:10px;color:var(--muted)">${depoSecili.length === 0 ? '(Tüm Depolar)' : depoSecili.length + ' depo seçili'}</span>
       <button type="button" onclick="removeOrneklemeDonemi(${idx})" title="${t.sampling_period_remove}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:14px;padding:2px 6px;margin-left:auto">✕</button>
     </div>
-  `;
-  }).join('');
+  `).join('');
 
   if (addBtn) addBtn.style.display = orneklemeDonemleri.length >= ORNEKLEME_DONEM_MAX ? 'none' : '';
   if (maxHint) maxHint.style.display = orneklemeDonemleri.length >= ORNEKLEME_DONEM_MAX ? '' : 'none';
@@ -5473,7 +5416,7 @@ function renderOrneklemeDonemleri() {
 // Dönüş: dönem bulunduysa { mode, exclude: false }
 //         tarihli mod aktif ama hiçbir döneme girmediyse { mode: null, exclude: true }
 //         tarihli mod pasifse null (genel mod kullanılır)
-function getOrneklemeModForDate(date, depoVal) {
+function getOrneklemeModForDate(date) {
   if (!date) return null;
   const aktif = document.getElementById('ornekleme-tarihli-aktif')?.checked;
   if (!aktif) return null;
@@ -5484,15 +5427,9 @@ function getOrneklemeModForDate(date, depoVal) {
     const [ey, em, ed] = p.end.split('-').map(Number);
     const startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
     const endDate   = new Date(ey, em - 1, ed, 23, 59, 59, 999);
-    if (date >= startDate && date <= endDate) {
-      // Dönemin depo kısıtı varsa, satırın deposu listede yoksa bu dönemi atla
-      // (depo seçilmemiş/boş dizi = tüm depolar için geçerli, eski davranış)
-      const depoKisiti = _normalizeOrneklemeDepo(p.depo);
-      if (depoKisiti.length > 0 && !depoKisiti.includes(String(depoVal || '').trim())) continue;
-      return { mode: p.mode, exclude: false };
-    }
+    if (date >= startDate && date <= endDate) return { mode: p.mode, exclude: false };
   }
-  // Tarihli mod aktif ama bu tarih (ve varsa depo) hiçbir döneme girmiyor → satırı dışla
+  // Tarihli mod aktif ama bu tarih hiçbir döneme girmiyor → satırı dışla
   if (donemlerTamimli.length > 0) return { mode: null, exclude: true };
   // Dönem tanımlanmamış → genel modu kullan (dışlama yok)
   return null;
@@ -5552,10 +5489,6 @@ function performansHesapla(){
   const verimlilikHedef = Math.max(1, parseFloat(document.getElementById('inp-verimlilik')?.value) || 100);
 
   updateOrneklemeUI();
-  // Tarihli örnekleme modu açıksa, depo listesini güncel Excel verisine göre tazele
-  if (document.getElementById('ornekleme-tarihli-aktif')?.checked) {
-    renderOrneklemeDonemleri();
-  }
 
   // Verimlilik açıklama güncelle
   const vAciklama = document.getElementById('verimlilik-aciklama');
@@ -5705,13 +5638,12 @@ function performansHesapla(){
 
     // Örnekleme modu önceliği:
     // 1) Varsayılan: yukarıdaki genel mod (radio)
-    // 2) Tarih aralıklı mod aktifse ve satırın başlangıç tarihi (ve varsa depo)
-    //    bir döneme denk geliyorsa o dönemin modu kullanılır
+    // 2) Tarih aralıklı mod aktifse ve satırın başlangıç tarihi bir döneme denk
+    //    geliyorsa o dönemin modu kullanılır
     // 3) InspectionSonuc "Kaldı" ise her durumda Kapalı (en yüksek öncelik —
     //    tüm adet kontrol edilmeli)
-    const depoValOnceden = yapilanDepoCol ? String(row[yapilanDepoCol] ?? '').trim() : '';
     let satırOrneklemeMod = orneklemeMod;
-    const donemSonuc = getOrneklemeModForDate(parsedBaslangic, depoValOnceden);
+    const donemSonuc = getOrneklemeModForDate(parsedBaslangic);
     if (donemSonuc !== null) {
       if (donemSonuc.exclude) return; // Bu satır hiçbir döneme girmiyor → tamamen atla
       satırOrneklemeMod = donemSonuc.mode;
@@ -5730,7 +5662,8 @@ function performansHesapla(){
 
     // InspectionYapilanDepo filtresi: sütun seçiliyse boş satırları atla
     if (yapilanDepoCol) {
-      if (!depoValOnceden) return;
+      const depoVal = String(row[yapilanDepoCol] ?? '').trim();
+      if (!depoVal) return;
     }
 
     if(!excelKlasman || !ins || !adet) return;
