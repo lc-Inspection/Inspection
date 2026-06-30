@@ -5403,11 +5403,17 @@ function onOrneklemeDonemChange(el) {
   const idx = parseInt(el.dataset.idx, 10);
   const field = el.dataset.field;
   if (!orneklemeDonemleri[idx]) return;
-  if (field === 'depo' && el.multiple) {
-    orneklemeDonemleri[idx].depo = Array.from(el.selectedOptions).map(o => o.value).filter(Boolean);
-  } else {
-    orneklemeDonemleri[idx][field] = el.value;
-  }
+  orneklemeDonemleri[idx][field] = el.value;
+  performansHesapla();
+}
+
+function toggleOrneklemeDonemDepo(idx, depoAdi, isaretli) {
+  if (!orneklemeDonemleri[idx]) return;
+  const mevcut = new Set(_normalizeOrneklemeDepo(orneklemeDonemleri[idx].depo));
+  if (isaretli) mevcut.add(depoAdi); else mevcut.delete(depoAdi);
+  orneklemeDonemleri[idx].depo = Array.from(mevcut);
+  // Sadece seçili sayısı/etiket metnini güncellemek için tam yeniden çiz
+  renderOrneklemeDonemleri();
   performansHesapla();
 }
 
@@ -5439,10 +5445,17 @@ function renderOrneklemeDonemleri() {
         <option value="bir" ${p.mode === 'bir' ? 'selected' : ''}>${t.mode_bir}</option>
         <option value="iki" ${p.mode === 'iki' ? 'selected' : ''}>${t.mode_iki}</option>
       </select>
-      <label style="font-size:10.5px;color:var(--muted);margin:0" title="Ctrl/Cmd basılı tutarak birden fazla depo seçebilirsiniz. Hiçbiri seçili değilse tüm depolara uygulanır.">🏭 Depo(lar) ⓘ</label>
-      <select multiple data-idx="${idx}" data-field="depo" onchange="onOrneklemeDonemChange(this)" size="${Math.min(4, Math.max(2, depoSecenekleri.length))}" style="width:160px;padding:4px 6px;font-size:11.5px">
-        ${depoSecenekleri.map(d => `<option value="${d}" ${depoSecili.includes(d) ? 'selected' : ''}>${d}</option>`).join('')}
-      </select>
+      <label style="font-size:10.5px;color:var(--muted);margin:0" title="Birden fazla depo işaretleyebilirsiniz. Hiçbiri işaretli değilse tüm depolara uygulanır.">🏭 Depo(lar) ⓘ</label>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;max-width:280px;padding:4px;border:1.5px solid var(--border2,#ddd);border-radius:7px;background:#FAFAFE">
+        ${depoSecenekleri.map(d => {
+          const secili = depoSecili.includes(d);
+          const dEsc = d.replace(/'/g, "\\'");
+          return `<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:3px 8px;border-radius:5px;font-size:11px;border:1px solid ${secili ? '#8E24AA' : '#E0D4E8'};background:${secili ? '#F3E5F7' : '#fff'};color:${secili ? '#6A1B7A' : 'var(--navy)'};font-weight:${secili ? '600' : '400'}">
+            <input type="checkbox" data-idx="${idx}" ${secili ? 'checked' : ''} onchange="toggleOrneklemeDonemDepo(${idx}, '${dEsc}', this.checked)" style="width:12px;height:12px;margin:0;cursor:pointer;accent-color:#8E24AA">
+            ${d}
+          </label>`;
+        }).join('')}
+      </div>
       <span style="font-size:10px;color:var(--muted)">${depoSecili.length === 0 ? '(Tüm Depolar)' : depoSecili.length + ' depo seçili'}</span>
       <button type="button" onclick="removeOrneklemeDonemi(${idx})" title="${t.sampling_period_remove}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:14px;padding:2px 6px;margin-left:auto">✕</button>
     </div>
