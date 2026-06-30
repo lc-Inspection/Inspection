@@ -5870,6 +5870,19 @@ function performansHesapla(){
       mesaiSureSn = fiiliSureSn;
     }
 
+    // ── KAYIP ZAMAN DÜŞÜMÜ ──────────────────────────────────────────────
+    // Kayıp zaman (örn. iş verilememesi, makine arızası vb. çalışanın
+    // kontrolü dışındaki nedenler) mesai paydasından düşülür ki performans
+    // hesabı ne ödül ne ceza olsun: çalışana iş verilmeyen süre için
+    // performans düşürülmesin, ama o süre de "çalışılmış" gibi sayılıp
+    // paydayı şişirmesin.
+    const kayipDkSn = (typeof getKayipDakikaForInspector === 'function')
+      ? getKayipDakikaForInspector(ins) * 60
+      : 0;
+    if (kayipDkSn > 0 && mesaiSureSn > kayipDkSn) {
+      mesaiSureSn -= kayipDkSn;
+    }
+
     // Toplam performansı hesapla
     // _overtimeDahil = false (varsayılan): overtime kayıtları zaten yukarıda
     // hesaba katılmadı (adet ve standart süre hariç tutuldu). Mesai paydasından
