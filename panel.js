@@ -4,6 +4,51 @@
    ============================================================ */
 let _teamManagersOpen = false; // Ekip Yoneticileri bolumu - default kapali
 
+// ── Teknik İnceleme modülü state'i (v5.11) ──────────────────────────────────
+// NOT: Bu değişkenler burada, dosyanın en başında tanımlanmalı. Aşağıdaki
+// "INIT & EVENT LISTENERS" bölümü sayfa yüklenirken senkron olarak
+// renderDashboard() çağırıyor; bu da renderInspectorCards() üzerinden
+// teknikSkorlar'a erişiyor. Bu değişkenler dosyanın sonunda tanımlansaydı,
+// henüz initialize olmadan (TDZ) erişilmeye çalışılır ve tüm script'in
+// yüklenmesi burada çöker (sayfa hiç açılmaz) — bu yüzden en başta olmalılar.
+const TI_SKOR_LS_KEY   = 'lc_teknik_inceleme_skor_cache';
+const TI_KRITER_LS_KEY = 'lc_teknik_inceleme_kriter_cache';
+let teknikKriterler = [];   // [{id, metin, puan, aktif, sira}]
+let teknikSkorlar   = [];   // ham cevap satırları [{id, inspector, degerlendiren, tarih, kriterId, kriterMetin, maxPuan, tikli, kazanilanPuan, aciklama, savedAt}]
+let _tiTalepCache   = {};   // { inspectorName: [{klasman, talepNo, adet, gun}, ...] }
+
+// Admin'in yüklediği resmi "Teknik İnceleme" checklist formundaki 21 madde (toplam 100 puan).
+// "Varsayılan Soruları Yükle" butonuyla tek tıkla kriter listesine eklenir.
+const TI_DEFAULT_KRITERLER = [
+  { metin: '1. Mobil inspection ürün al yapma işleminde İş emri veya Talep numarası kontrolü doğru yapıldı mı?', puan: 2 },
+  { metin: '2. Gold Seal Kontrolü ve Ürün ile Gold Seal karşılaştırılması yapıldı mı?', puan: 5 },
+  { metin: '3. Barkod Okutması yapıldı mı? (her bedenden 1er adet iç-dış barkod)', puan: 2 },
+  { metin: '4. Lot İçi adet Kontrolü (Asorti) yapıldı mı?', puan: 2 },
+  { metin: '5. Aynı lotta renk/tuşe farkı kontrolü yapıldı mı?', puan: 2 },
+  { metin: '6a. Ölçü Kontrolü - Talimatta belirtilen adette ölçü kontrolü yapıldı mı?', puan: 5 },
+  { metin: "6b. Ölçü Kontrolü - Ölçü kontrolü işlemleri 'ST-203 How to Measure'a göre uygun yapıldı mı?", puan: 10 },
+  { metin: '6c. Ölçü Kontrolü - Ölçü Kontrol Sonucu sisteme doğru şekilde girildi mi?', puan: 6 },
+  { metin: '6d. Ölçü Kontrolü - Fit Kontrolü - Ürün Giydirme - Resim Çekme yapıldı mı?', puan: 2 },
+  { metin: '7a. Saat Yönünde Kontrol - Üst/Alt gruplarda doğru bölgeden başlayarak saat yönünde kontrol yapıldı mı?', puan: 20 },
+  { metin: '7b. Saat Yönünde Kontrol - Etiketler kontrol edildi mi?', puan: 4 },
+  { metin: '7c. Saat Yönünde Kontrol - Tüm dikişler kontrol edildi mi?', puan: 4 },
+  { metin: '7d. Saat Yönünde Kontrol - Simetri kontrolü yapıldı mı?', puan: 4 },
+  { metin: '7e. Saat Yönünde Kontrol - Ürünlerin tersi kontrol edildi mi?', puan: 4 },
+  { metin: '8. Görsel Optik Kontrol (saat yönünde kontrol sonrası kalan adetler için) doğru yapıldı mı?', puan: 10 },
+  { metin: '9. Saat yönünde kontrolde çıkan hatalar görsel optik kontrolde takip edildi mi?', puan: 2 },
+  { metin: '10. Hataların Kritik/Majör/Minör olarak sınıflandırılması doğru yapıldı mı?', puan: 2 },
+  { metin: '11. Bulunan hataların Mobil inspection standartlarına göre resimleri çekildi mi?', puan: 2 },
+  { metin: '12. Pull Test - Gramaj Uygulamaları yapıldı mı?', puan: 2 },
+  { metin: '13. Ticari karara hazırlama / paketleme tasnifi doğru yapıldı mı?', puan: 2 },
+  { metin: '14. Zamanı etkin kullanıyor mu?', puan: 8 }
+];
+// Not: loadTeknikIncelemeFromLocalStorage / loadTeknikKriterFromLocalStorage
+// fonksiyonları dosyanın altında tanımlı (function hoisting sayesinde burada
+// çağrılabilirler); localStorage cache'ini en erken noktada belleğe alır.
+try { if (typeof loadTeknikIncelemeFromLocalStorage === 'function') loadTeknikIncelemeFromLocalStorage(); } catch(e) {}
+try { if (typeof loadTeknikKriterFromLocalStorage === 'function') loadTeknikKriterFromLocalStorage(); } catch(e) {}
+
+
 /* ============================================================
    ÇEVIRI / TRANSLATION SYSTEM
    ============================================================ */
@@ -10004,37 +10049,10 @@ function showSebepInspectorDetay(sebep) {
 // küçük ekler. Başka hiçbir mevcut fonksiyon değiştirilmedi.
 // ══════════════════════════════════════════════════════════════════════════════
 
-const TI_SKOR_LS_KEY   = 'lc_teknik_inceleme_skor_cache';
-const TI_KRITER_LS_KEY = 'lc_teknik_inceleme_kriter_cache';
-
-let teknikKriterler = [];   // [{id, metin, puan, aktif, sira}]
-let teknikSkorlar   = [];   // ham cevap satırları [{id, inspector, degerlendiren, tarih, kriterId, kriterMetin, maxPuan, tikli, kazanilanPuan, aciklama, savedAt}]
-
-// Admin'in yüklediği resmi "Teknik İnceleme" checklist formundaki 21 madde (toplam 100 puan).
-// "Varsayılan Soruları Yükle" butonuyla tek tıkla kriter listesine eklenir.
-const TI_DEFAULT_KRITERLER = [
-  { metin: '1. Mobil inspection ürün al yapma işleminde İş emri veya Talep numarası kontrolü doğru yapıldı mı?', puan: 2 },
-  { metin: '2. Gold Seal Kontrolü ve Ürün ile Gold Seal karşılaştırılması yapıldı mı?', puan: 5 },
-  { metin: '3. Barkod Okutması yapıldı mı? (her bedenden 1er adet iç-dış barkod)', puan: 2 },
-  { metin: '4. Lot İçi adet Kontrolü (Asorti) yapıldı mı?', puan: 2 },
-  { metin: '5. Aynı lotta renk/tuşe farkı kontrolü yapıldı mı?', puan: 2 },
-  { metin: '6a. Ölçü Kontrolü - Talimatta belirtilen adette ölçü kontrolü yapıldı mı?', puan: 5 },
-  { metin: "6b. Ölçü Kontrolü - Ölçü kontrolü işlemleri 'ST-203 How to Measure'a göre uygun yapıldı mı?", puan: 10 },
-  { metin: '6c. Ölçü Kontrolü - Ölçü Kontrol Sonucu sisteme doğru şekilde girildi mi?', puan: 6 },
-  { metin: '6d. Ölçü Kontrolü - Fit Kontrolü - Ürün Giydirme - Resim Çekme yapıldı mı?', puan: 2 },
-  { metin: '7a. Saat Yönünde Kontrol - Üst/Alt gruplarda doğru bölgeden başlayarak saat yönünde kontrol yapıldı mı?', puan: 20 },
-  { metin: '7b. Saat Yönünde Kontrol - Etiketler kontrol edildi mi?', puan: 4 },
-  { metin: '7c. Saat Yönünde Kontrol - Tüm dikişler kontrol edildi mi?', puan: 4 },
-  { metin: '7d. Saat Yönünde Kontrol - Simetri kontrolü yapıldı mı?', puan: 4 },
-  { metin: '7e. Saat Yönünde Kontrol - Ürünlerin tersi kontrol edildi mi?', puan: 4 },
-  { metin: '8. Görsel Optik Kontrol (saat yönünde kontrol sonrası kalan adetler için) doğru yapıldı mı?', puan: 10 },
-  { metin: '9. Saat yönünde kontrolde çıkan hatalar görsel optik kontrolde takip edildi mi?', puan: 2 },
-  { metin: '10. Hataların Kritik/Majör/Minör olarak sınıflandırılması doğru yapıldı mı?', puan: 2 },
-  { metin: '11. Bulunan hataların Mobil inspection standartlarına göre resimleri çekildi mi?', puan: 2 },
-  { metin: '12. Pull Test - Gramaj Uygulamaları yapıldı mı?', puan: 2 },
-  { metin: '13. Ticari karara hazırlama / paketleme tasnifi doğru yapıldı mı?', puan: 2 },
-  { metin: '14. Zamanı etkin kullanıyor mu?', puan: 8 }
-];
+// Not: teknikKriterler / teknikSkorlar / TI_* sabitleri dosyanın en başında
+// (GLOBAL STATE bölümünde) tanımlanır — bootstrap kodu (renderDashboard vb.)
+// sayfa yüklenirken senkron çalıştığı için bu değişkenlerin daha erken hazır
+// olması gerekiyor.
 
 function tiVarsayilanSorulariYukle() {
   if (teknikKriterler.length > 0) {
@@ -10079,8 +10097,7 @@ function loadTeknikKriterFromLocalStorage() {
 }
 // Sayfa ilk yüklenirken (login öncesi bile) cache'i belleğe al — dashboard kartları
 // Teknik İnceleme sayfası hiç açılmamış olsa bile son bilinen skoru gösterebilsin.
-loadTeknikIncelemeFromLocalStorage();
-loadTeknikKriterFromLocalStorage();
+// (Çağrılar dosyanın en başına taşındı — bkz. GLOBAL STATE bölümü.)
 
 // ─── Skor Hesaplama (Dashboard kartları + Excel export tarafından da kullanılır) ───
 // Model: Her kriterin sabit bir MAX puanı (ağırlığı) vardır. Değerlendiren kriteri
@@ -10142,7 +10159,7 @@ function fillTeknikInspectorDropdown() {
 // Tarih karşılaştırması backend'de yapılır (Apps Script'in Date işlemleri daha
 // güvenilir), frontend sadece dönen 'gun' (YYYY-MM-DD) alanını filtreler.
 // İnspector başına cache'lenir; tarih değiştiğinde tekrar sunucuya gidilmez.
-let _tiTalepCache = {}; // { inspectorName: [{klasman, talepNo, adet, gun}, ...] }
+// (_tiTalepCache tanımı dosyanın en başına taşındı — bkz. GLOBAL STATE bölümü.)
 
 async function updateTiTalepBilgisi() {
   const box = document.getElementById('ti-talep-info');
