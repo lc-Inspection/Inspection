@@ -719,7 +719,7 @@ function jsonpFetch(url, params) {
       window.removeEventListener('message', handler);
       if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
       reject(new Error(
-        'Google Sheets\'e bağlanamıldı (15 sn zaman aşımı).\n\n' +
+        'Google Sheets\'e bağlanamadı (25 sn zaman aşımı).\n\n' +
         'Bu geçici bir ağ yavaşlaşması olabilir.\n' +
         'İnternet bağlantınızı kontrol edip tekrar deneyin.'
       ));
@@ -10142,6 +10142,16 @@ async function loadTeknikInceleme() {
   const isAdmin = !currentUser || currentUser.isAdmin;
   if (adminWrap) adminWrap.style.display = isAdmin ? '' : 'none';
 
+  // Önbellekteki (localStorage) kriterlerle HEMEN çiz — ağ isteğini bekleme.
+  // Böylece bir Talep No seçildiği an kriterler anında görünür; arka planda
+  // fetchTeknikKriterler() güncel veriyi getirdiğinde tekrar çizilir.
+  renderTeknikKriterForm();
+  renderTiSkorOzet();
+  if (isAdmin) {
+    renderTiKriterYonetimList();
+    renderTiKayitlarTablo();
+  }
+
   await Promise.all([fetchTeknikKriterler(), fetchTeknikSkorlar()]);
 
   renderTeknikKriterForm();
@@ -10355,11 +10365,22 @@ async function kaydetTeknikInceleme() {
   const msg = document.getElementById('ti-save-msg');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Kaydediliyor...'; }
   try {
-    const resp = await jsonpFetch(url, {
-      action: 'saveTeknikInceleme',
-      token,
-      evaluation: encodeURIComponent(JSON.stringify(evaluation))
-    });
+    let resp;
+    try {
+      resp = await jsonpFetch(url, {
+        action: 'saveTeknikInceleme',
+        token,
+        evaluation: encodeURIComponent(JSON.stringify(evaluation))
+      });
+    } catch (ilkHata) {
+      // Zaman aşımı/geçici ağ sorunu olabilir — formu kaybetmemek için 1 kez daha dene
+      if (btn) btn.textContent = '⏳ Tekrar deneniyor...';
+      resp = await jsonpFetch(url, {
+        action: 'saveTeknikInceleme',
+        token,
+        evaluation: encodeURIComponent(JSON.stringify(evaluation))
+      });
+    }
     if (resp && resp.status === 'error') {
       alert('Hata: ' + (resp.message || 'Bilinmeyen hata'));
       return;
