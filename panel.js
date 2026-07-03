@@ -628,7 +628,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwne4acRuhUt92r_3SotJpyGF5xDZaViXZJGo8B2AbA0JU-a_ZncF4oWxuc0NDMZkxf/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyfD3P5Dr3D1Y0IZQz01g-91IvP_qm4qWTT0C-TvCyfpQL793A5sl1d6nes1DP6OoWo/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -10350,12 +10350,16 @@ async function kaydetTeknikInceleme() {
     const aciklamaInp = document.querySelector(`.ti-aciklama-input[data-kriter="${(window.CSS && CSS.escape) ? CSS.escape(k.id) : k.id}"]`);
     return {
       kriterId: k.id,
-      kriterMetin: k.metin,
-      maxPuan: Number(k.puan) || 0,
+      maxPuan: Number(k.puan) || 0,   // sadece yerel önbellek hesabı için — sunucuya gönderilmez
       tikli: !!(cb && cb.checked),
       aciklama: aciklamaInp ? aciklamaInp.value.trim() : ''
     };
   });
+  // Sunucuya gönderilecek küçültülmüş kopya: madde metni gönderilmiyor —
+  // backend kriter listesinden kriterId ile kendisi buluyor. Bu, 21 maddelik
+  // uzun soru metinlerinin URL'ye sığmayıp isteğin sessizce başarısız olmasını
+  // önler (GET/JSONP yöntemi kullanıldığı için URL uzunluğu önemli).
+  const cevaplarGonderim = cevaplar.map(c => ({ kriterId: c.kriterId, tikli: c.tikli, aciklama: c.aciklama }));
 
   const url = appConfig.sheetsWebAppUrl;
   const token = appConfig.sheetsApiToken;
@@ -10364,7 +10368,7 @@ async function kaydetTeknikInceleme() {
   const evaluation = {
     inspector, tarih, talepNo,
     degerlendiren: currentUser?.username || 'admin',
-    cevaplar,
+    cevaplar: cevaplarGonderim,
     savedAt: new Date().toISOString()
   };
 
