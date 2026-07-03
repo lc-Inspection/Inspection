@@ -833,6 +833,13 @@ async function autoFetchOnStartup() {
     }
   } catch(e) { console.warn('Teknik İnceleme skor çekme hatası:', e.message); }
 
+  // ── Kayıp zaman verisini çek (dashboard kartlarındaki "Değerlendirme Dışı"
+  // rozeti için) — Kayıp Zaman sekmesine hiç girilmemiş/erişimi olmayan
+  // kullanıcılarda bile bu rozet doğru gözüksün diye burada, herkes için çekilir.
+  try {
+    await fetchKayipZamanData();
+  } catch(e) { console.warn('Kayıp zaman verisi çekme hatası (startup):', e.message); }
+
   // ── Tümünü kaydet ve render et ──
   saveData();
   updateSidebar();
