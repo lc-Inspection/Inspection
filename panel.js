@@ -10168,6 +10168,7 @@ async function updateTiTalepBilgisi() {
   const tarih = document.getElementById('ti-tarih')?.value;
   const talepInp = document.getElementById('ti-talep-secili');
   if (talepInp) talepInp.value = '';
+  if (typeof renderTeknikKriterForm === 'function') renderTeknikKriterForm();
   if (!inspector || !tarih) { box.style.display = 'none'; box.innerHTML = ''; return; }
 
   box.style.display = '';
@@ -10224,6 +10225,7 @@ function selectTiTalepNo(talepNo) {
     btn.style.color = secili ? '#fff' : 'var(--navy)';
     btn.style.borderColor = secili ? 'var(--blue)' : 'var(--lblue)';
   });
+  renderTeknikKriterForm();
 }
 
 // ─── Kriterleri Çek ───
@@ -10255,9 +10257,22 @@ async function fetchTeknikSkorlar() {
 }
 
 // ─── Değerlendirme Formunu Çiz ───
+// Not: Kriter listesi ve puanlar (teknikKriterler) burada değiştirilmez —
+// sadece Talep No seçilene kadar formun görünmesi ertelenir.
 function renderTeknikKriterForm() {
   const wrap = document.getElementById('ti-kriter-list');
   if (!wrap) return;
+
+  const talepNo = document.getElementById('ti-talep-secili')?.value?.trim();
+  if (!talepNo) {
+    wrap.innerHTML = `<div class="empty" style="padding:20px">
+      <div class="empty-icon">📦</div>
+      <h3>Önce bir Talep No seçin</h3>
+      <p>Kriterler, yukarıdan bir Talep No seçtikten sonra görünecek</p>
+    </div>`;
+    return;
+  }
+
   const aktifler = teknikKriterler.filter(k => k.aktif);
   if (!aktifler.length) {
     wrap.innerHTML = `<div class="empty" style="padding:20px">
