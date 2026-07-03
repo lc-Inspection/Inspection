@@ -10106,6 +10106,8 @@ async function loadTeknikInceleme() {
   fillTeknikInspectorDropdown();
   const tarihEl = document.getElementById('ti-tarih');
   if (tarihEl && !tarihEl.value) tarihEl.value = new Date().toISOString().split('T')[0];
+  _tiKayitlarCache = {}; // Yenilemede talep no verisi taze çekilsin
+  updateTiTalepBilgisi();
 
   const adminWrap = document.getElementById('ti-admin-wrap');
   const isAdmin = !currentUser || currentUser.isAdmin;
@@ -10133,6 +10135,66 @@ function fillTeknikInspectorDropdown() {
     sel.appendChild(opt);
   });
   if (prev) sel.value = prev;
+}
+
+// ─── Seçilen Inspector + Tarihe Ait Talep No'ları Getir ───
+// Kaynak: Sheets'teki "InspectorKayitlar" (mevcut getInspectorKayitlar action'ı,
+// yeni backend değişikliği gerekmez). İnspector başına cache'lenir; tarih
+// değiştiğinde sadece filtre yeniden uygulanır, tekrar sunucuya gidilmez.
+let _tiKayitlarCache = {}; // { inspectorName: kayitlarObj }
+
+async function updateTiTalepBilgisi() {
+  const box = document.getElementById('ti-talep-info');
+  if (!box) return;
+  const inspector = document.getElementById('ti-inspector')?.value?.trim();
+  const tarih = document.getElementById('ti-tarih')?.value;
+  if (!inspector || !tarih) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  box.style.display = '';
+  box.innerHTML = '⏳ Talep No bilgisi yükleniyor...';
+
+  try {
+    let kayitlarObj = _tiKayitlarCache[inspector];
+    if (!kayitlarObj) {
+      const url = appConfig.sheetsWebAppUrl;
+      const token = appConfig.sheetsApiToken;
+      if (!url) { box.innerHTML = ''; box.style.display = 'none'; return; }
+      const resp = await jsonpFetch(url, { action: 'getInspectorKayitlar', token, inspectorAdi: inspector });
+      if (resp?.status !== 'ok' || !resp.kayitlar) {
+        box.innerHTML = 'ℹ️ Bu inspector için kayıt bulunamadı.';
+        return;
+      }
+      kayitlarObj = resp.kayitlar;
+      _tiKayitlarCache[inspector] = kayitlarObj;
+    }
+
+    // Seçilen tarihe denk gelen kayıtları bul (baslangic/bitis tarihinden gün kısmını karşılaştır)
+    const talepMap = {}; // { talepNo: toplamAdet }
+    Object.values(kayitlarObj).forEach(kayitlar => {
+      if (!Array.isArray(kayitlar)) return;
+      kayitlar.forEach(k => {
+        const kDate = k.baslangic || k.bitis;
+        if (!kDate) return;
+        const d = new Date(kDate);
+        if (isNaN(d.getTime())) return;
+        const gunStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        if (gunStr !== tarih) return;
+        const tNo = String(k.talepNo || '').trim();
+        if (!tNo) return;
+        talepMap[tNo] = (talepMap[tNo] || 0) + (Number(k.adet) || 0);
+      });
+    });
+
+    const talepler = Object.entries(talepMap);
+    if (!talepler.length) {
+      box.innerHTML = `ℹ️ ${tarih} tarihinde bu inspector için kayıtlı Talep No bulunamadı.`;
+      return;
+    }
+    box.innerHTML = '📦 <strong>Talep No (bu tarihte kontrol edilen):</strong> ' +
+      talepler.map(([tNo, adet]) => `<span style="display:inline-block;margin:3px 6px 0 0;padding:3px 9px;background:#fff;border:1px solid var(--lblue);border-radius:6px;font-family:'DM Mono',monospace;font-weight:600">${_escapeHtml(tNo)} <span style="color:var(--muted2);font-weight:400">(${formatTR(adet)} adet)</span></span>`).join('');
+  } catch(e) {
+    box.innerHTML = 'ℹ️ Talep No bilgisi çekilemedi: ' + e.message;
+  }
 }
 
 // ─── Kriterleri Çek ───
