@@ -627,7 +627,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwRqR9jg6U5PdbcuTDJgVri57_-d7KzIkeLeIJH76V-1pzLKJ_mIlcsfRfo8picJ3hZ/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxRvJtCWmJ4B6nJrkCUdsc3a20H1OZX1fOmynQF5Sam40-eKBH6Gv6d7rQAnDBbgLBs/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -10189,11 +10189,13 @@ async function updateTiTalepBilgisi() {
       _tiTalepCache[inspector] = talepler;
     }
 
-    const talepMap = {}; // { talepNo: toplamAdet }
+    const talepMap = {}; // { talepNo: { adet, klasmanlar: Set } }
     talepler.filter(r => r.gun === tarih).forEach(r => {
       const tNo = String(r.talepNo || '').trim();
       if (!tNo) return;
-      talepMap[tNo] = (talepMap[tNo] || 0) + (Number(r.adet) || 0);
+      if (!talepMap[tNo]) talepMap[tNo] = { adet: 0, klasmanlar: new Set() };
+      talepMap[tNo].adet += (Number(r.adet) || 0);
+      if (r.klasman) talepMap[tNo].klasmanlar.add(String(r.klasman));
     });
 
     const girdiler = Object.entries(talepMap);
@@ -10209,7 +10211,10 @@ async function updateTiTalepBilgisi() {
       return;
     }
     box.innerHTML = '📦 <strong>Talep No (bu tarihte kontrol edilen) — seçmek için tıklayın:</strong><br>' +
-      girdiler.map(([tNo, adet]) => `<button type="button" onclick="selectTiTalepNo('${tNo.replace(/'/g,"\\'")}')" class="ti-talep-chip" data-talep="${_escapeHtml(tNo)}" style="display:inline-block;margin:5px 6px 0 0;padding:4px 10px;background:#fff;border:1px solid var(--lblue);border-radius:6px;font-family:'DM Mono',monospace;font-weight:600;cursor:pointer;color:var(--navy)">${_escapeHtml(tNo)} <span style="color:var(--muted2);font-weight:400">(${formatTR(adet)} adet)</span></button>`).join('');
+      girdiler.map(([tNo, info]) => {
+        const klasmanStr = info.klasmanlar.size ? Array.from(info.klasmanlar).join(', ') : '';
+        return `<button type="button" onclick="selectTiTalepNo('${tNo.replace(/'/g,"\\'")}')" class="ti-talep-chip" data-talep="${_escapeHtml(tNo)}" style="display:inline-block;margin:5px 6px 0 0;padding:4px 10px;background:#fff;border:1px solid var(--lblue);border-radius:6px;font-family:'DM Mono',monospace;font-weight:600;cursor:pointer;color:var(--navy)">${_escapeHtml(tNo)} <span style="color:var(--muted2);font-weight:400">(${formatTR(info.adet)} adet${klasmanStr ? ', ' + _escapeHtml(klasmanStr) : ''})</span></button>`;
+      }).join('');
   } catch(e) {
     box.innerHTML = 'ℹ️ Talep No bilgisi çekilemedi: ' + e.message;
   }
@@ -10347,17 +10352,19 @@ async function kaydetTeknikInceleme() {
       alert('Hata: ' + (resp.message || 'Bilinmeyen hata'));
       return;
     }
-    // Yerel cache'e ekle
+    // Yerel cache'e tek özet satır olarak ekle (madde madde değil)
     const now = new Date().toISOString();
-    const baseId = Date.now();
-    cevaplar.forEach((c, i) => {
-      teknikSkorlar.push({
-        id: baseId + '_' + i,
-        inspector, degerlendiren: evaluation.degerlendiren, tarih, talepNo,
-        kriterId: c.kriterId, kriterMetin: c.kriterMetin,
-        maxPuan: c.maxPuan, tikli: c.tikli, kazanilanPuan: c.tikli ? c.maxPuan : 0,
-        aciklama: c.aciklama, savedAt: now
-      });
+    let maxToplam = 0, kazanilanToplam = 0, tikliSayisi = 0;
+    cevaplar.forEach(c => {
+      maxToplam += c.maxPuan;
+      if (c.tikli) { kazanilanToplam += c.maxPuan; tikliSayisi++; }
+    });
+    teknikSkorlar.push({
+      id: Date.now().toString(),
+      inspector, degerlendiren: evaluation.degerlendiren, tarih, talepNo,
+      maxPuan: maxToplam, kazanilanPuan: kazanilanToplam,
+      skorYuzde: maxToplam > 0 ? Math.round((kazanilanToplam / maxToplam) * 100) : 0,
+      maddeSayisi: cevaplar.length, tikliSayisi, savedAt: now
     });
     saveTeknikIncelemeToLocalStorage();
     if (msg) { msg.style.display = ''; setTimeout(() => { msg.style.display = 'none'; }, 3000); }
@@ -10498,24 +10505,17 @@ function renderTiKayitlarTablo() {
     </div>`;
     return;
   }
-  // Grupla: inspector + degerlendiren + tarih + savedAt
-  const gruplar = {};
-  teknikSkorlar.forEach(r => {
-    const key = [r.inspector, r.degerlendiren, r.tarih, r.savedAt].join('|');
-    if (!gruplar[key]) gruplar[key] = { inspector: r.inspector, degerlendiren: r.degerlendiren, tarih: r.tarih, talepNo: r.talepNo || '', savedAt: r.savedAt, maxToplam: 0, kazanilanToplam: 0, adet: 0 };
-    gruplar[key].maxToplam += (Number(r.maxPuan) || 0);
-    gruplar[key].kazanilanToplam += (Number(r.kazanilanPuan) || 0);
-    gruplar[key].adet += 1;
-  });
-  const satirlar = Object.values(gruplar).sort((a,b) => (b.savedAt||'').localeCompare(a.savedAt||''));
+  // Not: teknikSkorlar artık madde madde değil, her satır tek bir değerlendirme
+  // özeti (bkz. saveTeknikIncelemeKaydi) — gruplamaya gerek yok.
+  const satirlar = teknikSkorlar.slice().sort((a,b) => (b.savedAt||'').localeCompare(a.savedAt||''));
   const rows = satirlar.map(g => {
-    const percent = g.maxToplam > 0 ? Math.round((g.kazanilanToplam / g.maxToplam) * 100) : 0;
+    const percent = g.skorYuzde ?? (g.maxPuan > 0 ? Math.round((g.kazanilanPuan / g.maxPuan) * 100) : 0);
     return `<tr>
       <td style="padding:7px 10px;font-size:12px;color:var(--navy);font-weight:500">${_escapeHtml(_formatDisplayName(g.inspector))}</td>
       <td style="padding:7px 10px;font-size:12px;color:var(--muted2);font-family:'DM Mono',monospace">${_escapeHtml(g.talepNo || '—')}</td>
       <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${_escapeHtml(g.degerlendiren)}</td>
       <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${_escapeHtml(g.tarih)}</td>
-      <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${g.adet} madde · ${g.kazanilanToplam}/${g.maxToplam} puan</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${g.maddeSayisi || 0} madde · ${g.kazanilanPuan}/${g.maxPuan} puan</td>
       <td style="padding:7px 10px;font-size:12px;font-weight:700;color:${getProgressColor(percent)}">${percent}%</td>
     </tr>`;
   }).join('');
@@ -10543,7 +10543,11 @@ async function temizleTeknikIncelemeVerileri() {
   const btn = document.getElementById('ti-clear-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Siliniyor...'; }
   try {
-    await jsonpFetch(url, { action: 'clearTeknikIncelemeSkorlar', token });
+    const resp = await jsonpFetch(url, { action: 'clearTeknikIncelemeSkorlar', token });
+    if (!resp || resp.status !== 'ok') {
+      alert('❌ Sheets tarafında silme işlemi başarısız oldu: ' + (resp?.message || 'Bilinmeyen hata') + '\n\nYerel görünüm değiştirilmedi, lütfen tekrar deneyin.');
+      return;
+    }
     teknikSkorlar = [];
     saveTeknikIncelemeToLocalStorage();
     renderTiSkorOzet();
