@@ -627,7 +627,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwFcifGnn2AYJrj6QrIX7dtvWh-CjGAqvB9J56y5xi3pZfLjBC6UssQzjnhEN8EjolU/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwRqR9jg6U5PdbcuTDJgVri57_-d7KzIkeLeIJH76V-1pzLKJ_mIlcsfRfo8picJ3hZ/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -10166,6 +10166,8 @@ async function updateTiTalepBilgisi() {
   if (!box) return;
   const inspector = document.getElementById('ti-inspector')?.value?.trim();
   const tarih = document.getElementById('ti-tarih')?.value;
+  const talepInp = document.getElementById('ti-talep-secili');
+  if (talepInp) talepInp.value = '';
   if (!inspector || !tarih) { box.style.display = 'none'; box.innerHTML = ''; return; }
 
   box.style.display = '';
@@ -10194,15 +10196,34 @@ async function updateTiTalepBilgisi() {
     });
 
     const girdiler = Object.entries(talepMap);
+
+    // Datalist'i her durumda güncelle (elle giriş için otomatik tamamlama)
+    const datalist = document.getElementById('ti-talep-datalist');
+    if (datalist) {
+      datalist.innerHTML = girdiler.map(([tNo]) => `<option value="${_escapeHtml(tNo)}"></option>`).join('');
+    }
+
     if (!girdiler.length) {
-      box.innerHTML = `ℹ️ ${tarih} tarihinde bu inspector için kayıtlı Talep No bulunamadı.`;
+      box.innerHTML = `ℹ️ ${tarih} tarihinde bu inspector için kayıtlı Talep No bulunamadı. Talep No'yu elle girebilirsiniz.`;
       return;
     }
-    box.innerHTML = '📦 <strong>Talep No (bu tarihte kontrol edilen):</strong> ' +
-      girdiler.map(([tNo, adet]) => `<span style="display:inline-block;margin:3px 6px 0 0;padding:3px 9px;background:#fff;border:1px solid var(--lblue);border-radius:6px;font-family:'DM Mono',monospace;font-weight:600">${_escapeHtml(tNo)} <span style="color:var(--muted2);font-weight:400">(${formatTR(adet)} adet)</span></span>`).join('');
+    box.innerHTML = '📦 <strong>Talep No (bu tarihte kontrol edilen) — seçmek için tıklayın:</strong><br>' +
+      girdiler.map(([tNo, adet]) => `<button type="button" onclick="selectTiTalepNo('${tNo.replace(/'/g,"\\'")}')" class="ti-talep-chip" data-talep="${_escapeHtml(tNo)}" style="display:inline-block;margin:5px 6px 0 0;padding:4px 10px;background:#fff;border:1px solid var(--lblue);border-radius:6px;font-family:'DM Mono',monospace;font-weight:600;cursor:pointer;color:var(--navy)">${_escapeHtml(tNo)} <span style="color:var(--muted2);font-weight:400">(${formatTR(adet)} adet)</span></button>`).join('');
   } catch(e) {
     box.innerHTML = 'ℹ️ Talep No bilgisi çekilemedi: ' + e.message;
   }
+}
+
+// Bir Talep No chip'ine tıklanınca seçili input'a yazar ve o chip'i görsel olarak vurgular
+function selectTiTalepNo(talepNo) {
+  const inp = document.getElementById('ti-talep-secili');
+  if (inp) inp.value = talepNo;
+  document.querySelectorAll('.ti-talep-chip').forEach(btn => {
+    const secili = btn.getAttribute('data-talep') === talepNo;
+    btn.style.background = secili ? 'var(--blue)' : '#fff';
+    btn.style.color = secili ? '#fff' : 'var(--navy)';
+    btn.style.borderColor = secili ? 'var(--blue)' : 'var(--lblue)';
+  });
 }
 
 // ─── Kriterleri Çek ───
@@ -10267,8 +10288,10 @@ function renderTeknikKriterForm() {
 async function kaydetTeknikInceleme() {
   const inspector = document.getElementById('ti-inspector')?.value?.trim();
   const tarih = document.getElementById('ti-tarih')?.value;
+  const talepNo = document.getElementById('ti-talep-secili')?.value?.trim();
   if (!inspector) { alert('Lütfen bir inspector seçin.'); return; }
   if (!tarih) { alert('Lütfen tarih girin.'); return; }
+  if (!talepNo) { alert('Lütfen değerlendirmeyi yaptığınız Talep No\'yu seçin veya girin.'); return; }
 
   const aktifler = teknikKriterler.filter(k => k.aktif);
   if (!aktifler.length) { alert('Değerlendirilecek kriter yok.'); return; }
@@ -10290,7 +10313,7 @@ async function kaydetTeknikInceleme() {
   if (!url) { alert('Sheets bağlantısı yapılandırılmamış.'); return; }
 
   const evaluation = {
-    inspector, tarih,
+    inspector, tarih, talepNo,
     degerlendiren: currentUser?.username || 'admin',
     cevaplar,
     savedAt: new Date().toISOString()
@@ -10315,7 +10338,7 @@ async function kaydetTeknikInceleme() {
     cevaplar.forEach((c, i) => {
       teknikSkorlar.push({
         id: baseId + '_' + i,
-        inspector, degerlendiren: evaluation.degerlendiren, tarih,
+        inspector, degerlendiren: evaluation.degerlendiren, tarih, talepNo,
         kriterId: c.kriterId, kriterMetin: c.kriterMetin,
         maxPuan: c.maxPuan, tikli: c.tikli, kazanilanPuan: c.tikli ? c.maxPuan : 0,
         aciklama: c.aciklama, savedAt: now
@@ -10323,6 +10346,8 @@ async function kaydetTeknikInceleme() {
     });
     saveTeknikIncelemeToLocalStorage();
     if (msg) { msg.style.display = ''; setTimeout(() => { msg.style.display = 'none'; }, 3000); }
+    const talepInp = document.getElementById('ti-talep-secili');
+    if (talepInp) talepInp.value = '';
     renderTeknikKriterForm();
     renderTiSkorOzet();
     if (!currentUser || currentUser.isAdmin) renderTiKayitlarTablo();
@@ -10462,7 +10487,7 @@ function renderTiKayitlarTablo() {
   const gruplar = {};
   teknikSkorlar.forEach(r => {
     const key = [r.inspector, r.degerlendiren, r.tarih, r.savedAt].join('|');
-    if (!gruplar[key]) gruplar[key] = { inspector: r.inspector, degerlendiren: r.degerlendiren, tarih: r.tarih, savedAt: r.savedAt, maxToplam: 0, kazanilanToplam: 0, adet: 0 };
+    if (!gruplar[key]) gruplar[key] = { inspector: r.inspector, degerlendiren: r.degerlendiren, tarih: r.tarih, talepNo: r.talepNo || '', savedAt: r.savedAt, maxToplam: 0, kazanilanToplam: 0, adet: 0 };
     gruplar[key].maxToplam += (Number(r.maxPuan) || 0);
     gruplar[key].kazanilanToplam += (Number(r.kazanilanPuan) || 0);
     gruplar[key].adet += 1;
@@ -10472,6 +10497,7 @@ function renderTiKayitlarTablo() {
     const percent = g.maxToplam > 0 ? Math.round((g.kazanilanToplam / g.maxToplam) * 100) : 0;
     return `<tr>
       <td style="padding:7px 10px;font-size:12px;color:var(--navy);font-weight:500">${_escapeHtml(_formatDisplayName(g.inspector))}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--muted2);font-family:'DM Mono',monospace">${_escapeHtml(g.talepNo || '—')}</td>
       <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${_escapeHtml(g.degerlendiren)}</td>
       <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${_escapeHtml(g.tarih)}</td>
       <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${g.adet} madde · ${g.kazanilanToplam}/${g.maxToplam} puan</td>
@@ -10481,6 +10507,7 @@ function renderTiKayitlarTablo() {
   wrap.innerHTML = `<table style="width:100%;border-collapse:collapse">
     <thead><tr style="border-bottom:2px solid var(--border2)">
       <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Inspector</th>
+      <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Talep No</th>
       <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Değerlendiren</th>
       <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Tarih</th>
       <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Madde</th>
