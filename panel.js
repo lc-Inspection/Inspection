@@ -608,10 +608,11 @@ try {
 
 // Yönetilebilir sekmeler (Kullanıcı Yönetimi sayfasında checkbox olarak gösterilir)
 const ASSIGNABLE_TABS = [
-  { id: 'dashboard',      label: 'Dashboard' },
-  { id: 'klasman-analiz', label: 'Klasman Analizi' },
-  { id: 'performans',     label: 'Performans Analizi' },
-  { id: 'canli',          label: 'Canlı Gösterim' }
+  { id: 'dashboard',        label: 'Dashboard' },
+  { id: 'klasman-analiz',   label: 'Klasman Analizi' },
+  { id: 'performans',       label: 'Performans Analizi' },
+  { id: 'canli',            label: 'Canlı Gösterim' },
+  { id: 'teknik-inceleme',  label: 'Teknik İnceleme' }
 ];
 
 // Yeni bilgisayar tespiti: localStorage'da config hiç yoksa
@@ -776,6 +777,15 @@ async function autoFetchOnStartup() {
   } catch(e) {
     console.warn('Performans otomatik çekme hatası:', e.message);
   }
+
+  // ── Teknik İnceleme skorlarını çek (dashboard kartlarında gösterim için) ──
+  try {
+    const tiData = await jsonpFetch(url, { action: 'getTeknikIncelemeSkorlar', token });
+    if (tiData.status === 'ok' && Array.isArray(tiData.skorlar)) {
+      teknikSkorlar = tiData.skorlar;
+      saveTeknikIncelemeToLocalStorage();
+    }
+  } catch(e) { console.warn('Teknik İnceleme skor çekme hatası:', e.message); }
 
   // ── Tümünü kaydet ve render et ──
   saveData();
@@ -3168,6 +3178,8 @@ function showPage(id, navEl){
     loadKayipZamanEkip();
   } else if(id === 'kayip-zaman-admin') {
     loadKayipZamanAdmin();
+  } else if(id === 'teknik-inceleme') {
+    loadTeknikInceleme();
   }
 }
 
@@ -4003,6 +4015,20 @@ function renderInspectorCards() {
             : `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(0,0,0,.03);border-radius:7px">
                 <span style="font-size:11px;color:var(--muted2)">🏷️ 2.Kalite kontrolü yok</span>
               </div>`)}
+          ${(() => {
+            const ti = getTeknikIncelemeSkorForInspector(inspector.ins);
+            if (!ti || ti.count === 0) {
+              return `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(0,0,0,.03);border-radius:7px">
+                <span style="font-size:11px;color:var(--muted2)">🧪 Teknik İnceleme Skoru yok</span>
+              </div>`;
+            }
+            const tiColor = getProgressColor(ti.percent);
+            return `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;padding:5px 10px;background:rgba(69,39,160,.08);border-radius:7px">
+                <span style="font-size:11px;color:#4527A0">🧪 Teknik İnceleme Skoru:</span>
+                <span style="font-size:13px;font-weight:700;color:${tiColor}">${ti.percent}%</span>
+                <span style="font-size:9px;color:var(--muted2)">(${ti.seviye})</span>
+              </div>`;
+          })()}
           <div style="text-align:center">
             <span style="font-size:11px;color:var(--muted2)">📊 </span>
             <span style="font-size:12px;font-weight:600;color:var(--navy)">${klasmanCount} ${(translations[currentLang]||translations.tr).klasman_word}</span>
@@ -4233,15 +4259,19 @@ function exportToExcel() {
   
   const mainData = performansData.map(inspector => {
     const totalHedef = inspector.standartSure || 0;
-    const performans = inspector.genelHizPerf ?? 0;
-    
+    // Not: Bu kolon önceden yanlışlıkla "Hız Performansı"nı gösteriyordu.
+    // Doğrusu Verimlilik Perf (%) olmalı — düzeltildi.
+    const performans = inspector.verimlilikPerf ?? inspector.genelHizPerf ?? 0;
+    const ti = getTeknikIncelemeSkorForInspector(inspector.ins);
+
     return {
       'Inspector': inspector.ins,
       'Toplam Adet': inspector.adet,
       'Kayıt Sayısı': inspector.kayit,
       'Standart Süre (dk)': Math.round(totalHedef/60),
       'Mesai Süresi (dk)': Math.round((inspector.mesaiSure||0)/60),
-      'Performans (%)': performans,
+      'Verimlilik Perf (%)': performans,
+      'Teknik İnceleme Skoru (%)': (ti && ti.count > 0) ? ti.percent : '—',
       'Klasman Sayısı': Object.keys(inspector.klasmanlar).length,
       'Çalışma Gün Sayısı': inspector.gunSayisi || 0
     };
@@ -9968,3 +9998,452 @@ function showSebepInspectorDetay(sebep) {
       if (Array.isArray(data.config.activeQuarters) && data.config.activeQuarters.length > 0) {
         appConfig.activeQuarters = data.config.activeQuarters;
       }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEKNİK İNCELEME — YENİ MODÜL (v5.11)
+// Bu blok kendi içinde bağımsızdır; mevcut fonksiyonlara sadece 3 küçük "kanca"
+// (hook) noktasından bağlanır: ASSIGNABLE_TABS, showPage() ve autoFetchOnStartup()
+// içindeki eklemeler, ayrıca renderInspectorCards() ve exportToExcel() içindeki
+// küçük ekler. Başka hiçbir mevcut fonksiyon değiştirilmedi.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const TI_SKOR_LS_KEY   = 'lc_teknik_inceleme_skor_cache';
+const TI_KRITER_LS_KEY = 'lc_teknik_inceleme_kriter_cache';
+
+let teknikKriterler = [];   // [{id, metin, puan, aktif, sira}]
+let teknikSkorlar   = [];   // ham cevap satırları [{id, inspector, degerlendiren, tarih, kriterId, kriterMetin, maxPuan, tikli, kazanilanPuan, aciklama, savedAt}]
+
+// Admin'in yüklediği resmi "Teknik İnceleme" checklist formundaki 21 madde (toplam 100 puan).
+// "Varsayılan Soruları Yükle" butonuyla tek tıkla kriter listesine eklenir.
+const TI_DEFAULT_KRITERLER = [
+  { metin: '1. Mobil inspection ürün al yapma işleminde İş emri veya Talep numarası kontrolü doğru yapıldı mı?', puan: 2 },
+  { metin: '2. Gold Seal Kontrolü ve Ürün ile Gold Seal karşılaştırılması yapıldı mı?', puan: 5 },
+  { metin: '3. Barkod Okutması yapıldı mı? (her bedenden 1er adet iç-dış barkod)', puan: 2 },
+  { metin: '4. Lot İçi adet Kontrolü (Asorti) yapıldı mı?', puan: 2 },
+  { metin: '5. Aynı lotta renk/tuşe farkı kontrolü yapıldı mı?', puan: 2 },
+  { metin: '6a. Ölçü Kontrolü - Talimatta belirtilen adette ölçü kontrolü yapıldı mı?', puan: 5 },
+  { metin: "6b. Ölçü Kontrolü - Ölçü kontrolü işlemleri 'ST-203 How to Measure'a göre uygun yapıldı mı?", puan: 10 },
+  { metin: '6c. Ölçü Kontrolü - Ölçü Kontrol Sonucu sisteme doğru şekilde girildi mi?', puan: 6 },
+  { metin: '6d. Ölçü Kontrolü - Fit Kontrolü - Ürün Giydirme - Resim Çekme yapıldı mı?', puan: 2 },
+  { metin: '7a. Saat Yönünde Kontrol - Üst/Alt gruplarda doğru bölgeden başlayarak saat yönünde kontrol yapıldı mı?', puan: 20 },
+  { metin: '7b. Saat Yönünde Kontrol - Etiketler kontrol edildi mi?', puan: 4 },
+  { metin: '7c. Saat Yönünde Kontrol - Tüm dikişler kontrol edildi mi?', puan: 4 },
+  { metin: '7d. Saat Yönünde Kontrol - Simetri kontrolü yapıldı mı?', puan: 4 },
+  { metin: '7e. Saat Yönünde Kontrol - Ürünlerin tersi kontrol edildi mi?', puan: 4 },
+  { metin: '8. Görsel Optik Kontrol (saat yönünde kontrol sonrası kalan adetler için) doğru yapıldı mı?', puan: 10 },
+  { metin: '9. Saat yönünde kontrolde çıkan hatalar görsel optik kontrolde takip edildi mi?', puan: 2 },
+  { metin: '10. Hataların Kritik/Majör/Minör olarak sınıflandırılması doğru yapıldı mı?', puan: 2 },
+  { metin: '11. Bulunan hataların Mobil inspection standartlarına göre resimleri çekildi mi?', puan: 2 },
+  { metin: '12. Pull Test - Gramaj Uygulamaları yapıldı mı?', puan: 2 },
+  { metin: '13. Ticari karara hazırlama / paketleme tasnifi doğru yapıldı mı?', puan: 2 },
+  { metin: '14. Zamanı etkin kullanıyor mu?', puan: 8 }
+];
+
+function tiVarsayilanSorulariYukle() {
+  if (teknikKriterler.length > 0) {
+    if (!confirm('Mevcut kriter listesinin üzerine varsayılan soru seti eklenecek. Devam edilsin mi?\n(Mevcut maddeler silinmez, sona eklenir — "Kriterleri Kaydet" ile onaylamayı unutmayın.)')) return;
+  }
+  const now = Date.now();
+  TI_DEFAULT_KRITERLER.forEach((k, i) => {
+    teknikKriterler.push({ id: 'k_' + now + '_' + i, metin: k.metin, puan: k.puan, aktif: true, sira: teknikKriterler.length });
+  });
+  renderTiKriterYonetimList();
+  showSuccessMessage('✅ Varsayılan sorular listeye eklendi — kalıcı olması için "Kriterleri Kaydet"e basın');
+}
+
+// ─── localStorage cache ───
+function saveTeknikIncelemeToLocalStorage() {
+  try {
+    localStorage.setItem(TI_SKOR_LS_KEY, JSON.stringify({ skorlar: teknikSkorlar, savedAt: Date.now() }));
+  } catch(e) { console.warn('Teknik İnceleme skor cache yazma hatası:', e); }
+}
+function loadTeknikIncelemeFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(TI_SKOR_LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.skorlar)) teknikSkorlar = parsed.skorlar;
+    }
+  } catch(e) { console.warn('Teknik İnceleme skor cache okuma hatası:', e); }
+}
+function saveTeknikKriterToLocalStorage() {
+  try {
+    localStorage.setItem(TI_KRITER_LS_KEY, JSON.stringify({ kriterler: teknikKriterler, savedAt: Date.now() }));
+  } catch(e) { console.warn('Teknik İnceleme kriter cache yazma hatası:', e); }
+}
+function loadTeknikKriterFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(TI_KRITER_LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.kriterler)) teknikKriterler = parsed.kriterler;
+    }
+  } catch(e) { console.warn('Teknik İnceleme kriter cache okuma hatası:', e); }
+}
+// Sayfa ilk yüklenirken (login öncesi bile) cache'i belleğe al — dashboard kartları
+// Teknik İnceleme sayfası hiç açılmamış olsa bile son bilinen skoru gösterebilsin.
+loadTeknikIncelemeFromLocalStorage();
+loadTeknikKriterFromLocalStorage();
+
+// ─── Skor Hesaplama (Dashboard kartları + Excel export tarafından da kullanılır) ───
+// Model: Her kriterin sabit bir MAX puanı (ağırlığı) vardır. Değerlendiren kriteri
+// tik'lerse o kriterin tam puanını kazanır, tik'lemezse 0 alır. Skor = tüm
+// kayıtlardaki kazanılan puan toplamı / max puan toplamı * 100. Seviye etiketi
+// mevcut 5 seviyeli skala (getPerformanceLevelLabel) ile birebir aynı eşikleri kullanır.
+function getTeknikIncelemeSkorForInspector(inspectorName) {
+  const nameNorm = String(inspectorName || '').toLowerCase().trim();
+  const cevaplar = teknikSkorlar.filter(r => String(r.inspector || '').toLowerCase().trim() === nameNorm);
+  if (!cevaplar.length) return { percent: 0, count: 0, seviye: '—' };
+  let maxToplam = 0, kazanilanToplam = 0;
+  cevaplar.forEach(r => {
+    maxToplam += (Number(r.maxPuan) || 0);
+    kazanilanToplam += (Number(r.kazanilanPuan) || 0);
+  });
+  if (maxToplam <= 0) return { percent: 0, count: 0, seviye: '—' };
+  const percent = Math.round((kazanilanToplam / maxToplam) * 100);
+  return { percent, count: cevaplar.length, seviye: getPerformanceLevelLabel(percent) };
+}
+
+// ─── Sayfa Girişi ───
+async function loadTeknikInceleme() {
+  fillTeknikInspectorDropdown();
+  const tarihEl = document.getElementById('ti-tarih');
+  if (tarihEl && !tarihEl.value) tarihEl.value = new Date().toISOString().split('T')[0];
+
+  const adminWrap = document.getElementById('ti-admin-wrap');
+  const isAdmin = !currentUser || currentUser.isAdmin;
+  if (adminWrap) adminWrap.style.display = isAdmin ? '' : 'none';
+
+  await Promise.all([fetchTeknikKriterler(), fetchTeknikSkorlar()]);
+
+  renderTeknikKriterForm();
+  renderTiSkorOzet();
+  if (isAdmin) {
+    renderTiKriterYonetimList();
+    renderTiKayitlarTablo();
+  }
+}
+
+function fillTeknikInspectorDropdown() {
+  const sel = document.getElementById('ti-inspector');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— Inspector seçin —</option>';
+  performansData.slice().sort((a,b) => a.ins.localeCompare(b.ins, 'tr')).forEach(ins => {
+    const opt = document.createElement('option');
+    opt.value = ins.ins;
+    opt.textContent = _formatDisplayName(ins.ins);
+    sel.appendChild(opt);
+  });
+  if (prev) sel.value = prev;
+}
+
+// ─── Kriterleri Çek ───
+async function fetchTeknikKriterler() {
+  const url = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url) return;
+  try {
+    const data = await jsonpFetch(url, { action: 'getTeknikKriterler', token });
+    if (data?.status === 'ok' && Array.isArray(data.kriterler)) {
+      teknikKriterler = data.kriterler;
+      saveTeknikKriterToLocalStorage();
+    }
+  } catch(e) { console.warn('Teknik İnceleme kriter çekme hatası:', e.message); }
+}
+
+// ─── Skorları Çek ───
+async function fetchTeknikSkorlar() {
+  const url = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url) return;
+  try {
+    const data = await jsonpFetch(url, { action: 'getTeknikIncelemeSkorlar', token });
+    if (data?.status === 'ok' && Array.isArray(data.skorlar)) {
+      teknikSkorlar = data.skorlar;
+      saveTeknikIncelemeToLocalStorage();
+    }
+  } catch(e) { console.warn('Teknik İnceleme skor çekme hatası:', e.message); }
+}
+
+// ─── Değerlendirme Formunu Çiz ───
+function renderTeknikKriterForm() {
+  const wrap = document.getElementById('ti-kriter-list');
+  if (!wrap) return;
+  const aktifler = teknikKriterler.filter(k => k.aktif);
+  if (!aktifler.length) {
+    wrap.innerHTML = `<div class="empty" style="padding:20px">
+      <div class="empty-icon">📝</div>
+      <h3>Henüz kriter tanımlanmamış</h3>
+      <p>${(!currentUser || currentUser.isAdmin) ? 'Aşağıdaki "Kriter Yönetimi" bölümünden madde ekleyin' : 'Yönetici tarafından madde eklenmesi bekleniyor'}</p>
+    </div>`;
+    return;
+  }
+  const maxToplam = aktifler.reduce((s,k) => s + (Number(k.puan)||0), 0);
+  wrap.innerHTML = `
+    <div style="font-size:11px;color:var(--muted2);margin-bottom:4px">Maddeyi tikleyin = tam puan alınır · Tiklenmeyen madde 0 puan alır · Toplam maksimum puan: <strong>${maxToplam}</strong></div>
+    ${aktifler.map(k => `
+    <div class="ti-madde-row" data-kriter="${_escapeHtml(k.id)}" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--offwhite);border:1px solid var(--border2);border-radius:8px;flex-wrap:wrap">
+      <input type="checkbox" class="ti-tik-cb" data-kriter="${_escapeHtml(k.id)}" style="width:20px;height:20px;margin-top:2px;cursor:pointer" title="Tikle = tam puan">
+      <div style="flex:1;min-width:220px">
+        <div style="font-size:13px;color:var(--navy);font-weight:500">${_escapeHtml(k.metin)}</div>
+        <input type="text" class="ti-aciklama-input" data-kriter="${_escapeHtml(k.id)}" placeholder="Açıklama (opsiyonel)" style="margin-top:6px;width:100%;font-size:12px;padding:5px 8px">
+      </div>
+      <span style="font-size:12px;font-weight:700;color:var(--blue);background:var(--lblue3);border-radius:6px;padding:4px 9px;white-space:nowrap">${k.puan} puan</span>
+    </div>
+  `).join('')}`;
+}
+
+
+
+// ─── Değerlendirmeyi Kaydet ───
+async function kaydetTeknikInceleme() {
+  const inspector = document.getElementById('ti-inspector')?.value?.trim();
+  const tarih = document.getElementById('ti-tarih')?.value;
+  if (!inspector) { alert('Lütfen bir inspector seçin.'); return; }
+  if (!tarih) { alert('Lütfen tarih girin.'); return; }
+
+  const aktifler = teknikKriterler.filter(k => k.aktif);
+  if (!aktifler.length) { alert('Değerlendirilecek kriter yok.'); return; }
+
+  const cevaplar = aktifler.map(k => {
+    const cb = document.querySelector(`.ti-tik-cb[data-kriter="${(window.CSS && CSS.escape) ? CSS.escape(k.id) : k.id}"]`);
+    const aciklamaInp = document.querySelector(`.ti-aciklama-input[data-kriter="${(window.CSS && CSS.escape) ? CSS.escape(k.id) : k.id}"]`);
+    return {
+      kriterId: k.id,
+      kriterMetin: k.metin,
+      maxPuan: Number(k.puan) || 0,
+      tikli: !!(cb && cb.checked),
+      aciklama: aciklamaInp ? aciklamaInp.value.trim() : ''
+    };
+  });
+
+  const url = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url) { alert('Sheets bağlantısı yapılandırılmamış.'); return; }
+
+  const evaluation = {
+    inspector, tarih,
+    degerlendiren: currentUser?.username || 'admin',
+    cevaplar,
+    savedAt: new Date().toISOString()
+  };
+
+  const btn = document.getElementById('ti-save-btn');
+  const msg = document.getElementById('ti-save-msg');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Kaydediliyor...'; }
+  try {
+    const resp = await jsonpFetch(url, {
+      action: 'saveTeknikInceleme',
+      token,
+      evaluation: encodeURIComponent(JSON.stringify(evaluation))
+    });
+    if (resp && resp.status === 'error') {
+      alert('Hata: ' + (resp.message || 'Bilinmeyen hata'));
+      return;
+    }
+    // Yerel cache'e ekle
+    const now = new Date().toISOString();
+    const baseId = Date.now();
+    cevaplar.forEach((c, i) => {
+      teknikSkorlar.push({
+        id: baseId + '_' + i,
+        inspector, degerlendiren: evaluation.degerlendiren, tarih,
+        kriterId: c.kriterId, kriterMetin: c.kriterMetin,
+        maxPuan: c.maxPuan, tikli: c.tikli, kazanilanPuan: c.tikli ? c.maxPuan : 0,
+        aciklama: c.aciklama, savedAt: now
+      });
+    });
+    saveTeknikIncelemeToLocalStorage();
+    if (msg) { msg.style.display = ''; setTimeout(() => { msg.style.display = 'none'; }, 3000); }
+    renderTeknikKriterForm();
+    renderTiSkorOzet();
+    if (!currentUser || currentUser.isAdmin) renderTiKayitlarTablo();
+    // Dashboard kartlarında da güncel görünsün
+    if (typeof renderDashboard === 'function' && document.getElementById('inspector-grid')) renderDashboard();
+  } catch(e) {
+    alert('Hata: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Değerlendirmeyi Kaydet'; }
+  }
+}
+
+// ─── Skor Özeti Tablosu ───
+function renderTiSkorOzet() {
+  const wrap = document.getElementById('ti-skor-ozet');
+  if (!wrap) return;
+  const isimler = Array.from(new Set(teknikSkorlar.map(r => r.inspector))).sort((a,b) => a.localeCompare(b, 'tr'));
+  if (!isimler.length) {
+    wrap.innerHTML = `<div class="empty" style="padding:20px">
+      <div class="empty-icon">📊</div>
+      <h3>Henüz değerlendirme yapılmamış</h3>
+    </div>`;
+    return;
+  }
+  const rows = isimler.map(ins => {
+    const s = getTeknikIncelemeSkorForInspector(ins);
+    const color = getProgressColor(s.percent);
+    return `<tr>
+      <td style="padding:8px 10px;font-size:13px;color:var(--navy);font-weight:500">${_escapeHtml(_formatDisplayName(ins))}</td>
+      <td style="padding:8px 10px;font-size:13px;font-weight:700;color:${color}">${s.percent}%</td>
+      <td style="padding:8px 10px;font-size:12px;color:${color}">${s.seviye}</td>
+      <td style="padding:8px 10px;font-size:12px;color:var(--muted2)">${s.count} madde cevabı</td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse">
+    <thead><tr style="border-bottom:2px solid var(--border2)">
+      <th style="text-align:left;padding:8px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Inspector</th>
+      <th style="text-align:left;padding:8px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Skor</th>
+      <th style="text-align:left;padding:8px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Seviye</th>
+      <th style="text-align:left;padding:8px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Veri</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ─── ADMIN: Kriter Yönetimi ───
+function renderTiKriterYonetimList() {
+  const wrap = document.getElementById('ti-kriter-yonetim-list');
+  if (!wrap) return;
+  if (!teknikKriterler.length) {
+    wrap.innerHTML = `<div style="font-size:12px;color:var(--muted2);padding:8px 0">Henüz madde eklenmedi. Aşağıdan ekleyebilir veya varsayılan soru setini yükleyebilirsiniz.</div>`;
+    return;
+  }
+  const toplamPuan = teknikKriterler.reduce((s,k) => s + (Number(k.puan)||0), 0);
+  wrap.innerHTML = `
+    <div style="font-size:11px;color:var(--muted2);margin-bottom:2px">Toplam maksimum puan: <strong>${toplamPuan}</strong> (idealde 100 olması önerilir)</div>
+    ${teknikKriterler.map((k, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--offwhite);border:1px solid var(--border2);border-radius:8px">
+      <input type="checkbox" data-ti-idx="${i}" class="ti-kriter-aktif" ${k.aktif ? 'checked' : ''} title="Aktif/Pasif">
+      <input type="text" data-ti-idx="${i}" class="ti-kriter-metin" value="${_escapeHtml(k.metin)}" style="flex:1;font-size:13px">
+      <input type="number" min="0" step="1" data-ti-idx="${i}" class="ti-kriter-puan" value="${Number(k.puan)||0}" title="Madde puanı (ağırlığı)" style="width:70px;font-size:13px;text-align:center">
+      <button onclick="silTiKriter(${i})" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer">🗑️</button>
+    </div>
+  `).join('')}`;
+}
+
+function ekleTeknikKriter() {
+  const input = document.getElementById('ti-kriter-yeni-input');
+  const puanInput = document.getElementById('ti-kriter-yeni-puan');
+  const metin = input?.value?.trim();
+  const puan = Number(puanInput?.value) || 0;
+  if (!metin) { alert('Lütfen madde metni girin.'); return; }
+  teknikKriterler.push({ id: 'k_' + Date.now(), metin, puan, aktif: true, sira: teknikKriterler.length });
+  if (input) input.value = '';
+  if (puanInput) puanInput.value = '';
+  renderTiKriterYonetimList();
+}
+
+function silTiKriter(idx) {
+  if (!confirm('Bu maddeyi silmek istediğinize emin misiniz?')) return;
+  teknikKriterler.splice(idx, 1);
+  renderTiKriterYonetimList();
+}
+
+async function kaydetTeknikKriterler() {
+  // DOM'daki güncel checkbox/metin/puan değerlerini diziye yansıt
+  document.querySelectorAll('.ti-kriter-metin').forEach(inp => {
+    const i = Number(inp.getAttribute('data-ti-idx'));
+    if (teknikKriterler[i]) teknikKriterler[i].metin = inp.value.trim();
+  });
+  document.querySelectorAll('.ti-kriter-puan').forEach(inp => {
+    const i = Number(inp.getAttribute('data-ti-idx'));
+    if (teknikKriterler[i]) teknikKriterler[i].puan = Number(inp.value) || 0;
+  });
+  document.querySelectorAll('.ti-kriter-aktif').forEach(cb => {
+    const i = Number(cb.getAttribute('data-ti-idx'));
+    if (teknikKriterler[i]) teknikKriterler[i].aktif = cb.checked;
+  });
+  teknikKriterler.forEach((k, i) => { k.sira = i; });
+
+  const url = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url || !token) { alert('⚠️ Google Sheets bağlantısı yapılandırılmamış!'); return; }
+
+  const btn = document.getElementById('ti-kriter-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Kaydediliyor...'; }
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'setTeknikKriterler', token, kriterler: teknikKriterler }),
+      mode: 'no-cors'
+    });
+    saveTeknikKriterToLocalStorage();
+    renderTiKriterYonetimList();
+    renderTeknikKriterForm();
+    showSuccessMessage('✅ Kriterler kaydedildi');
+  } catch(err) {
+    alert('❌ Gönderme hatası: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Kriterleri Kaydet'; }
+  }
+}
+
+// ─── ADMIN: Tüm Kayıtlar Tablosu (değerlendirme oturumu bazında gruplanır) ───
+function renderTiKayitlarTablo() {
+  const wrap = document.getElementById('ti-kayitlar-tablo');
+  if (!wrap) return;
+  if (!teknikSkorlar.length) {
+    wrap.innerHTML = `<div class="empty" style="padding:20px">
+      <div class="empty-icon">📋</div>
+      <h3>Henüz kayıt yok</h3>
+    </div>`;
+    return;
+  }
+  // Grupla: inspector + degerlendiren + tarih + savedAt
+  const gruplar = {};
+  teknikSkorlar.forEach(r => {
+    const key = [r.inspector, r.degerlendiren, r.tarih, r.savedAt].join('|');
+    if (!gruplar[key]) gruplar[key] = { inspector: r.inspector, degerlendiren: r.degerlendiren, tarih: r.tarih, savedAt: r.savedAt, maxToplam: 0, kazanilanToplam: 0, adet: 0 };
+    gruplar[key].maxToplam += (Number(r.maxPuan) || 0);
+    gruplar[key].kazanilanToplam += (Number(r.kazanilanPuan) || 0);
+    gruplar[key].adet += 1;
+  });
+  const satirlar = Object.values(gruplar).sort((a,b) => (b.savedAt||'').localeCompare(a.savedAt||''));
+  const rows = satirlar.map(g => {
+    const percent = g.maxToplam > 0 ? Math.round((g.kazanilanToplam / g.maxToplam) * 100) : 0;
+    return `<tr>
+      <td style="padding:7px 10px;font-size:12px;color:var(--navy);font-weight:500">${_escapeHtml(_formatDisplayName(g.inspector))}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${_escapeHtml(g.degerlendiren)}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${_escapeHtml(g.tarih)}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${g.adet} madde · ${g.kazanilanToplam}/${g.maxToplam} puan</td>
+      <td style="padding:7px 10px;font-size:12px;font-weight:700;color:${getProgressColor(percent)}">${percent}%</td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse">
+    <thead><tr style="border-bottom:2px solid var(--border2)">
+      <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Inspector</th>
+      <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Değerlendiren</th>
+      <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Tarih</th>
+      <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Madde</th>
+      <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Skor</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ─── ADMIN: Tüm Teknik İnceleme kayıtlarını temizle (onay ister) ───
+async function temizleTeknikIncelemeVerileri() {
+  if (!confirm('⚠️ Tüm Teknik İnceleme değerlendirme kayıtları silinecek!\n\nBu işlem geri alınamaz. Devam etmek istiyor musunuz?')) return;
+  if (!confirm('Son kez soruyoruz: Teknik İnceleme verilerini kalıcı olarak silmek istediğinize emin misiniz?')) return;
+
+  const url = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url) { alert('Sheets bağlantısı yok.'); return; }
+  const btn = document.getElementById('ti-clear-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Siliniyor...'; }
+  try {
+    await jsonpFetch(url, { action: 'clearTeknikIncelemeSkorlar', token });
+    teknikSkorlar = [];
+    saveTeknikIncelemeToLocalStorage();
+    renderTiSkorOzet();
+    renderTiKayitlarTablo();
+    if (typeof renderDashboard === 'function' && document.getElementById('inspector-grid')) renderDashboard();
+    showSuccessMessage('✅ Teknik İnceleme verileri silindi!');
+  } catch(e) {
+    alert('Hata: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🗑️ Temizle'; }
+  }
+}
