@@ -10054,16 +10054,18 @@ function showSebepInspectorDetay(sebep) {
 // sayfa yüklenirken senkron çalıştığı için bu değişkenlerin daha erken hazır
 // olması gerekiyor.
 
-function tiVarsayilanSorulariYukle() {
+async function tiVarsayilanSorulariYukle() {
   if (teknikKriterler.length > 0) {
-    if (!confirm('Mevcut kriter listesinin üzerine varsayılan soru seti eklenecek. Devam edilsin mi?\n(Mevcut maddeler silinmez, sona eklenir — "Kriterleri Kaydet" ile onaylamayı unutmayın.)')) return;
+    if (!confirm('Mevcut kriter listesinin üzerine varsayılan soru seti eklenecek ve otomatik kaydedilecek. Devam edilsin mi?')) return;
   }
   const now = Date.now();
   TI_DEFAULT_KRITERLER.forEach((k, i) => {
     teknikKriterler.push({ id: 'k_' + now + '_' + i, metin: k.metin, puan: k.puan, aktif: true, sira: teknikKriterler.length });
   });
   renderTiKriterYonetimList();
-  showSuccessMessage('✅ Varsayılan sorular listeye eklendi — kalıcı olması için "Kriterleri Kaydet"e basın');
+  // Unutulup kaybolmasın diye otomatik kaydet (ayrıca "Kriterleri Kaydet"e basmaya gerek yok)
+  // Not: kaydetTeknikKriterler() kendi başarı mesajını zaten gösteriyor.
+  await kaydetTeknikKriterler();
 }
 
 // ─── localStorage cache ───
