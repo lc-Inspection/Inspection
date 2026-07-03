@@ -9995,9 +9995,6 @@ function showSebepInspectorDetay(sebep) {
 
   popup.style.display = 'flex';
 }
-      if (Array.isArray(data.config.activeQuarters) && data.config.activeQuarters.length > 0) {
-        appConfig.activeQuarters = data.config.activeQuarters;
-      }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TEKNİK İNCELEME — YENİ MODÜL (v5.11)
