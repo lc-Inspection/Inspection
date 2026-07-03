@@ -16,6 +16,7 @@ const TI_KRITER_LS_KEY = 'lc_teknik_inceleme_kriter_cache';
 let teknikKriterler = [];   // [{id, metin, puan, aktif, sira}]
 let teknikSkorlar   = [];   // ham cevap satırları [{id, inspector, degerlendiren, tarih, kriterId, kriterMetin, maxPuan, tikli, kazanilanPuan, aciklama, savedAt}]
 let _tiTalepCache   = {};   // { inspectorName: [{klasman, talepNo, adet, gun}, ...] }
+const TI_BASARI_ESIGI = 85; // Değerlendirme başına başarı eşiği (%) — bu ve üstü "Başarılı" sayılır
 
 // Admin'in yüklediği resmi "Teknik İnceleme" checklist formundaki 21 madde (toplam 100 puan).
 // "Varsayılan Soruları Yükle" butonuyla tek tıkla kriter listesine eklenir.
@@ -10510,8 +10511,13 @@ function renderTiKayitlarTablo() {
   // Not: teknikSkorlar artık madde madde değil, her satır tek bir değerlendirme
   // özeti (bkz. saveTeknikIncelemeKaydi) — gruplamaya gerek yok.
   const satirlar = teknikSkorlar.slice().sort((a,b) => (b.savedAt||'').localeCompare(a.savedAt||''));
+  const basariliSayisi = satirlar.filter(g => (g.skorYuzde ?? 0) >= TI_BASARI_ESIGI).length;
   const rows = satirlar.map(g => {
     const percent = g.skorYuzde ?? (g.maxPuan > 0 ? Math.round((g.kazanilanPuan / g.maxPuan) * 100) : 0);
+    const basarili = percent >= TI_BASARI_ESIGI;
+    const durumHtml = basarili
+      ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;border-radius:99px;font-size:11px;font-weight:700">✅ Başarılı</span>`
+      : `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;border-radius:99px;font-size:11px;font-weight:700">❌ Başarısız</span>`;
     return `<tr>
       <td style="padding:7px 10px;font-size:12px;color:var(--navy);font-weight:500">${_escapeHtml(_formatDisplayName(g.inspector))}</td>
       <td style="padding:7px 10px;font-size:12px;color:var(--muted2);font-family:'DM Mono',monospace">${_escapeHtml(g.talepNo || '—')}</td>
@@ -10519,9 +10525,15 @@ function renderTiKayitlarTablo() {
       <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${_escapeHtml(g.tarih)}</td>
       <td style="padding:7px 10px;font-size:12px;color:var(--muted2)">${g.maddeSayisi || 0} madde · ${g.kazanilanPuan}/${g.maxPuan} puan</td>
       <td style="padding:7px 10px;font-size:12px;font-weight:700;color:${getProgressColor(percent)}">${percent}%</td>
+      <td style="padding:7px 10px">${durumHtml}</td>
     </tr>`;
   }).join('');
-  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse">
+  wrap.innerHTML = `
+    <div style="margin-bottom:10px;font-size:12px;color:var(--muted2)">
+      <strong style="color:var(--navy)">${basariliSayisi}</strong> / ${satirlar.length} değerlendirme başarılı
+      <span style="color:var(--muted)">(≥%${TI_BASARI_ESIGI} = Başarılı)</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
     <thead><tr style="border-bottom:2px solid var(--border2)">
       <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Inspector</th>
       <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Talep No</th>
@@ -10529,6 +10541,7 @@ function renderTiKayitlarTablo() {
       <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Tarih</th>
       <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Madde</th>
       <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Skor</th>
+      <th style="text-align:left;padding:7px 10px;font-size:11px;color:var(--muted);text-transform:uppercase">Durum</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
