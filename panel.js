@@ -2642,8 +2642,8 @@ function fixVerimlilikPerf(liste) {
     const vAciklama = document.getElementById('verimlilik-aciklama');
     if (vAciklama) {
       if (sheetsHedef === 100) vAciklama.textContent = '';
-      else if (sheetsHedef < 100) vAciklama.textContent = `(%${sheetsHedef} (translations[currentLang]||translations.tr).target_below_100 ${(100/sheetsHedef).toFixed(2)}x) `;
-      else vAciklama.textContent = `(%${sheetsHedef} (translations[currentLang]||translations.tr).target_above_100 ${(100/sheetsHedef).toFixed(2)}x) `;
+      else if (sheetsHedef < 100) vAciklama.textContent = `(%${sheetsHedef} ${(translations[currentLang]||translations.tr).target_below_100} ${(100/sheetsHedef).toFixed(2)}x) `;
+      else vAciklama.textContent = `(%${sheetsHedef} ${(translations[currentLang]||translations.tr).target_above_100} ${(100/sheetsHedef).toFixed(2)}x) `;
     }
   }
   // orneklemeMod radio'sunu Sheets'ten gelen değere göre set et
@@ -2950,13 +2950,13 @@ function hesaplaGerceklesenSure(baslangicTarih, bitisTarih) {
 
     let sn = (gercekBit - gercekBas) / 1000;
 
-    // Mola saatleri
+    // Mola saatleri (RESMİ TAKVİM — hesaplaGunlukMesaiSuresi ile birebir aynı olmalı)
     const ogleB = new Date(gunBase); ogleB.setHours(11, 45, 0, 0);
     const ogleE = new Date(gunBase); ogleE.setHours(12, 25, 0, 0);
     const cay1B = new Date(gunBase); cay1B.setHours(10,  0, 0, 0);
     const cay1E = new Date(gunBase); cay1E.setHours(10, 15, 0, 0);
-    const cay2B = new Date(gunBase); cay2B.setHours(14,  0, 0, 0);
-    const cay2E = new Date(gunBase); cay2E.setHours(14, 15, 0, 0);
+    const cay2B = new Date(gunBase); cay2B.setHours(14, 10, 0, 0);
+    const cay2E = new Date(gunBase); cay2E.setHours(14, 25, 0, 0);
 
     function kesisimSn(mB, mE, cB, cE) {
       const start = Math.max(mB.getTime(), cB.getTime());
@@ -3081,7 +3081,7 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
       gercekBitis = normalBitis;
     }
 
-    // Molalar: öğle 12:00-13:00, çay 10:00-10:15, çay 15:00-15:15
+    // Molalar (RESMİ TAKVİM — hesaplaGerceklesenSure ile birebir aynı): öğle 11:45-12:25 (40dk), sabah çayı 10:00-10:15, öğleden sonra çayı 14:10-14:25
     let sureSn = (gercekBitis - baslangic) / 1000;
     if (sureSn <= 0) { sureSn = GUNLUK_CALISMA_SANIYE; }
 
@@ -3093,9 +3093,9 @@ function hesaplaGunlukMesaiSuresi(kayitListesi) {
       return Math.max(0, (end - start) / 1000);
     }
 
-    sureSn -= molaDus(12, 0, 13, 0);   // öğle molası
-    sureSn -= molaDus(10, 0, 10, 15);  // sabah çayı
-    sureSn -= molaDus(15, 0, 15, 15);  // öğleden sonra çayı
+    sureSn -= molaDus(11, 45, 12, 25);  // öğle molası (RESMİ: hesaplaGerceklesenSure ile aynı)
+    sureSn -= molaDus(10, 0, 10, 15);   // sabah çayı
+    sureSn -= molaDus(14, 10, 14, 25);  // öğleden sonra çayı (RESMİ: hesaplaGerceklesenSure ile aynı)
 
     toplamMesaiSaniye += Math.max(sureSn, 0);
     toplamMesaistiSaniye += Math.max(overtimeSn, 0);
@@ -5570,8 +5570,8 @@ function performansHesapla(){
   const vAciklama = document.getElementById('verimlilik-aciklama');
   if (vAciklama) {
     if (verimlilikHedef === 100) vAciklama.textContent = '';
-    else if (verimlilikHedef < 100) vAciklama.textContent = `(%${verimlilikHedef} (translations[currentLang]||translations.tr).target_below_100 ${(100/verimlilikHedef).toFixed(2)}x) `;
-    else vAciklama.textContent = `(%${verimlilikHedef} (translations[currentLang]||translations.tr).target_above_100 ${(100/verimlilikHedef).toFixed(2)}x) `;
+    else if (verimlilikHedef < 100) vAciklama.textContent = `(%${verimlilikHedef} ${(translations[currentLang]||translations.tr).target_below_100} ${(100/verimlilikHedef).toFixed(2)}x) `;
+    else vAciklama.textContent = `(%${verimlilikHedef} ${(translations[currentLang]||translations.tr).target_above_100} ${(100/verimlilikHedef).toFixed(2)}x) `;
   }
 
   if(!klasmanCol || !insCol || !adetCol){
@@ -5946,18 +5946,14 @@ function performansHesapla(){
       mesaiSureSn = fiiliSureSn;
     }
 
-    // ── KAYIP ZAMAN DÜŞÜMÜ ──────────────────────────────────────────────
-    // Kayıp zaman (örn. iş verilememesi, makine arızası vb. çalışanın
-    // kontrolü dışındaki nedenler) mesai paydasından düşülür ki performans
-    // hesabı ne ödül ne ceza olsun: çalışana iş verilmeyen süre için
-    // performans düşürülmesin, ama o süre de "çalışılmış" gibi sayılıp
-    // paydayı şişirmesin.
-    const kayipDkSn = (typeof getKayipDakikaForInspector === 'function')
-      ? getKayipDakikaForInspector(ins) * 60
-      : 0;
-    if (kayipDkSn > 0 && mesaiSureSn > kayipDkSn) {
-      mesaiSureSn -= kayipDkSn;
-    }
+    // ── KAYIP ZAMAN: BURADA DÜŞÜLMÜYOR (kasıtlı) ────────────────────────
+    // Ana performans (genelHizPerf) kayıp zamandan tamamen bağımsız/ham
+    // tutulur — kayipZamanData ile performansData/mesaiSure ayrı veri
+    // yapılarıdır, burada karıştırılmaz. "Ne ödül ne ceza" ilkesiyle kayıp
+    // zaman düzeltmesi SADECE getDuzeltilmisPerformans() içinde, her
+    // seferinde GÜNCEL kayipZamanData ile canlı hesaplanır (Kayıp Zaman
+    // sekmesi). Böylece Excel'den SONRA girilen kayıp zaman kayıtları da
+    // doğru yansır ve aynı düşüm iki kez uygulanmaz (double-counting olmaz).
 
     // Toplam performansı hesapla
     // _overtimeDahil = false (varsayılan): overtime kayıtları zaten yukarıda
@@ -8782,14 +8778,27 @@ function showKayipDetayPopup(inspectorName) {
   document.body.appendChild(modal);
 }
 
-// Kayıp zaman girişleri performansı ETKİLEMEZ — sadece belgeleme amaçlıdır.
-// Bu fonksiyon her zaman orijinal (kayıpsız) performansı döner.
-// kayipZamanData ile performansData/mesaiSure tamamen ayrı veri yapılarıdır;
-// birbirlerine karışmamalıdır.
+// "Ne ödül ne ceza" ilkesi: kayıp zaman (iş verilememesi, arıza vb. çalışanın
+// kontrolü dışındaki nedenler) mesai paydasından düşülür — çalışana verilmeyen
+// süre için performans düşürülmez, ama o süre "çalışılmış" gibi sayılıp
+// paydayı da şişirmez. Bu düzeltme SADECE burada, HER SEFERİNDE güncel
+// kayipZamanData ile canlı hesaplanır (performansHesapla'da bilerek YAPILMAZ —
+// bkz. oradaki not) — böylece Excel'den sonra girilen kayıp zaman kayıtları da
+// doğru yansır ve aynı düşüm iki kez uygulanmaz.
 function getDuzeltilmisPerformans(inspector) {
-  // Kayıp zaman performansı ne artırır ne düşürür.
-  // Performans aynen kalır, kayıp süre sadece belgelenir.
-  return getOrijinalHamPerf(inspector);
+  const standartSn = inspector.standartSure || 0;
+  let mesaiSn = inspector.mesaiSure || 0;
+  if (!mesaiSn || !standartSn) return getDispPerf(inspector);
+
+  const kayipDkSn = (typeof getKayipDakikaForInspector === 'function')
+    ? getKayipDakikaForInspector(inspector.ins) * 60
+    : 0;
+  if (kayipDkSn > 0 && mesaiSn > kayipDkSn) {
+    mesaiSn -= kayipDkSn;
+  }
+
+  const hedef = inspector.hedefVerimlilik || 100;
+  return Math.round((standartSn / mesaiSn) * 100 * (100 / hedef));
 }
 
 // Inspector'in saatlik ortalama adet hizi (tahmini kayip adet hesabi icin)
