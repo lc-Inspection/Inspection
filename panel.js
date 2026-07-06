@@ -628,7 +628,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxpYQknaZatB_vAlggDlMVglPJ-m2a3n44nTsMCtoSZujSMzB6ZBhAR404QUCACY4dw/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyyLyP6l6WAqi0ZU7QyS1TtNLignNiN367wXMj91iMe8x7EnOkJtBayX0KJ-3zwXpw5/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -10220,6 +10220,8 @@ async function onTiTarihChange() {
   if (talepInp) talepInp.value = '';
   const box = document.getElementById('ti-talep-info');
   if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  const warnBox = document.getElementById('ti-tarih-filter-warn');
+  if (warnBox) { warnBox.style.display = 'none'; warnBox.innerHTML = ''; }
   if (typeof renderTeknikKriterForm === 'function') renderTeknikKriterForm();
 
   const sel = document.getElementById('ti-inspector');
@@ -10254,8 +10256,18 @@ async function onTiTarihChange() {
     }
   } catch(e) {
     console.warn('Tarihe göre inspector listesi çekilemedi:', e.message);
-    // Hata durumunda akışı tamamen kilitlemek yerine tüm inspector listesine düş
+    // Hata durumunda akışı tamamen kilitlemek yerine tüm inspector listesine düş —
+    // ANCAK bunu ti-talep-info kutusuna yazmıyoruz, çünkü o kutu birazdan
+    // updateTiTalepBilgisi() tarafından ezilir ve bu uyarı hiç görünmeden kaybolur.
+    // Bu yüzden AYRI ve kalıcı bir uyarı kutusu (ti-tarih-filter-warn) kullanılır.
     fillTeknikInspectorDropdown(undefined, '— Inspector seçin (tarih filtresi uygulanamadı) —');
+    if (warnBox) {
+      const bilinmeyenAction = /bilinmeyen action/i.test(e.message || '');
+      warnBox.style.display = '';
+      warnBox.innerHTML = bilinmeyenAction
+        ? `⚠️ <strong>Tarihe göre filtreleme çalışmıyor.</strong> Google Apps Script backend'i güncel değil (<code>getInspectorlerByGun</code> action'ı bulunamadı). Lütfen güncel <code>Kod.gs</code> içeriğini Apps Script projesine yapıştırıp <strong>yeniden Deploy</strong> edin. Şimdilik aşağıda tüm inspector listesi (tarihe göre filtrelenmemiş) gösteriliyor.`
+        : `⚠️ <strong>Tarihe göre filtreleme çalışmıyor:</strong> ${_escapeHtml(e.message || 'bilinmeyen hata')}. Şimdilik tüm inspector listesi gösteriliyor.`;
+    }
   }
 
   // Seçim (varsa) yeni listede korunduysa talep bilgisini otomatik yenile
