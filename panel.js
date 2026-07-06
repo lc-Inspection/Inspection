@@ -16,6 +16,7 @@ const TI_KRITER_LS_KEY = 'lc_teknik_inceleme_kriter_cache';
 let teknikKriterler = [];   // [{id, metin, puan, aktif, sira}]
 let teknikSkorlar   = [];   // ham cevap satırları [{id, inspector, degerlendiren, tarih, kriterId, kriterMetin, maxPuan, tikli, kazanilanPuan, aciklama, savedAt}]
 let _tiTalepCache   = {};   // { inspectorName: [{klasman, talepNo, adet, gun}, ...] }
+let _tiTarihReqSeq  = 0;    // "en son giden istek kazanır" korumasi — bkz. onTiTarihChange
 const TI_BASARI_ESIGI = 85; // Değerlendirme başına başarı eşiği (%) — bu ve üstü "Başarılı" sayılır
 
 // Admin'in yüklediği resmi "Teknik İnceleme" checklist formundaki 21 madde (toplam 100 puan).
@@ -10229,6 +10230,17 @@ function fillTeknikInspectorDropdown(names, placeholder) {
 async function onTiTarihChange() {
   const tarih = document.getElementById('ti-tarih')?.value || '';
 
+  // "En son giden istek kazanır" koruması: kullanıcı tarihi hızlıca değiştirirse
+  // (ör. tarih seçicide ok tuşlarıyla gezinirken) birden fazla onTiTarihChange
+  // çağrısı aynı anda uçuşabilir. rid eşleştirmesi (jsonpFetch) sadece FARKLI
+  // action'ların cevaplarının karışmasını önler — aynı action'a (getInspectorlerByGun)
+  // FARKLI tarihlerle yapılan art arda isteklerde, ESKİ isteğin cevabı ağ
+  // gecikmesi yüzünden YENİ isteğin sonucundan SONRA gelebilir ve ekranı yanlış
+  // tarihin sonucuyla eski/stale veriyle ezebilir. Bu yüzden her çağrı kendi sıra
+  // numarasını alır; cevap geldiğinde hâlâ "en son" çağrı o mu diye kontrol edilir,
+  // değilse (daha yeni bir tarih değişikliği araya girmişse) sonuç sessizce atılır.
+  const mySeq = ++_tiTarihReqSeq;
+
   // Tarih değişince Talep No / kriter formu her zaman sıfırlanır
   const talepInp = document.getElementById('ti-talep-secili');
   if (talepInp) talepInp.value = '';
@@ -10251,7 +10263,7 @@ async function onTiTarihChange() {
   if (!url || !token) {
     // Sunucu yapılandırılmamışsa akışı kilitlemek yerine tüm listeye düş
     fillTeknikInspectorDropdown();
-    if (sel.value) await updateTiTalepBilgisi();
+    if (mySeq === _tiTarihReqSeq && sel.value) await updateTiTalepBilgisi();
     return;
   }
 
@@ -10260,6 +10272,9 @@ async function onTiTarihChange() {
 
   try {
     const resp = await jsonpFetch(url, { action: 'getInspectorlerByGun', token, gun: tarih });
+    // Bu bekleme sırasında kullanıcı tarihi TEKRAR değiştirdiyse (daha yeni bir
+    // çağrı başladıysa), bu artık BAYAT bir sonuçtur — ekranı bozmadan sessizce çık.
+    if (mySeq !== _tiTarihReqSeq) return;
     if (resp?.status !== 'ok' || !Array.isArray(resp.inspectorler)) {
       throw new Error(resp?.message || 'Beklenmeyen sunucu yanıtı');
     }
@@ -10269,6 +10284,7 @@ async function onTiTarihChange() {
       fillTeknikInspectorDropdown(resp.inspectorler);
     }
   } catch(e) {
+    if (mySeq !== _tiTarihReqSeq) return; // bayat hata — yeni bir istek zaten devam ediyor
     console.warn('Tarihe göre inspector listesi çekilemedi:', e.message);
     // Hata durumunda akışı tamamen kilitlemek yerine tüm inspector listesine düş —
     // ANCAK bunu ti-talep-info kutusuna yazmıyoruz, çünkü o kutu birazdan
@@ -10284,8 +10300,9 @@ async function onTiTarihChange() {
     }
   }
 
-  // Seçim (varsa) yeni listede korunduysa talep bilgisini otomatik yenile
-  if (sel.value) await updateTiTalepBilgisi();
+  // Seçim (varsa) yeni listede korunduysa talep bilgisini otomatik yenile —
+  // yalnızca bu hâlâ en son (bayat olmayan) çağrıysa.
+  if (mySeq === _tiTarihReqSeq && sel.value) await updateTiTalepBilgisi();
 }
 
 // ─── Seçilen Inspector + Tarihe Ait Talep No'ları Getir ───
