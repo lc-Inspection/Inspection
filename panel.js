@@ -10000,6 +10000,30 @@ function exportKayipZamanExcel() {
   if (fInsp)  records = records.filter(r => r.inspector === fInsp);
   if (fSebep) records = records.filter(r => r.sebep === fSebep);
 
+  _kayipZamanExcelIndirOlustur(records);
+}
+
+// ─── Ekip Yöneticisi için Kayıp Zaman Excel İndirme ───
+// Admin'deki exportKayipZamanExcel() ile aynı çıktı formatını üretir, ANCAK
+// veri SADECE giriş yapan ekip yöneticisinin kendi ekibiyle (ekipYoneticisi
+// === currentUser.username) sınırlıdır — başka ekiplerin verisi asla dahil
+// edilmez. "Girilen Kayıp Zamanlar" listesindeki aktif Inspector/Sebep
+// filtreleri de (varsa) aynen uygulanır, böylece ekranda gördüğü tabloyla
+// indirdiği Excel birebir örtüşür.
+function exportKayipZamanExcelEkip() {
+  const username = currentUser?.username || '';
+  let records = kayipZamanData.filter(r => r.ekipYoneticisi === username);
+
+  const filterIns   = document.getElementById('kz-filter-inspector')?.value || '';
+  const filterSebep = document.getElementById('kz-filter-sebep')?.value || '';
+  if (filterIns)   records = records.filter(r => r.inspector === filterIns);
+  if (filterSebep) records = records.filter(r => r.sebep === filterSebep);
+
+  _kayipZamanExcelIndirOlustur(records);
+}
+
+// ─── Ortak CSV oluşturma/indirme mantığı (admin ve ekip export'u tarafından paylaşılır) ───
+function _kayipZamanExcelIndirOlustur(records) {
   if (!records.length) { alert('Dışa aktarılacak veri yok.'); return; }
 
   const BOM = '\uFEFF';
