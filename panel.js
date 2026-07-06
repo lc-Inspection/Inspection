@@ -10199,17 +10199,19 @@ async function loadTeknikInceleme() {
   }
 }
 
-// names verilirse SADECE o isimlerle, verilmezse tüm performansData
-// inspector'larıyla dropdown'u doldurur. Tarihe göre filtreli akışta
-// (onTiTarihChange) kısıtlı liste, ilk yüklemede / hata durumunda tam liste
-// için kullanılır. Önceki seçim, yeni listede hâlâ varsa korunur.
+// names verilirse SADECE o isimlerle, verilmezse (veya BOŞ dönerse) tüm
+// performansData inspector'larıyla dropdown'u doldurur. "Her hâlükârda
+// inspector isimleri gelsin" gereksinimi: tarihe göre filtre 0 sonuç verse
+// ya da backend'e hiç ulaşılamasa bile kullanıcı asla boş/kilitli bir
+// seçim kutusuyla baş başa kalmaz — otomatik olarak TÜM listeye düşülür.
+// Önceki seçim, yeni listede hâlâ varsa korunur.
 function fillTeknikInspectorDropdown(names, placeholder) {
   const sel = document.getElementById('ti-inspector');
   if (!sel) return;
   const prev = sel.value;
-  const list = Array.isArray(names)
-    ? names.slice().sort((a, b) => a.localeCompare(b, 'tr'))
-    : performansData.map(i => i.ins).slice().sort((a, b) => a.localeCompare(b, 'tr'));
+  const tumListe = performansData.map(i => i.ins).slice().sort((a, b) => a.localeCompare(b, 'tr'));
+  let list = Array.isArray(names) ? names.slice().sort((a, b) => a.localeCompare(b, 'tr')) : tumListe;
+  if (list.length === 0) list = tumListe; // filtre sonucu boşsa tam listeye düş
   sel.innerHTML = '<option value="">' + (placeholder || '— Inspector seçin —') + '</option>';
   list.forEach(name => {
     const opt = document.createElement('option');
@@ -10217,7 +10219,7 @@ function fillTeknikInspectorDropdown(names, placeholder) {
     opt.textContent = _formatDisplayName(name);
     sel.appendChild(opt);
   });
-  sel.disabled = list.length === 0;
+  sel.disabled = list.length === 0; // yalnızca sistemde hiç inspector kaydı yoksa kilitlenir
   if (prev && list.includes(prev)) sel.value = prev;
 }
 
@@ -10254,7 +10256,10 @@ async function onTiTarihChange() {
   if (!sel) return;
 
   if (!tarih) {
-    fillTeknikInspectorDropdown([], '— Önce tarih seçin —');
+    // Tarih henüz seçilmedi — yine de inspector listesi HER HÂLÜKÂRDA görünür
+    // olmalı (kullanıcı isterse tarih seçmeden de devam edebilir); sadece
+    // bilgilendirici bir placeholder gösterilir, seçim kilitlenmez.
+    fillTeknikInspectorDropdown(undefined, '— Inspector seçin (tarih seçerseniz liste daraltılır) —');
     return;
   }
 
@@ -10279,7 +10284,10 @@ async function onTiTarihChange() {
       throw new Error(resp?.message || 'Beklenmeyen sunucu yanıtı');
     }
     if (resp.inspectorler.length === 0) {
-      fillTeknikInspectorDropdown([], `— ${tarih} tarihinde kayıt bulunamadı —`);
+      // Bu tarihte kayıt yok — yine de kullanıcıyı kilitleme, tüm inspector
+      // listesine düş (fillTeknikInspectorDropdown zaten boş liste verilince
+      // otomatik tam listeye düşer), sadece bilgilendirici not göster.
+      fillTeknikInspectorDropdown([], `— ${tarih} tarihinde kayıt bulunamadı, tüm liste gösteriliyor —`);
     } else {
       fillTeknikInspectorDropdown(resp.inspectorler);
     }
