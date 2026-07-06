@@ -4327,7 +4327,7 @@ function exportToExcel() {
       'Teknik İnceleme Skoru (%)': (ti && ti.count > 0) ? ti.percent : '—',
       'Klasman Sayısı': Object.keys(inspector.klasmanlar).length,
       'Çalışma Gün Sayısı': inspector.gunSayisi || 0,
-      'Overtime Süresi (dk)': Math.round((inspector.toplamMesaistiSaniye||0)/60),
+      'Overtime Performans (%)': (inspector.overtimePerformans !== null && inspector.overtimePerformans !== undefined) ? inspector.overtimePerformans : '—',
       'Overtime Kontrol Edilen Adet': inspector.toplamOvertimeAdet || 0,
       '2.Kalite Kontrolü: Adet': inspector.toplam2KaliteAdet || 0,
       '2.Kalite Kontrolü: Performans (%)': (inspector.perf2Kalite !== null && inspector.perf2Kalite !== undefined) ? inspector.perf2Kalite : '—'
