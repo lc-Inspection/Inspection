@@ -628,7 +628,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyyLyP6l6WAqi0ZU7QyS1TtNLignNiN367wXMj91iMe8x7EnOkJtBayX0KJ-3zwXpw5/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwQ8YmYi81twDHVlEnck9rlI37YF9prQ48eBY2pnIsu7YQKllCm-MeQvEiXsuhBTa-p/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -700,10 +700,20 @@ async function pushConfigToSheets() {
 function jsonpFetch(url, params) {
   const action = params.action || '';
   const token  = params.token  || '';
+  // Her çağrıya benzersiz bir kimlik üretilir. Aynı anda birden fazla
+  // jsonpFetch isteği uçuşurken (ör. sayfa açılışındaki arka plan çekmeleri +
+  // kullanıcının o an yaptığı bir işlem), tüm istekler AYNI paylaşılan
+  // 'message' event'ini dinlediği için, bu rid olmadan bir isteğin cevap
+  // dinleyicisi YANLIŞLIKLA başka bir isteğin cevabını kabul edebilir
+  // (ör. "getInspectorlerByGun" beklerken "getTeknikKriterler" cevabı gelip
+  // 'inspectorler' alanı olmadığından hataya yol açabilir). Backend (autoResp)
+  // bu rid'i cevaba aynen geri ekler; eşleşmeyen cevaplar burada yok sayılır.
+  const rid = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   return new Promise((resolve, reject) => {
     // action ve token dışındaki tüm parametreleri de URL'e ekle
     let iframeUrl = url + '?action=' + encodeURIComponent(action) +
-                          '&token='  + encodeURIComponent(token);
+                          '&token='  + encodeURIComponent(token) +
+                          '&rid='    + encodeURIComponent(rid);
     Object.entries(params).forEach(([k, v]) => {
       if (k !== 'action' && k !== 'token') {
         iframeUrl += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(String(v).normalize('NFC'));
@@ -729,6 +739,10 @@ function jsonpFetch(url, params) {
       // Sadece Apps Script kaynaklarından gelen mesajları kabul et
       const trusted = ['googleusercontent.com', 'script.google.com'];
       if (!trusted.some(o => event.origin.includes(o))) return;
+      // rid eşleşmiyorsa bu cevap BAŞKA bir isteğe ait — yok say, dinlemeye devam et.
+      // Backend rid göndermiyorsa (henüz güncellenmemiş eski deploy) _rid alanı
+      // olmaz ve eşleşme kontrolü atlanır (geriye dönük uyumluluk).
+      if (event.data && event.data._rid && event.data._rid !== rid) return;
       clearTimeout(timer);
       window.removeEventListener('message', handler);
       if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
