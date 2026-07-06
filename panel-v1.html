@@ -1162,14 +1162,14 @@
         <div class="card-body">
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px">
             <div>
-              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Inspector</label>
-              <select id="ti-inspector" style="width:100%" onchange="updateTiTalepBilgisi()">
-                <option value="">— Inspector seçin —</option>
-              </select>
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Tarih</label>
+              <input type="date" id="ti-tarih" style="width:100%" onchange="onTiTarihChange()" />
             </div>
             <div>
-              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Tarih</label>
-              <input type="date" id="ti-tarih" style="width:100%" onchange="updateTiTalepBilgisi()" />
+              <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">Inspector</label>
+              <select id="ti-inspector" style="width:100%" onchange="updateTiTalepBilgisi()" disabled>
+                <option value="">— Önce tarih seçin —</option>
+              </select>
             </div>
           </div>
           <div id="ti-talep-info" style="display:none;margin-bottom:8px;padding:10px 12px;background:var(--lblue3);border:1px solid var(--lblue);border-radius:8px;font-size:12px;color:var(--navy)"></div>
