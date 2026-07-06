@@ -628,7 +628,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw73W118od-IdyDM9Lcnym0oJSSSwEwWAouYRq7IYRtfkEotn3UAf3SL2_QDlTW5jUQ/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxpYQknaZatB_vAlggDlMVglPJ-m2a3n44nTsMCtoSZujSMzB6ZBhAR404QUCACY4dw/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -10412,6 +10412,217 @@ function renderTeknikKriterForm() {
 
 
 
+// ─── YAZDIR: Kriter metnindeki "6a.", "7b." gibi bileşik numaralandırmayı
+// ayrıştırıp Excel'deki gibi grup başlığı + alt madde satırlarına böler.
+// "6a. Ölçü Kontrolü - Talimatta belirtilen..." → grup "6" başlığı bir kez
+// "Ölçü Kontrolü" olarak yazılır, alt maddeler sadece "a." + geri kalan metin
+// olarak listelenir. Eşleşmeyen (düz "1." ya da admin'in eklediği serbest
+// metin) maddeler tek satır olarak, olduğu gibi yazılır.
+function _tiBuildYazdirRows(kList) {
+  const rows = [];
+  let currentGroupNo = null;
+  kList.forEach((k, idx) => {
+    const metin = String(k.metin || '');
+    const bilesikM = metin.match(/^(\d+)\s*([a-zçğıöşü])\.\s*(.*)$/is);
+    if (bilesikM) {
+      const no = bilesikM[1], alt = bilesikM[2], rest = bilesikM[3];
+      const dashIdx = rest.indexOf(' - ');
+      let grupBaslik = '', aciklamaMetin = rest;
+      if (dashIdx > -1) {
+        grupBaslik = rest.slice(0, dashIdx).trim();
+        aciklamaMetin = rest.slice(dashIdx + 3).trim();
+      }
+      if (no !== currentGroupNo) {
+        currentGroupNo = no;
+        rows.push({ type: 'group', no, label: grupBaslik || metin });
+      }
+      rows.push({ type: 'item', no: '', alt: alt + '.', desc: aciklamaMetin, puan: k.puan, tikli: k.tikli, aciklama: k.aciklama });
+      return;
+    }
+    const duzM = metin.match(/^(\d+)\.\s*(.*)$/s);
+    currentGroupNo = null;
+    if (duzM) {
+      rows.push({ type: 'item', no: duzM[1] + '.', alt: '', desc: duzM[2], puan: k.puan, tikli: k.tikli, aciklama: k.aciklama });
+    } else {
+      rows.push({ type: 'item', no: String(idx + 1) + '.', alt: '', desc: metin, puan: k.puan, tikli: k.tikli, aciklama: k.aciklama });
+    }
+  });
+  return rows;
+}
+
+// ─── Değerlendirme Sonucunu Yazdır (LC Waikiki resmi form ile birebir) ───
+// Ekrandaki formda o an işaretli olan tik/açıklama durumunu (kaydedilmiş
+// olsun olmasın) alıp, ekteki "Kamera Formu" Excel şablonuyla aynı düzende
+// (başlık bilgileri + 21 maddelik tik/puan tablosu + toplam puan +
+// iki imza kutusu) yeni bir sekmede açar ve otomatik yazdırma diyaloğunu
+// tetikler.
+function yazdirTeknikIncelemeSonucu() {
+  const inspector = document.getElementById('ti-inspector')?.value?.trim();
+  const tarih = document.getElementById('ti-tarih')?.value || '';
+  const talepNo = document.getElementById('ti-talep-secili')?.value?.trim();
+
+  if (!inspector) { alert('Lütfen bir inspector seçin.'); return; }
+  if (!talepNo) { alert('Lütfen değerlendirmeyi yaptığınız Talep No\'yu seçin veya girin.'); return; }
+
+  const aktifler = teknikKriterler.filter(k => k.aktif);
+  if (!aktifler.length) { alert('Yazdırılacak kriter yok.'); return; }
+
+  const kList = aktifler.map(k => {
+    const esc = (window.CSS && CSS.escape) ? CSS.escape(k.id) : k.id;
+    const cb = document.querySelector(`.ti-tik-cb[data-kriter="${esc}"]`);
+    const aciklamaInp = document.querySelector(`.ti-aciklama-input[data-kriter="${esc}"]`);
+    return {
+      metin: k.metin,
+      puan: Number(k.puan) || 0,
+      tikli: !!(cb && cb.checked),
+      aciklama: aciklamaInp ? aciklamaInp.value.trim() : ''
+    };
+  });
+
+  const rows = _tiBuildYazdirRows(kList);
+  const maxToplam = kList.reduce((s, k) => s + k.puan, 0);
+  const kazanilanToplam = kList.reduce((s, k) => s + (k.tikli ? k.puan : 0), 0);
+
+  const inspectorAd = _formatDisplayName(inspector);
+  const tarihStr = tarih ? new Date(tarih + 'T00:00:00').toLocaleDateString('tr-TR') : '';
+  const degerlendirenAd = (currentUser && currentUser.username && currentUser.username.toLowerCase() !== 'admin')
+    ? _formatDisplayName(currentUser.username) : '';
+
+  let bodyRows = '';
+  rows.forEach(r => {
+    if (r.type === 'group') {
+      bodyRows += `<tr class="ti-pr-grouprow">
+        <td class="ti-pr-no">${_escapeHtml(r.no)}.</td>
+        <td class="ti-pr-desc" colspan="4">${_escapeHtml(r.label)}</td>
+      </tr>`;
+    } else {
+      bodyRows += `<tr>
+        <td class="ti-pr-no">${_escapeHtml(r.no)}</td>
+        <td class="ti-pr-alt">${_escapeHtml(r.alt)}</td>
+        <td class="ti-pr-desc">${_escapeHtml(r.desc)}</td>
+        <td class="ti-pr-tick">${r.tikli ? '✔' : ''}</td>
+        <td class="ti-pr-puan">${r.tikli ? r.puan : 0}</td>
+        <td class="ti-pr-olay">${_escapeHtml(r.aciklama || '')}</td>
+      </tr>`;
+    }
+  });
+
+  const html = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Teknik İnceleme Değerlendirme Formu - ${_escapeHtml(inspectorAd)}</title>
+<style>
+  @page { size: A4; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; font-size: 11px; }
+  .ti-pr-title { text-align:center; font-size:15px; font-weight:700; margin-bottom:10px; text-transform:uppercase; letter-spacing:.3px; }
+  table { border-collapse: collapse; width: 100%; }
+  .ti-pr-info td { border: 1px solid #000; padding: 4px 6px; font-size: 11px; vertical-align: middle; }
+  .ti-pr-info .lbl { font-weight: 700; width: 19%; background:#F2F2F2; }
+  .ti-pr-info .val { width: 31%; }
+  .ti-pr-main { margin-top: 10px; }
+  .ti-pr-main th { border: 1px solid #000; background:#F2F2F2; font-weight:700; font-size:10.5px; padding:5px 4px; text-align:center; }
+  .ti-pr-main td { border: 1px solid #000; padding: 4px 5px; font-size: 10.5px; vertical-align: middle; }
+  .ti-pr-no { text-align:center; font-weight:700; width:4%; }
+  .ti-pr-alt { text-align:center; font-weight:700; width:3%; }
+  .ti-pr-desc { text-align:left; }
+  .ti-pr-tick { text-align:center; width:5%; font-weight:700; }
+  .ti-pr-puan { text-align:center; width:6%; font-weight:700; }
+  .ti-pr-olay { width:18%; font-size:9.5px; }
+  .ti-pr-grouprow td { background:#EAEAEA; font-weight:700; }
+  .ti-pr-total td { border: 1px solid #000; padding:6px; font-weight:700; font-size:12px; }
+  .ti-pr-total .lbl { text-align:right; background:#F2F2F2; }
+  .ti-pr-total .val { text-align:center; width:10%; }
+  .ti-pr-sign { margin-top:16px; }
+  .ti-pr-sign td { border: 1px solid #000; padding:8px; text-align:center; font-weight:600; height: 90px; vertical-align: top; width:50%; }
+  .ti-pr-note { margin-top:6px; font-size:9.5px; font-style:italic; }
+  @media print {
+    .ti-pr-noprint { display:none; }
+  }
+</style>
+</head>
+<body>
+  <div class="ti-pr-title">LC Waikiki — Teknik İnceleme Değerlendirme Formu</div>
+
+  <table class="ti-pr-info">
+    <tr>
+      <td class="lbl">Inspektör</td><td class="val">${_escapeHtml(inspectorAd)}</td>
+      <td class="lbl">Ekip Yöneticisi</td><td class="val">${_escapeHtml(degerlendirenAd)}</td>
+    </tr>
+    <tr>
+      <td class="lbl">İnspection Tarihi</td><td class="val">${_escapeHtml(tarihStr)}</td>
+      <td class="lbl">Başlama-Bitiş Saati</td><td class="val">&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="lbl">Sipariş No</td><td class="val">&nbsp;</td>
+      <td class="lbl">Talep No</td><td class="val">${_escapeHtml(talepNo)}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Masa Numarası</td><td class="val">&nbsp;</td>
+      <td class="lbl">Ürün Cinsi</td><td class="val">&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="lbl">Inspection Talep Adeti</td><td class="val">&nbsp;</td>
+      <td class="lbl">Beden Sayısı</td><td class="val">&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="lbl">Kontrol Edilen AQL Adet</td><td class="val">&nbsp;</td>
+      <td class="lbl">Ölçüm Yapılan Ürün Adeti</td><td class="val">&nbsp;</td>
+    </tr>
+  </table>
+
+  <table class="ti-pr-main">
+    <colgroup>
+      <col style="width:4%"><col style="width:3%"><col style="width:47%">
+      <col style="width:5%"><col style="width:6%"><col style="width:35%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th colspan="3">Değerlendirme Maddesi</th>
+        <th>Tick</th>
+        <th>Puan</th>
+        <th>Olay Saati / Olay Açıklaması</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${bodyRows}
+    </tbody>
+  </table>
+
+  <table class="ti-pr-total">
+    <tr>
+      <td class="lbl" style="width:84%">Toplam Puan (Max: ${maxToplam})</td>
+      <td class="val">${kazanilanToplam}</td>
+    </tr>
+  </table>
+
+  <div class="ti-pr-note">Not: Yapılan işlemlerdeki kutulara ✔ koyunuz.</div>
+
+  <table class="ti-pr-sign">
+    <tr>
+      <td>İlgili Ekip Yöneticisi<br>Tarih/İmza</td>
+      <td>Gözlem Yapılan İnspektör<br>Tarih/İmza</td>
+    </tr>
+  </table>
+
+  <div class="ti-pr-noprint" style="margin-top:14px;text-align:center">
+    <button onclick="window.print()" style="padding:8px 18px;font-size:13px;cursor:pointer">🖨️ Yazdır</button>
+  </div>
+
+  <script>
+    window.onload = function() { setTimeout(function(){ window.print(); }, 200); };
+  </script>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { alert('Yazdırma penceresi açılamadı. Lütfen tarayıcınızın açılır pencere engelleyicisini kontrol edin.'); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
 // ─── Değerlendirmeyi Kaydet ───
 async function kaydetTeknikInceleme() {
   const inspector = document.getElementById('ti-inspector')?.value?.trim();
@@ -10551,7 +10762,7 @@ function renderTiKriterYonetimList() {
     <div style="font-size:11px;color:var(--muted2);margin-bottom:2px">Toplam maksimum puan: <strong>${toplamPuan}</strong> (idealde 100 olması önerilir)</div>
     ${teknikKriterler.map((k, i) => `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--offwhite);border:1px solid var(--border2);border-radius:8px">
-      <input type="checkbox" data-ti-idx="${i}" class="ti-kriter-aktif" ${k.aktif ? 'checked' : ''} title="Aktif/Pasif">
+      <input type="checkbox" data-ti-idx="${i}" class="ti-kriter-aktif" ${k.aktif ? 'checked' : ''} title="Aktif/Pasif" style="width:16px;height:16px;flex:0 0 16px;cursor:pointer">
       <input type="text" data-ti-idx="${i}" class="ti-kriter-metin" value="${_escapeHtml(k.metin)}" style="flex:1;font-size:13px">
       <input type="number" min="0" step="1" data-ti-idx="${i}" class="ti-kriter-puan" value="${Number(k.puan)||0}" title="Madde puanı (ağırlığı)" style="width:70px;font-size:13px;text-align:center">
       <button onclick="silTiKriter(${i})" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer">🗑️</button>
