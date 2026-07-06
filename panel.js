@@ -628,7 +628,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyfD3P5Dr3D1Y0IZQz01g-91IvP_qm4qWTT0C-TvCyfpQL793A5sl1d6nes1DP6OoWo/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw73W118od-IdyDM9Lcnym0oJSSSwEwWAouYRq7IYRtfkEotn3UAf3SL2_QDlTW5jUQ/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -10152,11 +10152,13 @@ function getTeknikIncelemeSkorForInspector(inspectorName) {
 
 // ─── Sayfa Girişi ───
 async function loadTeknikInceleme() {
-  fillTeknikInspectorDropdown();
   const tarihEl = document.getElementById('ti-tarih');
   if (tarihEl && !tarihEl.value) tarihEl.value = new Date().toISOString().split('T')[0];
   _tiTalepCache = {}; // Yenilemede talep no verisi taze çekilsin
-  updateTiTalepBilgisi();
+
+  // YENİ AKIŞ: önce tarihe göre inspector listesi yüklenir; inspector seçimi
+  // ve Talep No bilgisi bundan sonra (kullanıcı bir isim seçtiğinde) gelir.
+  await onTiTarihChange();
 
   const adminWrap = document.getElementById('ti-admin-wrap');
   const isAdmin = !currentUser || currentUser.isAdmin;
@@ -10182,18 +10184,82 @@ async function loadTeknikInceleme() {
   }
 }
 
-function fillTeknikInspectorDropdown() {
+// names verilirse SADECE o isimlerle, verilmezse tüm performansData
+// inspector'larıyla dropdown'u doldurur. Tarihe göre filtreli akışta
+// (onTiTarihChange) kısıtlı liste, ilk yüklemede / hata durumunda tam liste
+// için kullanılır. Önceki seçim, yeni listede hâlâ varsa korunur.
+function fillTeknikInspectorDropdown(names, placeholder) {
   const sel = document.getElementById('ti-inspector');
   if (!sel) return;
   const prev = sel.value;
-  sel.innerHTML = '<option value="">— Inspector seçin —</option>';
-  performansData.slice().sort((a,b) => a.ins.localeCompare(b.ins, 'tr')).forEach(ins => {
+  const list = Array.isArray(names)
+    ? names.slice().sort((a, b) => a.localeCompare(b, 'tr'))
+    : performansData.map(i => i.ins).slice().sort((a, b) => a.localeCompare(b, 'tr'));
+  sel.innerHTML = '<option value="">' + (placeholder || '— Inspector seçin —') + '</option>';
+  list.forEach(name => {
     const opt = document.createElement('option');
-    opt.value = ins.ins;
-    opt.textContent = _formatDisplayName(ins.ins);
+    opt.value = name;
+    opt.textContent = _formatDisplayName(name);
     sel.appendChild(opt);
   });
-  if (prev) sel.value = prev;
+  sel.disabled = list.length === 0;
+  if (prev && list.includes(prev)) sel.value = prev;
+}
+
+// ─── YENİ AKIŞ: Önce Tarih, Sonra O Tarihe Ait Inspector'lar ───
+// Tarih değiştiğinde: o tarihte en az bir kaydı olan inspector'ları backend'den
+// çeker ve dropdown'u SADECE bu isimlerle doldurur. Daha önce seçili olan
+// Talep No / kriter formu her tarih değişiminde sıfırlanır. Inspector seçimi
+// (varsa) yeni listede hâlâ geçerliyse korunur ve talep bilgisi otomatik
+// yeniden yüklenir; aksi halde kullanıcı yeniden bir inspector seçmelidir.
+async function onTiTarihChange() {
+  const tarih = document.getElementById('ti-tarih')?.value || '';
+
+  // Tarih değişince Talep No / kriter formu her zaman sıfırlanır
+  const talepInp = document.getElementById('ti-talep-secili');
+  if (talepInp) talepInp.value = '';
+  const box = document.getElementById('ti-talep-info');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  if (typeof renderTeknikKriterForm === 'function') renderTeknikKriterForm();
+
+  const sel = document.getElementById('ti-inspector');
+  if (!sel) return;
+
+  if (!tarih) {
+    fillTeknikInspectorDropdown([], '— Önce tarih seçin —');
+    return;
+  }
+
+  const url = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url || !token) {
+    // Sunucu yapılandırılmamışsa akışı kilitlemek yerine tüm listeye düş
+    fillTeknikInspectorDropdown();
+    if (sel.value) await updateTiTalepBilgisi();
+    return;
+  }
+
+  sel.disabled = true;
+  sel.innerHTML = '<option value="">⏳ Yükleniyor...</option>';
+
+  try {
+    const resp = await jsonpFetch(url, { action: 'getInspectorlerByGun', token, gun: tarih });
+    if (resp?.status !== 'ok' || !Array.isArray(resp.inspectorler)) {
+      throw new Error(resp?.message || 'Beklenmeyen sunucu yanıtı');
+    }
+    if (resp.inspectorler.length === 0) {
+      fillTeknikInspectorDropdown([], `— ${tarih} tarihinde kayıt bulunamadı —`);
+    } else {
+      fillTeknikInspectorDropdown(resp.inspectorler);
+    }
+  } catch(e) {
+    console.warn('Tarihe göre inspector listesi çekilemedi:', e.message);
+    // Hata durumunda akışı tamamen kilitlemek yerine tüm inspector listesine düş
+    fillTeknikInspectorDropdown(undefined, '— Inspector seçin (tarih filtresi uygulanamadı) —');
+  }
+
+  // Seçim (varsa) yeni listede korunduysa talep bilgisini otomatik yenile
+  if (sel.value) await updateTiTalepBilgisi();
 }
 
 // ─── Seçilen Inspector + Tarihe Ait Talep No'ları Getir ───
