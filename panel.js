@@ -4326,7 +4326,11 @@ function exportToExcel() {
       'Verimlilik Perf (%)': performans,
       'Teknik İnceleme Skoru (%)': (ti && ti.count > 0) ? ti.percent : '—',
       'Klasman Sayısı': Object.keys(inspector.klasmanlar).length,
-      'Çalışma Gün Sayısı': inspector.gunSayisi || 0
+      'Çalışma Gün Sayısı': inspector.gunSayisi || 0,
+      'Overtime Süresi (dk)': Math.round((inspector.toplamMesaistiSaniye||0)/60),
+      'Overtime Kontrol Edilen Adet': inspector.toplamOvertimeAdet || 0,
+      '2.Kalite Kontrolü: Adet': inspector.toplam2KaliteAdet || 0,
+      '2.Kalite Kontrolü: Performans (%)': (inspector.perf2Kalite !== null && inspector.perf2Kalite !== undefined) ? inspector.perf2Kalite : '—'
     };
   });
 
@@ -5764,6 +5768,7 @@ function performansHesapla(){
         ins: ins,
         klasmanlar: {},
         toplamAdet: 0,
+        toplamOvertimeAdet: 0, // Overtime (16:45 sonrası) döneminde kontrol edilen toplam adet — yalnızca gösterim/rapor amaçlı
         kayitListesi: [],
         mesaiSureSn: null
       };
@@ -5867,6 +5872,12 @@ function performansHesapla(){
     }
     const kayitNormalSayilir = kayitNormalMi(parsedBitis);
     kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '', inspectionTipi: inspectionTipiRaw, is2Kalite });
+
+    // Overtime'da (16:45 sonrası) kontrol edilen toplam adedi ayrıca izle —
+    // yalnızca gösterim/rapor amaçlı, mevcut performans hesaplarını etkilemez.
+    if (!kayitNormalSayilir) {
+      inspectorMap[ins].toplamOvertimeAdet = (inspectorMap[ins].toplamOvertimeAdet || 0) + adet;
+    }
 
     if (is2Kalite && !_2KaliteDahil) {
       // toplamAdet'e eklenmedi (yukarıda hariç tutuldu)
@@ -6031,7 +6042,9 @@ function performansHesapla(){
       toplam2KaliteAdet: toplam2KaliteAdet,
       toplam2KaliteStandartSure: toplam2KaliteStandartSure,
       toplam2KaliteFiiliSure: toplam2KaliteFiiliSure,
-      perf2Kalite: perf2Kalite
+      perf2Kalite: perf2Kalite,
+      // Overtime'da kontrol edilen toplam adet — yalnızca gösterim/rapor amaçlı
+      toplamOvertimeAdet: inspectorData.toplamOvertimeAdet || 0
     };
 
     
