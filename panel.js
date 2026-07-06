@@ -15,8 +15,14 @@ const TI_SKOR_LS_KEY   = 'lc_teknik_inceleme_skor_cache';
 const TI_KRITER_LS_KEY = 'lc_teknik_inceleme_kriter_cache';
 let teknikKriterler = [];   // [{id, metin, puan, aktif, sira}]
 let teknikSkorlar   = [];   // ham cevap satırları [{id, inspector, degerlendiren, tarih, kriterId, kriterMetin, maxPuan, tikli, kazanilanPuan, aciklama, savedAt}]
-let _tiTalepCache   = {};   // { inspectorName: [{klasman, talepNo, adet, gun}, ...] }
+let _tiTalepCache   = {};   // { inspectorName: [{klasman, talepNo, adet, gun}, ...] } — TÜM tarihler için (getInspectorTalepNolar'dan)
 let _tiTarihReqSeq  = 0;    // "en son giden istek kazanır" korumasi — bkz. onTiTarihChange
+// SADECE seçili tarihe ait, getInspectorlerByGun cevabıyla birlikte önceden
+// gelen talep verisi. Bu sayede inspector seçildiğinde ayrıca sunucuya
+// gidilmeden talep listesi ANINDA gösterilebilir (performans). _tiTalepCache'ten
+// farkı: bu sadece TEK bir tarihi kapsar, o yüzden ayrı tutulur — inspector
+// için tüm-tarihler cache'i (_tiTalepCache) zaten varsa o her zaman önceliklidir.
+let _tiTarihPrefetch = { gun: '', talepMap: {} };
 const TI_BASARI_ESIGI = 85; // Değerlendirme başına başarı eşiği (%) — bu ve üstü "Başarılı" sayılır
 
 // Admin'in yüklediği resmi "Teknik İnceleme" checklist formundaki 21 madde (toplam 100 puan).
@@ -629,7 +635,7 @@ let animationEffect = 'slide'; // slide, fade, zoom, flip
 // APP CONFIG (Tüm Ayarlar)
 // ────────────────────────────
 const APP_CONFIG_KEY = 'lc_inspection_config';
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwQ8YmYi81twDHVlEnck9rlI37YF9prQ48eBY2pnIsu7YQKllCm-MeQvEiXsuhBTa-p/exec';
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycby1mEC1wiPXARaa9yxCsyFCgK-G00wLa5cibwNl2YfmlXoQoinbXcrv_LopvQOeUa69/exec';
 const DEFAULT_API_TOKEN  = 'lcw-secret-2024';
 let appConfig = {
   password: '',          // Panel admin şifresi — Sheets Config'ten yüklenir, kodda saklanmaz
@@ -10101,16 +10107,43 @@ function showSebepInspectorDetay(sebep) {
 
 async function tiVarsayilanSorulariYukle() {
   if (teknikKriterler.length > 0) {
-    if (!confirm('Mevcut kriter listesinin üzerine varsayılan soru seti eklenecek ve otomatik kaydedilecek. Devam edilsin mi?')) return;
+    if (!confirm('Mevcut kriter listesinin TAMAMI silinip yerine 100 puanlık resmi varsayılan soru seti yüklenecek ve otomatik kaydedilecek. Devam edilsin mi?')) return;
   }
+  // ÖNEMLİ: Eskiden bu fonksiyon mevcut listenin ÜZERİNE ekliyordu (push).
+  // Buton birden fazla kez tıklanırsa (ör. "Kriter Yönetimi" listesi görsel bir
+  // hatadan dolayı boş göründüğü için tekrar tıklanınca) aynı 14/21 madde
+  // MÜKERRER olarak birikiyordu. Artık listeyi önce TAMAMEN TEMİZLEYİP sonra
+  // varsayılanları yüklüyor — tekrar tıklansa bile mükerrer oluşmaz.
+  teknikKriterler = [];
   const now = Date.now();
   TI_DEFAULT_KRITERLER.forEach((k, i) => {
-    teknikKriterler.push({ id: 'k_' + now + '_' + i, metin: k.metin, puan: k.puan, aktif: true, sira: teknikKriterler.length });
+    teknikKriterler.push({ id: 'k_' + now + '_' + i, metin: k.metin, puan: k.puan, aktif: true, sira: i });
   });
   renderTiKriterYonetimList();
   // Unutulup kaybolmasın diye otomatik kaydet (ayrıca "Kriterleri Kaydet"e basmaya gerek yok)
   // Not: kaydetTeknikKriterler() kendi başarı mesajını zaten gösteriyor.
   await kaydetTeknikKriterler();
+}
+
+// ─── Mükerrer Kriterleri Temizle (aynı metne sahip satırlardan ilkini tutar) ───
+// Yukarıdaki eski "üzerine ekleme" davranışından dolayı sistemde zaten
+// birikmiş olabilecek mükerrer kriterleri tek tıkla temizlemek için.
+async function tiMukerrerKriterleriTemizle() {
+  const gorulen = new Set();
+  const temiz = [];
+  let silinen = 0;
+  teknikKriterler.forEach(k => {
+    const anahtar = String(k.metin || '').trim().toLocaleLowerCase('tr-TR');
+    if (gorulen.has(anahtar)) { silinen++; return; }
+    gorulen.add(anahtar);
+    temiz.push(k);
+  });
+  if (silinen === 0) { alert('Mükerrer kriter bulunamadı — liste zaten temiz.'); return; }
+  if (!confirm(`${silinen} adet mükerrer (aynı metne sahip) kriter bulundu ve silinecek. Devam edilsin mi?`)) return;
+  teknikKriterler = temiz;
+  renderTiKriterYonetimList();
+  await kaydetTeknikKriterler();
+  alert(`✅ ${silinen} mükerrer kriter silindi.`);
 }
 
 // ─── localStorage cache ───
@@ -10283,6 +10316,10 @@ async function onTiTarihChange() {
     if (resp?.status !== 'ok' || !Array.isArray(resp.inspectorler)) {
       throw new Error(resp?.message || 'Beklenmeyen sunucu yanıtı');
     }
+    // PERFORMANS: backend bu tarihe ait tüm inspector'ların talep verisini
+    // AYNI cevapta gönderdi — ön belleğe alıyoruz ki inspector seçilince
+    // updateTiTalepBilgisi() ikinci bir sunucu isteği atmadan anında gösterebilsin.
+    _tiTarihPrefetch = { gun: tarih, talepMap: (resp.talepMap && typeof resp.talepMap === 'object') ? resp.talepMap : {} };
     if (resp.inspectorler.length === 0) {
       // Bu tarihte kayıt yok — yine de kullanıcıyı kilitleme, tüm inspector
       // listesine düş (fillTeknikInspectorDropdown zaten boş liste verilince
@@ -10335,6 +10372,12 @@ async function updateTiTalepBilgisi() {
 
   try {
     let talepler = _tiTalepCache[inspector];
+    if (!talepler && _tiTarihPrefetch.gun === tarih) {
+      // PERFORMANS: bu tarih için inspector listesiyle BİRLİKTE zaten talep
+      // verisi de gelmişti (bkz. onTiTarihChange) — sunucuya tekrar gitmeye
+      // gerek yok, doğrudan ondan oku (kayıt yoksa boş dizi de geçerli bir sonuçtur).
+      talepler = _tiTarihPrefetch.talepMap[inspector] || [];
+    }
     if (!talepler) {
       const url = appConfig.sheetsWebAppUrl;
       const token = appConfig.sheetsApiToken;
@@ -10564,30 +10607,30 @@ function yazdirTeknikIncelemeSonucu() {
 <meta charset="UTF-8">
 <title>Teknik İnceleme Değerlendirme Formu - ${_escapeHtml(inspectorAd)}</title>
 <style>
-  @page { size: A4; margin: 10mm; }
+  @page { size: A4; margin: 8mm; }
   * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; font-size: 11px; }
-  .ti-pr-title { text-align:center; font-size:15px; font-weight:700; margin-bottom:10px; text-transform:uppercase; letter-spacing:.3px; }
+  body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; font-size: 9.5px; line-height: 1.2; }
+  .ti-pr-title { text-align:center; font-size:13px; font-weight:700; margin-bottom:6px; text-transform:uppercase; letter-spacing:.3px; }
   table { border-collapse: collapse; width: 100%; }
-  .ti-pr-info td { border: 1px solid #000; padding: 4px 6px; font-size: 11px; vertical-align: middle; }
+  .ti-pr-info td { border: 1px solid #000; padding: 2px 5px; font-size: 9.5px; vertical-align: middle; line-height:1.15; }
   .ti-pr-info .lbl { font-weight: 700; width: 19%; background:#F2F2F2; }
   .ti-pr-info .val { width: 31%; }
-  .ti-pr-main { margin-top: 10px; }
-  .ti-pr-main th { border: 1px solid #000; background:#F2F2F2; font-weight:700; font-size:10.5px; padding:5px 4px; text-align:center; }
-  .ti-pr-main td { border: 1px solid #000; padding: 4px 5px; font-size: 10.5px; vertical-align: middle; }
+  .ti-pr-main { margin-top: 6px; }
+  .ti-pr-main th { border: 1px solid #000; background:#F2F2F2; font-weight:700; font-size:9px; padding:3px 4px; text-align:center; }
+  .ti-pr-main td { border: 1px solid #000; padding: 1.5px 4px; font-size: 9px; vertical-align: middle; line-height:1.15; }
   .ti-pr-no { text-align:center; font-weight:700; width:4%; }
   .ti-pr-alt { text-align:center; font-weight:700; width:3%; }
   .ti-pr-desc { text-align:left; }
   .ti-pr-tick { text-align:center; width:5%; font-weight:700; }
   .ti-pr-puan { text-align:center; width:6%; font-weight:700; }
-  .ti-pr-olay { width:18%; font-size:9.5px; }
+  .ti-pr-olay { width:18%; font-size:8.5px; }
   .ti-pr-grouprow td { background:#EAEAEA; font-weight:700; }
-  .ti-pr-total td { border: 1px solid #000; padding:6px; font-weight:700; font-size:12px; }
+  .ti-pr-total td { border: 1px solid #000; padding:3px 6px; font-weight:700; font-size:10px; }
   .ti-pr-total .lbl { text-align:right; background:#F2F2F2; }
   .ti-pr-total .val { text-align:center; width:10%; }
-  .ti-pr-sign { margin-top:16px; }
-  .ti-pr-sign td { border: 1px solid #000; padding:8px; text-align:center; font-weight:600; height: 90px; vertical-align: top; width:50%; }
-  .ti-pr-note { margin-top:6px; font-size:9.5px; font-style:italic; }
+  .ti-pr-sign { margin-top:8px; }
+  .ti-pr-sign td { border: 1px solid #000; padding:4px; text-align:center; font-weight:600; height: 46px; vertical-align: top; width:50%; font-size:9.5px; }
+  .ti-pr-note { margin-top:3px; font-size:8.5px; font-style:italic; }
   @media print {
     .ti-pr-noprint { display:none; }
   }
