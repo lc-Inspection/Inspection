@@ -11200,6 +11200,12 @@ function laHesapla() {
 
   // 3) Kayıp Zaman modülünden (SADECE bu 2 sebep), depo ana adı + yıl-ay bazında toplam kayıp saat
   const kayipSaatMap = {};
+  // 3b) AYNI kayıtlardan, "Tahmini Kayıp Adet" — mevcut Kayıp Zaman modülündeki
+  // getSaatlikAdetHizi() fonksiyonu (İNSPECTOR'IN KENDİ GERÇEK HIZINA göre)
+  // AYNEN kullanılıyor; bu fonksiyona hiç dokunulmadı, sadece buradan da
+  // çağrılıyor. "Saat" tek başına yüksek hacimli lokasyonlarda talep başına
+  // görünmez kalabiliyor; "adet" ve "talep eşdeğeri" bakışı bunu somutlaştırır.
+  const kayipAdetMap = {};
   (kayipZamanData || []).forEach(k => {
     if (k.sebep !== 'Insp. Lokasyon Değişimi' && k.sebep !== 'Ürün Olmaması') return;
     const depoAna = laDepoAnaAd(k.depo);
@@ -11209,9 +11215,19 @@ function laHesapla() {
     const yilAy = tarih.getFullYear() + '-' + String(tarih.getMonth() + 1).padStart(2, '0');
     const key = depoAna + '|' + yilAy;
     kayipSaatMap[key] = (kayipSaatMap[key] || 0) + ((k.sureDk || 0) / 60);
+
+    const perfObj = (performansData || []).find(p => (p.ins || '').toLowerCase() === (k.inspector || '').toLowerCase());
+    if (perfObj) {
+      const hiz = getSaatlikAdetHizi(perfObj); // adet/saat — inspector'ın kendi gerçek hızı
+      if (hiz) {
+        const estAdet = hiz * ((k.sureDk || 0) / 60);
+        kayipAdetMap[key] = (kayipAdetMap[key] || 0) + estAdet;
+      }
+    }
   });
 
-  // 4) Ana lokasyon (core) + yıl-ay bazında TOPLAM talep sayısını hesapla.
+  // 4) Ana lokasyon (core) + yıl-ay bazında TOPLAM talep sayısını VE TOPLAM
+  // kontrol edilen miktarı hesapla.
   // NEDEN GEREKLİ: Kayıp Zaman modülü "Aksaray Depo" gibi TEK bir seçenek sunuyor,
   // ama Excel raporunda "AKSARAY DEPO", "AKSARAY DIR DEPO", "AKSARAY TAMİR ATÖLYESİ"
   // gibi BİRDEN FAZLA alt-lokasyon aynı ana koda ("AKSARAY") eşleşebiliyor. Kayıp
@@ -11224,13 +11240,16 @@ function laHesapla() {
   // Çözüm: kayıp saat havuzunu, o ana lokasyonu paylaşan TÜM alt-lokasyonların
   // TOPLAM talep sayısına bölüp, "talep başına ortalama kayıp saat" olarak
   // HER birine aynı oranda uyguluyoruz. Böylece toplamda havuz sadece 1 kez
-  // sayılmış olur ve düzeltme, hacme göre orantılı/anlamlı kalır.
-  const coreTalepToplamMap = {}; // key: coreDepo|yılAy -> toplam talep sayısı
+  // sayılmış olur ve düzeltme, hacme göre orantılı/anlamlı kalır. Aynı mantık
+  // "talep eşdeğeri" (kontrol miktarı) için de kullanılıyor.
+  const coreTalepToplamMap = {};   // key: coreDepo|yılAy -> toplam talep sayısı
+  const coreKontrolToplamMap = {}; // key: coreDepo|yılAy -> toplam kontrol edilen miktar
   Object.values(grupMap).forEach(g => {
     const depoAna = laDepoAnaAd(g.depo);
     if (!depoAna) return;
     const key = depoAna + '|' + g.yilAy;
     coreTalepToplamMap[key] = (coreTalepToplamMap[key] || 0) + g.talepSayisi;
+    coreKontrolToplamMap[key] = (coreKontrolToplamMap[key] || 0) + g.kontrolMiktarToplam;
   });
 
   // 5) Ham + Adil (düzeltilmiş) sonuçları birleştir
@@ -11244,7 +11263,17 @@ function laHesapla() {
     const coreTalepToplam = coreTalepToplamMap[key] || g.talepSayisi;
     const kayipSaatPerTalep = coreTalepToplam > 0 ? (kayipSaat / coreTalepToplam) : 0;
     const duzeltilmisOrtalama = Math.max(0, hamOrtalama - kayipSaatPerTalep);
-    return { ...g, hamOrtalama, kayipSaat, kayipSaatPerTalep, duzeltilmisOrtalama, depoAna };
+
+    // "Adet" bakışı: bu ana lokasyon + ay için tahmini kayıp adet (paylaşılan
+    // havuz — Kayıp Saat ile aynı mantık) ve bunun "ortalama talep büyüklüğüne"
+    // (o ana lokasyonun kontrol edilen miktarı / talep sayısı) bölünmesiyle
+    // elde edilen "≈ kaç talep eşdeğeri kaybedildi" tahmini.
+    const kayipAdet = kayipAdetMap[key] || 0;
+    const coreKontrolToplam = coreKontrolToplamMap[key] || g.kontrolMiktarToplam;
+    const ortalamaTalepBuyuklugu = coreTalepToplam > 0 ? (coreKontrolToplam / coreTalepToplam) : 0;
+    const kayipTalepEsdegeri = ortalamaTalepBuyuklugu > 0 ? (kayipAdet / ortalamaTalepBuyuklugu) : null;
+
+    return { ...g, hamOrtalama, kayipSaat, kayipSaatPerTalep, duzeltilmisOrtalama, depoAna, kayipAdet, ortalamaTalepBuyuklugu, kayipTalepEsdegeri };
   }).sort((a, b) => a.depo.localeCompare(b.depo, 'tr') || a.yilAy.localeCompare(b.yilAy));
 
   renderLokasyonAnalizSonuc(Array.from(eslesmeyenDepolar));
@@ -11273,7 +11302,7 @@ function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
   const fmt1 = n => (Math.round((n || 0) * 100) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtInt = n => Math.round(n || 0).toLocaleString('tr-TR');
 
-  let genelToplam = { giren: 0, kontrol: 0, talep: 0, agirlikliSaatHam: 0, kayipSaat: 0 };
+  let genelToplam = { giren: 0, kontrol: 0, talep: 0, agirlikliSaatHam: 0, kayipSaat: 0, kayipAdet: 0 };
   // Genel Toplam'daki Kayıp Saat, her ana lokasyon+ay havuzunu SADECE BİR KEZ
   // saymalı — aksi halde aynı havuzu paylaşan alt-lokasyonlar (ör. 3 farklı
   // "Aksaray" satırı) yüzünden mükerrer toplanır. Bu yüzden ayrı bir Set ile
@@ -11292,6 +11321,8 @@ function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
           <th style="text-align:right;padding:10px 12px;background:#E3F2FD">Ağırlıklandırılmış<br>Merkez Süresi (Ham, saat)</th>
           <th style="text-align:right;padding:10px 8px">Kayıp Saat<br>(Lok.Değ.+Ürün Yok)</th>
           <th style="text-align:right;padding:10px 12px;background:#FFEBEE">Ağırlıklandırılmış<br>Merkez Süresi (Adil, saat)</th>
+          <th style="text-align:right;padding:10px 8px">Tahmini<br>Kayıp Adet</th>
+          <th style="text-align:right;padding:10px 8px">≈ Kayıp<br>Talep Sayısı</th>
         </tr>
       </thead>
       <tbody>`;
@@ -11307,12 +11338,15 @@ function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
     const depoHamOrtalama = depoKontrolToplam>0 ? depoAgirlikliSaatHamToplam/depoKontrolToplam : 0;
     const depoAdilOrtalama = depoKontrolToplam>0 ? depoAgirlikliSaatAdilToplam/depoKontrolToplam : 0;
     const depoKayipSaat = rows.reduce((s,r)=>s+r.kayipSaat,0);
+    const depoKayipAdet = rows.reduce((s,r)=>s+(r.kayipAdet||0),0);
+    const depoOrtalamaTalepBuyuklugu = depoTalepToplam > 0 ? (depoKontrolToplam / depoTalepToplam) : 0;
+    const depoKayipTalepEsdegeri = depoOrtalamaTalepBuyuklugu > 0 ? (depoKayipAdet / depoOrtalamaTalepBuyuklugu) : null;
 
     genelToplam.giren += depoGirenToplam;
     genelToplam.kontrol += depoKontrolToplam;
     genelToplam.talep += depoTalepToplam;
     genelToplam.agirlikliSaatHam += depoAgirlikliSaatHamToplam;
-    // Kayıp saat: sadece bu depo grubunun İÇİNDE henüz sayılmamış (coreDepo|yılAy)
+    // Kayıp saat/adet: sadece bu depo grubunun İÇİNDE henüz sayılmamış (coreDepo|yılAy)
     // havuzlarını Genel Toplam'a ekle — aynı havuz başka bir alt-lokasyon
     // satırında zaten sayıldıysa tekrar eklenmez (mükerrer sayımı önler).
     rows.forEach(r => {
@@ -11320,6 +11354,7 @@ function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
       if (!sayilanCorePools.has(coreKey)) {
         sayilanCorePools.add(coreKey);
         genelToplam.kayipSaat += r.kayipSaat;
+        genelToplam.kayipAdet += (r.kayipAdet || 0);
       }
     });
 
@@ -11334,6 +11369,8 @@ function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
       <td style="padding:9px 12px;text-align:right;background:#E3F2FD">${fmt1(depoHamOrtalama)}</td>
       <td style="padding:9px 8px;text-align:right">${fmt1(depoKayipSaat)}</td>
       <td style="padding:9px 12px;text-align:right;background:#FFEBEE">${fmt1(depoAdilOrtalama)}</td>
+      <td style="padding:9px 8px;text-align:right">${depoKayipAdet ? '~'+fmtInt(depoKayipAdet) : '—'}</td>
+      <td style="padding:9px 8px;text-align:right">${depoKayipTalepEsdegeri!==null ? '~'+fmt1(depoKayipTalepEsdegeri) : '—'}</td>
     </tr>`;
 
     rows.forEach(r => {
@@ -11345,12 +11382,16 @@ function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
         <td style="padding:7px 12px;text-align:right;background:#F5FAFF">${fmt1(r.hamOrtalama)}</td>
         <td style="padding:7px 8px;text-align:right">${fmt1(r.kayipSaat)}</td>
         <td style="padding:7px 12px;text-align:right;background:#FFF7F7">${fmt1(r.duzeltilmisOrtalama)}</td>
+        <td style="padding:7px 8px;text-align:right">${r.kayipAdet ? '~'+fmtInt(r.kayipAdet) : '—'}</td>
+        <td style="padding:7px 8px;text-align:right">${r.kayipTalepEsdegeri!==null ? '~'+fmt1(r.kayipTalepEsdegeri) : '—'}</td>
       </tr>`;
     });
   });
 
   const genelHamOrt = genelToplam.kontrol>0 ? genelToplam.agirlikliSaatHam/genelToplam.kontrol : 0;
   const genelAdilOrt = genelToplam.kontrol>0 ? (genelToplam.agirlikliSaatHam - genelToplam.kayipSaat)/genelToplam.kontrol : 0;
+  const genelOrtalamaTalepBuyuklugu = genelToplam.talep>0 ? (genelToplam.kontrol/genelToplam.talep) : 0;
+  const genelKayipTalepEsdegeri = genelOrtalamaTalepBuyuklugu>0 ? (genelToplam.kayipAdet/genelOrtalamaTalepBuyuklugu) : null;
 
   html += `<tr style="background:var(--navy);color:#fff;font-weight:700">
       <td style="padding:10px 12px" colspan="2">Genel Toplam</td>
@@ -11360,6 +11401,8 @@ function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
       <td style="padding:10px 12px;text-align:right">${fmt1(genelHamOrt)}</td>
       <td style="padding:10px 8px;text-align:right">${fmt1(genelToplam.kayipSaat)}</td>
       <td style="padding:10px 12px;text-align:right">${fmt1(Math.max(0,genelAdilOrt))}</td>
+      <td style="padding:10px 8px;text-align:right">${genelToplam.kayipAdet ? '~'+fmtInt(genelToplam.kayipAdet) : '—'}</td>
+      <td style="padding:10px 8px;text-align:right">${genelKayipTalepEsdegeri!==null ? '~'+fmt1(genelKayipTalepEsdegeri) : '—'}</td>
     </tr>`;
 
   html += `</tbody></table></div></div>`;
@@ -11416,6 +11459,8 @@ function exportLaExcel() {
     'Ağırlıklandırılmış Merkez Süresi - Ham (saat)': Math.round(s.hamOrtalama * 100) / 100,
     'Kayıp Saat (Lok.Değişimi + Ürün Olmaması)': Math.round(s.kayipSaat * 100) / 100,
     'Ağırlıklandırılmış Merkez Süresi - Adil (saat)': Math.round(s.duzeltilmisOrtalama * 100) / 100,
+    'Tahmini Kayıp Adet': Math.round(s.kayipAdet || 0),
+    '≈ Kayıp Talep Sayısı': s.kayipTalepEsdegeri!==null ? Math.round(s.kayipTalepEsdegeri * 100) / 100 : '',
     'Kayıp Zaman Depo Eşleşmesi': s.depoAna || '(eşleşmedi)'
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
