@@ -1097,6 +1097,12 @@ function applyUserPermissions() {
     navKayipAdmin.style.display = (!currentUser || currentUser.isAdmin) ? '' : 'none';
   }
 
+  // Lokasyon Süre Analizi sekmesi: yalnizca admin'e (Kayip Zaman Analizi ile aynı kural)
+  const navLokasyonAnaliz = document.getElementById('nav-lokasyon-analiz');
+  if (navLokasyonAnaliz) {
+    navLokasyonAnaliz.style.display = (!currentUser || currentUser.isAdmin) ? '' : 'none';
+  }
+
   // "Temizle" butonu sadece admin tarafından görülebilir
   const temizleBtn = document.getElementById('btn-temizle');
   if (temizleBtn) temizleBtn.style.display = (!currentUser || currentUser.isAdmin) ? '' : 'none';
@@ -11023,4 +11029,341 @@ async function temizleTeknikIncelemeVerileri() {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🗑️ Temizle'; }
   }
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// ═══ LOKASYON SÜRE ANALİZİ (yeni, tamamen bağımsız/izole özellik) ══════════
+// ══════════════════════════════════════════════════════════════════════════
+// Bu blok, mevcut Excel Yükle / performansHesapla / Kayıp Zaman akışlarının
+// HİÇBİRİNE dokunmaz. Kendi ayrı Excel yüklemesi, kendi ayrı değişkenleri ve
+// kendi ayrı render fonksiyonları vardır. Sadece salt-okunur olarak mevcut
+// `kayipZamanData` global değişkenini ve `parseFlexibleDate` /
+// `fetchKayipZamanData` / `_formatDisplayName` gibi zaten var olan yardımcı
+// fonksiyonları OKUR — hiçbirini değiştirmez.
+//
+// Amaç: Depo (lokasyon) + Yıl-Ay bazında, "Ürünlerin Inspectiona Teslim
+// Tarihi" ile "Inspection Sonlandırma Tarihi" arasındaki (Kontrol Edilen
+// Miktar ile ağırlıklandırılmış) süreyi HAM ve Kayıp Zaman modülündeki
+// "Insp. Lokasyon Değişimi" + "Ürün Olmaması" sebepleri düşülerek ADİL
+// (düzeltilmiş) olarak karşılaştırmalı göstermek.
+
+let laRawRows = [];      // Yüklenen raporun ham satırları (SheetJS'ten)
+let laSonuclar = [];     // Depo+Yıl-Ay bazında hesaplanmış sonuç listesi
+let laAtlananSatir = 0;  // Tarih/depo/talep no eksik olduğu için hesaba katılamayan satır sayısı
+const LA_KNOWN_DEPOLAR = ['ESENYURT','TITIZ','EROGLU','YALOVA','AKSARAY','SILIVRI','YILMAZ'];
+
+// ─── Sayfa geçişi (mevcut showPage()'e HİÇ dokunmadan, kendi izole mantığı) ───
+async function showLokasyonAnalizSayfasi() {
+  if (typeof stopKayipZamanAutoRefresh === 'function') stopKayipZamanAutoRefresh();
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const pageEl = document.getElementById('page-lokasyon-analiz');
+  const navEl  = document.getElementById('nav-lokasyon-analiz');
+  if (pageEl) pageEl.classList.add('active');
+  if (navEl)  navEl.classList.add('active');
+
+  // Kayıp zaman verisini güncel tut (zaten var olan, salt-okunur fonksiyon)
+  if (typeof fetchKayipZamanData === 'function') await fetchKayipZamanData();
+  if (laRawRows.length) laHesapla();
+}
+
+function laExcelYukleBaslat() {
+  document.getElementById('la-file-input')?.click();
+}
+
+// ─── Türkçe-güvenli ana lokasyon adı çıkarımı ───
+// "AKSARAY ANTREPO" → "AKSARAY", "Eroğlu Depo" → "EROGLU" gibi, Kayıp Zaman
+// modülündeki 7 ana depo adından biriyle eşleşecek şekilde normalize eder.
+// Eşleşme yoksa null döner (o zaman kayıp zaman düzeltmesi uygulanamaz).
+function laDepoAnaAd(depoRaw) {
+  if (!depoRaw) return null;
+  const norm = String(depoRaw)
+    .toLocaleUpperCase('tr-TR')
+    .replace(/İ/g, 'I').replace(/Ğ/g, 'G').replace(/Ü/g, 'U')
+    .replace(/Ş/g, 'S').replace(/Ö/g, 'O').replace(/Ç/g, 'C');
+  for (const ad of LA_KNOWN_DEPOLAR) {
+    if (norm.includes(ad)) return ad;
+  }
+  return null;
+}
+
+// ─── Esnek sütun bulucu (bu özelliğe özel, mevcut fillColSelects'e dokunmaz) ───
+function _laFindCol(cols, ...candidates) {
+  const normalize = s => String(s || '').toLocaleLowerCase('tr-TR').replace(/[\s._-]+/g, '');
+  const normCols = cols.map(c => ({ raw: c, norm: normalize(c) }));
+  for (const cand of candidates) {
+    const cn = normalize(cand);
+    const hit = normCols.find(c => c.norm === cn);
+    if (hit) return hit.raw;
+  }
+  for (const cand of candidates) {
+    const cn = normalize(cand);
+    const hit = normCols.find(c => c.norm.includes(cn) || cn.includes(c.norm));
+    if (hit) return hit.raw;
+  }
+  return null;
+}
+
+// ─── Excel Yükleme (bağımsız — mevcut excelYukle()/excelRows'a HİÇ dokunmaz) ───
+function laExcelYukle(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('la-file-status');
+  if (statusEl) { statusEl.textContent = '⏳ Yükleniyor...'; statusEl.style.color = 'var(--blue)'; }
+
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!rows.length) {
+        if (statusEl) { statusEl.textContent = '❌ Dosya boş.'; statusEl.style.color = 'var(--red)'; }
+        return;
+      }
+      laRawRows = rows;
+      if (statusEl) { statusEl.textContent = `✅ ${rows.length} satır yüklendi: ${file.name}`; statusEl.style.color = 'var(--green)'; }
+      laHesapla();
+    } catch(err) {
+      if (statusEl) { statusEl.textContent = '❌ Okuma hatası: ' + err.message; statusEl.style.color = 'var(--red)'; }
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+// ─── Ana hesaplama ───
+function laHesapla() {
+  const container = document.getElementById('la-sonuc-container');
+  if (!laRawRows.length || !container) return;
+
+  const cols = Object.keys(laRawRows[0]);
+  const cTalep        = _laFindCol(cols, 'TalepNumarası', 'Talep No', 'TalepNo');
+  const cTeslim       = _laFindCol(cols, 'Ürünlerin Inspectiona Teslim Tarihi', 'Inspectiona Teslim Tarihi');
+  const cSonland      = _laFindCol(cols, 'Inspection Sonlandırma Tarihi', 'Sonlandırma Tarihi');
+  const cGirenMiktar  = _laFindCol(cols, 'TalepMiktari', 'Talep Miktarı');
+  const cKontrolMiktar= _laFindCol(cols, 'BakilacakMiktar', 'Bakılacak Miktar', 'Kontrol Edilen Miktar');
+  const cDepo         = _laFindCol(cols, 'InspectionYapilanDepo', 'Inspection Yapılan Depo', 'Depo');
+
+  const eksikler = [];
+  if (!cTalep)         eksikler.push('TalepNumarası');
+  if (!cTeslim)        eksikler.push('Ürünlerin Inspectiona Teslim Tarihi');
+  if (!cSonland)       eksikler.push('Inspection Sonlandırma Tarihi');
+  if (!cKontrolMiktar) eksikler.push('BakilacakMiktar (Kontrol Edilen Miktar)');
+  if (!cDepo)          eksikler.push('InspectionYapilanDepo');
+  if (eksikler.length) {
+    container.innerHTML = `<div style="padding:20px;color:var(--red);font-size:13px">❌ Excel'de şu sütun(lar) bulunamadı: <strong>${eksikler.join(', ')}</strong>. Lütfen dosyanın performans Excel'iyle aynı sütun başlıklarını içerdiğinden emin olun.</div>`;
+    return;
+  }
+
+  // 1) Talep bazında grupla (bir talebin birden çok klasman satırı olabilir)
+  const talepMap = {};
+  laAtlananSatir = 0;
+  laRawRows.forEach(row => {
+    const talepNo = String(row[cTalep] || '').trim();
+    const depo    = String(row[cDepo] || '').trim();
+    const teslim  = parseFlexibleDate(row[cTeslim]);
+    const sonland = parseFlexibleDate(row[cSonland]);
+    const kontrolMiktar = Number(row[cKontrolMiktar]) || 0;
+    const girenMiktar   = cGirenMiktar ? (Number(row[cGirenMiktar]) || 0) : 0;
+
+    if (!talepNo || !depo || !teslim || !sonland) { laAtlananSatir++; return; }
+
+    if (!talepMap[talepNo]) {
+      talepMap[talepNo] = { depo, teslim, sonland, girenMiktar, kontrolMiktar: 0 };
+    }
+    const t = talepMap[talepNo];
+    if (sonland > t.sonland) t.sonland = sonland;
+    if (teslim   < t.teslim)  t.teslim  = teslim;
+    t.kontrolMiktar += kontrolMiktar;
+    if (girenMiktar > t.girenMiktar) t.girenMiktar = girenMiktar;
+    if (!t.depo) t.depo = depo;
+  });
+
+  // 2) Depo + Yıl-Ay bazında grupla, ağırlıklandırılmış (Kontrol Edilen Miktar) süre topla
+  const grupMap = {};
+  Object.values(talepMap).forEach(t => {
+    const sureSaat = (t.sonland - t.teslim) / 3600000;
+    if (!isFinite(sureSaat) || sureSaat < 0) return; // geçersiz/negatif süre — veri hatası, atla
+    const yilAy = t.teslim.getFullYear() + '-' + String(t.teslim.getMonth() + 1).padStart(2, '0');
+    const key = t.depo + '|' + yilAy;
+    if (!grupMap[key]) {
+      grupMap[key] = { depo: t.depo, yilAy, talepSayisi: 0, girenMiktarToplam: 0, kontrolMiktarToplam: 0, agirlikliSureToplam: 0 };
+    }
+    const g = grupMap[key];
+    const agirlik = t.kontrolMiktar > 0 ? t.kontrolMiktar : 1; // adet bilgisi yoksa en az 1 birim gibi say
+    g.talepSayisi++;
+    g.girenMiktarToplam += t.girenMiktar;
+    g.kontrolMiktarToplam += t.kontrolMiktar;
+    g.agirlikliSureToplam += sureSaat * agirlik;
+  });
+
+  // 3) Kayıp Zaman modülünden (SADECE bu 2 sebep), depo ana adı + yıl-ay bazında toplam kayıp saat
+  const kayipSaatMap = {};
+  (kayipZamanData || []).forEach(k => {
+    if (k.sebep !== 'Insp. Lokasyon Değişimi' && k.sebep !== 'Ürün Olmaması') return;
+    const depoAna = laDepoAnaAd(k.depo);
+    if (!depoAna) return;
+    const tarih = parseFlexibleDate(k.tarih);
+    if (!tarih) return;
+    const yilAy = tarih.getFullYear() + '-' + String(tarih.getMonth() + 1).padStart(2, '0');
+    const key = depoAna + '|' + yilAy;
+    kayipSaatMap[key] = (kayipSaatMap[key] || 0) + ((k.sureDk || 0) / 60);
+  });
+
+  // 4) Ham + Adil (düzeltilmiş) sonuçları birleştir
+  const eslesmeyenDepolar = new Set();
+  laSonuclar = Object.values(grupMap).map(g => {
+    const hamOrtalama = g.kontrolMiktarToplam > 0 ? (g.agirlikliSureToplam / g.kontrolMiktarToplam) : (g.agirlikliSureToplam / Math.max(g.talepSayisi, 1));
+    const depoAna = laDepoAnaAd(g.depo);
+    if (!depoAna) eslesmeyenDepolar.add(g.depo);
+    const key = (depoAna || '') + '|' + g.yilAy;
+    const kayipSaat = kayipSaatMap[key] || 0;
+    const kayipSaatPerTalep = g.talepSayisi > 0 ? (kayipSaat / g.talepSayisi) : 0;
+    const duzeltilmisOrtalama = Math.max(0, hamOrtalama - kayipSaatPerTalep);
+    return { ...g, hamOrtalama, kayipSaat, kayipSaatPerTalep, duzeltilmisOrtalama, depoAna };
+  }).sort((a, b) => a.depo.localeCompare(b.depo, 'tr') || a.yilAy.localeCompare(b.yilAy));
+
+  renderLokasyonAnalizSonuc(Array.from(eslesmeyenDepolar));
+}
+
+// ─── Sonuç Tablosunu Render Et (depo bazında açılır/kapanır gruplar) ───
+function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
+  const container = document.getElementById('la-sonuc-container');
+  const exportBtn = document.getElementById('la-export-btn');
+  if (!container) return;
+
+  if (!laSonuclar.length) {
+    container.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted)">Hesaplanacak geçerli veri bulunamadı (${laAtlananSatir} satır tarih/talep no/depo eksikliğinden atlandı).</div>`;
+    if (exportBtn) exportBtn.style.display = 'none';
+    return;
+  }
+  if (exportBtn) exportBtn.style.display = '';
+
+  // Depo bazında grupla (tablo görünümü için)
+  const depoGroups = {};
+  laSonuclar.forEach(s => {
+    if (!depoGroups[s.depo]) depoGroups[s.depo] = [];
+    depoGroups[s.depo].push(s);
+  });
+
+  const fmt1 = n => (Math.round((n || 0) * 100) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtInt = n => Math.round(n || 0).toLocaleString('tr-TR');
+
+  let genelToplam = { giren: 0, kontrol: 0, talep: 0, agirlikliSaatHam: 0, kayipSaat: 0 };
+
+  let html = `<div class="card" style="overflow:hidden"><div class="card-body" style="padding:0">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:var(--offwhite);border-bottom:2px solid var(--border2)">
+          <th style="text-align:left;padding:10px 12px">Lokasyon</th>
+          <th style="text-align:left;padding:10px 8px">Yıl-Ay</th>
+          <th style="text-align:right;padding:10px 8px">Giren Miktar</th>
+          <th style="text-align:right;padding:10px 8px">Kontrol Edilen Miktar</th>
+          <th style="text-align:right;padding:10px 8px">Talep Sayısı</th>
+          <th style="text-align:right;padding:10px 12px;background:#E3F2FD">Ağırlıklandırılmış<br>Merkez Süresi (Ham, saat)</th>
+          <th style="text-align:right;padding:10px 8px">Kayıp Saat<br>(Lok.Değ.+Ürün Yok)</th>
+          <th style="text-align:right;padding:10px 12px;background:#FFEBEE">Ağırlıklandırılmış<br>Merkez Süresi (Adil, saat)</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  Object.keys(depoGroups).sort((a,b)=>a.localeCompare(b,'tr')).forEach((depo, depoIdx) => {
+    const rows = depoGroups[depo];
+    const depoKey = 'la-depo-' + depoIdx;
+    const depoGirenToplam = rows.reduce((s,r)=>s+r.girenMiktarToplam,0);
+    const depoKontrolToplam = rows.reduce((s,r)=>s+r.kontrolMiktarToplam,0);
+    const depoTalepToplam = rows.reduce((s,r)=>s+r.talepSayisi,0);
+    const depoAgirlikliSaatHamToplam = rows.reduce((s,r)=>s+r.hamOrtalama*Math.max(r.kontrolMiktarToplam,1),0);
+    const depoAgirlikliSaatAdilToplam = rows.reduce((s,r)=>s+r.duzeltilmisOrtalama*Math.max(r.kontrolMiktarToplam,1),0);
+    const depoHamOrtalama = depoKontrolToplam>0 ? depoAgirlikliSaatHamToplam/depoKontrolToplam : 0;
+    const depoAdilOrtalama = depoKontrolToplam>0 ? depoAgirlikliSaatAdilToplam/depoKontrolToplam : 0;
+    const depoKayipSaat = rows.reduce((s,r)=>s+r.kayipSaat,0);
+
+    genelToplam.giren += depoGirenToplam;
+    genelToplam.kontrol += depoKontrolToplam;
+    genelToplam.talep += depoTalepToplam;
+    genelToplam.agirlikliSaatHam += depoAgirlikliSaatHamToplam;
+    genelToplam.kayipSaat += depoKayipSaat;
+
+    const eslesmedi = eslesmeyenDepolar.includes(depo);
+
+    html += `<tr style="background:var(--offwhite);cursor:pointer;font-weight:700" onclick="toggleLaDepo('${depoKey}')">
+      <td style="padding:9px 12px"><span id="${depoKey}-ok" style="display:inline-block;width:14px">▶</span> ${_escapeHtml(depo)}${eslesmedi ? ' <span title="Kayıp Zaman modülündeki 7 ana depodan biriyle eşleşmedi — adil hesaplama bu lokasyon için uygulanamadı" style="color:#E65100;font-weight:400;font-size:10px">⚠️ eşleşmedi</span>' : ''}</td>
+      <td style="padding:9px 8px;color:var(--muted)">${rows.length} dönem</td>
+      <td style="padding:9px 8px;text-align:right">${fmtInt(depoGirenToplam)}</td>
+      <td style="padding:9px 8px;text-align:right">${fmtInt(depoKontrolToplam)}</td>
+      <td style="padding:9px 8px;text-align:right">${fmtInt(depoTalepToplam)}</td>
+      <td style="padding:9px 12px;text-align:right;background:#E3F2FD">${fmt1(depoHamOrtalama)}</td>
+      <td style="padding:9px 8px;text-align:right">${fmt1(depoKayipSaat)}</td>
+      <td style="padding:9px 12px;text-align:right;background:#FFEBEE">${fmt1(depoAdilOrtalama)}</td>
+    </tr>`;
+
+    rows.forEach(r => {
+      html += `<tr class="${depoKey}-row" style="display:none;border-bottom:1px solid var(--border2)">
+        <td style="padding:7px 12px 7px 30px" colspan="2">${r.yilAy}</td>
+        <td style="padding:7px 8px;text-align:right">${fmtInt(r.girenMiktarToplam)}</td>
+        <td style="padding:7px 8px;text-align:right">${fmtInt(r.kontrolMiktarToplam)}</td>
+        <td style="padding:7px 8px;text-align:right">${fmtInt(r.talepSayisi)}</td>
+        <td style="padding:7px 12px;text-align:right;background:#F5FAFF">${fmt1(r.hamOrtalama)}</td>
+        <td style="padding:7px 8px;text-align:right">${fmt1(r.kayipSaat)}</td>
+        <td style="padding:7px 12px;text-align:right;background:#FFF7F7">${fmt1(r.duzeltilmisOrtalama)}</td>
+      </tr>`;
+    });
+  });
+
+  const genelHamOrt = genelToplam.kontrol>0 ? genelToplam.agirlikliSaatHam/genelToplam.kontrol : 0;
+  const genelAdilOrt = genelToplam.kontrol>0 ? (genelToplam.agirlikliSaatHam - genelToplam.kayipSaat)/genelToplam.kontrol : 0;
+
+  html += `<tr style="background:var(--navy);color:#fff;font-weight:700">
+      <td style="padding:10px 12px" colspan="2">Genel Toplam</td>
+      <td style="padding:10px 8px;text-align:right">${fmtInt(genelToplam.giren)}</td>
+      <td style="padding:10px 8px;text-align:right">${fmtInt(genelToplam.kontrol)}</td>
+      <td style="padding:10px 8px;text-align:right">${fmtInt(genelToplam.talep)}</td>
+      <td style="padding:10px 12px;text-align:right">${fmt1(genelHamOrt)}</td>
+      <td style="padding:10px 8px;text-align:right">${fmt1(genelToplam.kayipSaat)}</td>
+      <td style="padding:10px 12px;text-align:right">${fmt1(Math.max(0,genelAdilOrt))}</td>
+    </tr>`;
+
+  html += `</tbody></table></div></div>`;
+
+  if (eslesmeyenDepolar.length) {
+    html += `<div style="margin-top:10px;font-size:11px;color:#E65100;background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:10px 14px">
+      ⚠️ Şu lokasyon adları Kayıp Zaman modülündeki 7 ana depo adından (Esenyurt/Titiz/Eroğlu/Yalova/Aksaray/Silivri/Yılmaz) biriyle eşleştirilemedi, bu yüzden bu lokasyonlar için "Adil" sütunu Ham ile aynı kaldı: <strong>${eslesmeyenDepolar.map(_escapeHtml).join(', ')}</strong>
+    </div>`;
+  }
+  if (laAtlananSatir > 0) {
+    html += `<div style="margin-top:8px;font-size:11px;color:var(--muted)">ℹ️ ${laAtlananSatir} satır, Talep No/Depo/Teslim Tarihi/Sonlandırma Tarihi eksikliği nedeniyle hesaba katılamadı.</div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function toggleLaDepo(depoKey) {
+  const ok = document.getElementById(depoKey + '-ok');
+  const rows = document.querySelectorAll('.' + depoKey + '-row');
+  const willOpen = ok && ok.textContent === '▶';
+  rows.forEach(r => { r.style.display = willOpen ? 'table-row' : 'none'; });
+  if (ok) ok.textContent = willOpen ? '▼' : '▶';
+}
+
+// ─── Excel Olarak İndir (mevcut export fonksiyonlarına dokunmadan, kendi ayrı dosyası) ───
+function exportLaExcel() {
+  if (!laSonuclar.length) { alert('Dışa aktarılacak veri yok.'); return; }
+  const rows = laSonuclar.map(s => ({
+    'Lokasyon': s.depo,
+    'Yıl-Ay': s.yilAy,
+    'Giren Miktar': Math.round(s.girenMiktarToplam),
+    'Kontrol Edilen Miktar': Math.round(s.kontrolMiktarToplam),
+    'Talep Sayısı': s.talepSayisi,
+    'Ağırlıklandırılmış Merkez Süresi - Ham (saat)': Math.round(s.hamOrtalama * 100) / 100,
+    'Kayıp Saat (Lok.Değişimi + Ürün Olmaması)': Math.round(s.kayipSaat * 100) / 100,
+    'Ağırlıklandırılmış Merkez Süresi - Adil (saat)': Math.round(s.duzeltilmisOrtalama * 100) / 100,
+    'Kayıp Zaman Depo Eşleşmesi': s.depoAna || '(eşleşmedi)'
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Lokasyon Süre Analizi');
+  const tarihStr = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `LokasyonSureAnalizi_${tarihStr}.xlsx`);
 }
