@@ -15,7 +15,14 @@ const TI_SKOR_LS_KEY   = 'lc_teknik_inceleme_skor_cache';
 const TI_KRITER_LS_KEY = 'lc_teknik_inceleme_kriter_cache';
 let teknikKriterler = [];   // [{id, metin, puan, aktif, sira}]
 let teknikSkorlar   = [];   // ham cevap satırları [{id, inspector, degerlendiren, tarih, kriterId, kriterMetin, maxPuan, tikli, kazanilanPuan, aciklama, savedAt}]
-let _tiTalepCache   = {};   // { inspectorName: [{klasman, talepNo, adet, gun}, ...] }
+let _tiTalepCache   = {};   // { inspectorName: [{klasman, talepNo, adet, gun}, ...] } — TÜM tarihler için (getInspectorTalepNolar'dan)
+let _tiTarihReqSeq  = 0;    // "en son giden istek kazanır" korumasi — bkz. onTiTarihChange
+// SADECE seçili tarihe ait, getInspectorlerByGun cevabıyla birlikte önceden
+// gelen talep verisi. Bu sayede inspector seçildiğinde ayrıca sunucuya
+// gidilmeden talep listesi ANINDA gösterilebilir (performans). _tiTalepCache'ten
+// farkı: bu sadece TEK bir tarihi kapsar, o yüzden ayrı tutulur — inspector
+// için tüm-tarihler cache'i (_tiTalepCache) zaten varsa o her zaman önceliklidir.
+let _tiTarihPrefetch = { gun: '', talepMap: {} };
 const TI_BASARI_ESIGI = 85; // Değerlendirme başına başarı eşiği (%) — bu ve üstü "Başarılı" sayılır
 
 // Admin'in yüklediği resmi "Teknik İnceleme" checklist formundaki 21 madde (toplam 100 puan).
@@ -700,10 +707,20 @@ async function pushConfigToSheets() {
 function jsonpFetch(url, params) {
   const action = params.action || '';
   const token  = params.token  || '';
+  // Her çağrıya benzersiz bir kimlik üretilir. Aynı anda birden fazla
+  // jsonpFetch isteği uçuşurken (ör. sayfa açılışındaki arka plan çekmeleri +
+  // kullanıcının o an yaptığı bir işlem), tüm istekler AYNI paylaşılan
+  // 'message' event'ini dinlediği için, bu rid olmadan bir isteğin cevap
+  // dinleyicisi YANLIŞLIKLA başka bir isteğin cevabını kabul edebilir
+  // (ör. "getInspectorlerByGun" beklerken "getTeknikKriterler" cevabı gelip
+  // 'inspectorler' alanı olmadığından hataya yol açabilir). Backend (autoResp)
+  // bu rid'i cevaba aynen geri ekler; eşleşmeyen cevaplar burada yok sayılır.
+  const rid = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   return new Promise((resolve, reject) => {
     // action ve token dışındaki tüm parametreleri de URL'e ekle
     let iframeUrl = url + '?action=' + encodeURIComponent(action) +
-                          '&token='  + encodeURIComponent(token);
+                          '&token='  + encodeURIComponent(token) +
+                          '&rid='    + encodeURIComponent(rid);
     Object.entries(params).forEach(([k, v]) => {
       if (k !== 'action' && k !== 'token') {
         iframeUrl += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(String(v).normalize('NFC'));
@@ -729,6 +746,10 @@ function jsonpFetch(url, params) {
       // Sadece Apps Script kaynaklarından gelen mesajları kabul et
       const trusted = ['googleusercontent.com', 'script.google.com'];
       if (!trusted.some(o => event.origin.includes(o))) return;
+      // rid eşleşmiyorsa bu cevap BAŞKA bir isteğe ait — yok say, dinlemeye devam et.
+      // Backend rid göndermiyorsa (henüz güncellenmemiş eski deploy) _rid alanı
+      // olmaz ve eşleşme kontrolü atlanır (geriye dönük uyumluluk).
+      if (event.data && event.data._rid && event.data._rid !== rid) return;
       clearTimeout(timer);
       window.removeEventListener('message', handler);
       if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
@@ -4326,7 +4347,11 @@ function exportToExcel() {
       'Verimlilik Perf (%)': performans,
       'Teknik İnceleme Skoru (%)': (ti && ti.count > 0) ? ti.percent : '—',
       'Klasman Sayısı': Object.keys(inspector.klasmanlar).length,
-      'Çalışma Gün Sayısı': inspector.gunSayisi || 0
+      'Çalışma Gün Sayısı': inspector.gunSayisi || 0,
+      'Overtime Performans (%)': (inspector.overtimePerformans !== null && inspector.overtimePerformans !== undefined) ? inspector.overtimePerformans : '—',
+      'Overtime Kontrol Edilen Adet': inspector.toplamOvertimeAdet || 0,
+      '2.Kalite Kontrolü: Adet': inspector.toplam2KaliteAdet || 0,
+      '2.Kalite Kontrolü: Performans (%)': (inspector.perf2Kalite !== null && inspector.perf2Kalite !== undefined) ? inspector.perf2Kalite : '—'
     };
   });
 
@@ -5764,6 +5789,7 @@ function performansHesapla(){
         ins: ins,
         klasmanlar: {},
         toplamAdet: 0,
+        toplamOvertimeAdet: 0, // Overtime (16:45 sonrası) döneminde kontrol edilen toplam adet — yalnızca gösterim/rapor amaçlı
         kayitListesi: [],
         mesaiSureSn: null
       };
@@ -5867,6 +5893,12 @@ function performansHesapla(){
     }
     const kayitNormalSayilir = kayitNormalMi(parsedBitis);
     kl.kayitlar.push({ no: kl.kayitlar.length + 1, klasman: excelKlasman, adet, standartSure, kayitFiiliSure, kontrolAdetSuresi: klasmanInfo.urunKontrolSuresi, istasyonSuresi: klasmanInfo.istasyonSuresi, istasyonDetay: klasmanInfo.istasyonDetay || [], baslangic: parsedBaslangic, bitis: parsedBitis, tarihGecerli, normalMesai: kayitNormalSayilir, talepNo: talepColFallback ? String(row[talepColFallback]||'').trim() : '', inspectionTipi: inspectionTipiRaw, is2Kalite });
+
+    // Overtime'da (16:45 sonrası) kontrol edilen toplam adedi ayrıca izle —
+    // yalnızca gösterim/rapor amaçlı, mevcut performans hesaplarını etkilemez.
+    if (!kayitNormalSayilir) {
+      inspectorMap[ins].toplamOvertimeAdet = (inspectorMap[ins].toplamOvertimeAdet || 0) + adet;
+    }
 
     if (is2Kalite && !_2KaliteDahil) {
       // toplamAdet'e eklenmedi (yukarıda hariç tutuldu)
@@ -6031,7 +6063,9 @@ function performansHesapla(){
       toplam2KaliteAdet: toplam2KaliteAdet,
       toplam2KaliteStandartSure: toplam2KaliteStandartSure,
       toplam2KaliteFiiliSure: toplam2KaliteFiiliSure,
-      perf2Kalite: perf2Kalite
+      perf2Kalite: perf2Kalite,
+      // Overtime'da kontrol edilen toplam adet — yalnızca gösterim/rapor amaçlı
+      toplamOvertimeAdet: inspectorData.toplamOvertimeAdet || 0
     };
 
     
@@ -9966,6 +10000,30 @@ function exportKayipZamanExcel() {
   if (fInsp)  records = records.filter(r => r.inspector === fInsp);
   if (fSebep) records = records.filter(r => r.sebep === fSebep);
 
+  _kayipZamanExcelIndirOlustur(records);
+}
+
+// ─── Ekip Yöneticisi için Kayıp Zaman Excel İndirme ───
+// Admin'deki exportKayipZamanExcel() ile aynı çıktı formatını üretir, ANCAK
+// veri SADECE giriş yapan ekip yöneticisinin kendi ekibiyle (ekipYoneticisi
+// === currentUser.username) sınırlıdır — başka ekiplerin verisi asla dahil
+// edilmez. "Girilen Kayıp Zamanlar" listesindeki aktif Inspector/Sebep
+// filtreleri de (varsa) aynen uygulanır, böylece ekranda gördüğü tabloyla
+// indirdiği Excel birebir örtüşür.
+function exportKayipZamanExcelEkip() {
+  const username = currentUser?.username || '';
+  let records = kayipZamanData.filter(r => r.ekipYoneticisi === username);
+
+  const filterIns   = document.getElementById('kz-filter-inspector')?.value || '';
+  const filterSebep = document.getElementById('kz-filter-sebep')?.value || '';
+  if (filterIns)   records = records.filter(r => r.inspector === filterIns);
+  if (filterSebep) records = records.filter(r => r.sebep === filterSebep);
+
+  _kayipZamanExcelIndirOlustur(records);
+}
+
+// ─── Ortak CSV oluşturma/indirme mantığı (admin ve ekip export'u tarafından paylaşılır) ───
+function _kayipZamanExcelIndirOlustur(records) {
   if (!records.length) { alert('Dışa aktarılacak veri yok.'); return; }
 
   const BOM = '\uFEFF';
@@ -10073,16 +10131,43 @@ function showSebepInspectorDetay(sebep) {
 
 async function tiVarsayilanSorulariYukle() {
   if (teknikKriterler.length > 0) {
-    if (!confirm('Mevcut kriter listesinin üzerine varsayılan soru seti eklenecek ve otomatik kaydedilecek. Devam edilsin mi?')) return;
+    if (!confirm('Mevcut kriter listesinin TAMAMI silinip yerine 100 puanlık resmi varsayılan soru seti yüklenecek ve otomatik kaydedilecek. Devam edilsin mi?')) return;
   }
+  // ÖNEMLİ: Eskiden bu fonksiyon mevcut listenin ÜZERİNE ekliyordu (push).
+  // Buton birden fazla kez tıklanırsa (ör. "Kriter Yönetimi" listesi görsel bir
+  // hatadan dolayı boş göründüğü için tekrar tıklanınca) aynı 14/21 madde
+  // MÜKERRER olarak birikiyordu. Artık listeyi önce TAMAMEN TEMİZLEYİP sonra
+  // varsayılanları yüklüyor — tekrar tıklansa bile mükerrer oluşmaz.
+  teknikKriterler = [];
   const now = Date.now();
   TI_DEFAULT_KRITERLER.forEach((k, i) => {
-    teknikKriterler.push({ id: 'k_' + now + '_' + i, metin: k.metin, puan: k.puan, aktif: true, sira: teknikKriterler.length });
+    teknikKriterler.push({ id: 'k_' + now + '_' + i, metin: k.metin, puan: k.puan, aktif: true, sira: i });
   });
   renderTiKriterYonetimList();
   // Unutulup kaybolmasın diye otomatik kaydet (ayrıca "Kriterleri Kaydet"e basmaya gerek yok)
   // Not: kaydetTeknikKriterler() kendi başarı mesajını zaten gösteriyor.
   await kaydetTeknikKriterler();
+}
+
+// ─── Mükerrer Kriterleri Temizle (aynı metne sahip satırlardan ilkini tutar) ───
+// Yukarıdaki eski "üzerine ekleme" davranışından dolayı sistemde zaten
+// birikmiş olabilecek mükerrer kriterleri tek tıkla temizlemek için.
+async function tiMukerrerKriterleriTemizle() {
+  const gorulen = new Set();
+  const temiz = [];
+  let silinen = 0;
+  teknikKriterler.forEach(k => {
+    const anahtar = String(k.metin || '').trim().toLocaleLowerCase('tr-TR');
+    if (gorulen.has(anahtar)) { silinen++; return; }
+    gorulen.add(anahtar);
+    temiz.push(k);
+  });
+  if (silinen === 0) { alert('Mükerrer kriter bulunamadı — liste zaten temiz.'); return; }
+  if (!confirm(`${silinen} adet mükerrer (aynı metne sahip) kriter bulundu ve silinecek. Devam edilsin mi?`)) return;
+  teknikKriterler = temiz;
+  renderTiKriterYonetimList();
+  await kaydetTeknikKriterler();
+  alert(`✅ ${silinen} mükerrer kriter silindi.`);
 }
 
 // ─── localStorage cache ───
@@ -10139,11 +10224,13 @@ function getTeknikIncelemeSkorForInspector(inspectorName) {
 
 // ─── Sayfa Girişi ───
 async function loadTeknikInceleme() {
-  fillTeknikInspectorDropdown();
   const tarihEl = document.getElementById('ti-tarih');
   if (tarihEl && !tarihEl.value) tarihEl.value = new Date().toISOString().split('T')[0];
   _tiTalepCache = {}; // Yenilemede talep no verisi taze çekilsin
-  updateTiTalepBilgisi();
+
+  // YENİ AKIŞ: önce tarihe göre inspector listesi yüklenir; inspector seçimi
+  // ve Talep No bilgisi bundan sonra (kullanıcı bir isim seçtiğinde) gelir.
+  await onTiTarihChange();
 
   const adminWrap = document.getElementById('ti-admin-wrap');
   const isAdmin = !currentUser || currentUser.isAdmin;
@@ -10169,18 +10256,122 @@ async function loadTeknikInceleme() {
   }
 }
 
-function fillTeknikInspectorDropdown() {
+// names verilirse SADECE o isimlerle, verilmezse (veya BOŞ dönerse) tüm
+// performansData inspector'larıyla dropdown'u doldurur. "Her hâlükârda
+// inspector isimleri gelsin" gereksinimi: tarihe göre filtre 0 sonuç verse
+// ya da backend'e hiç ulaşılamasa bile kullanıcı asla boş/kilitli bir
+// seçim kutusuyla baş başa kalmaz — otomatik olarak TÜM listeye düşülür.
+// Önceki seçim, yeni listede hâlâ varsa korunur.
+function fillTeknikInspectorDropdown(names, placeholder) {
   const sel = document.getElementById('ti-inspector');
   if (!sel) return;
   const prev = sel.value;
-  sel.innerHTML = '<option value="">— Inspector seçin —</option>';
-  performansData.slice().sort((a,b) => a.ins.localeCompare(b.ins, 'tr')).forEach(ins => {
+  const tumListe = performansData.map(i => i.ins).slice().sort((a, b) => a.localeCompare(b, 'tr'));
+  let list = Array.isArray(names) ? names.slice().sort((a, b) => a.localeCompare(b, 'tr')) : tumListe;
+  if (list.length === 0) list = tumListe; // filtre sonucu boşsa tam listeye düş
+  sel.innerHTML = '<option value="">' + (placeholder || '— Inspector seçin —') + '</option>';
+  list.forEach(name => {
     const opt = document.createElement('option');
-    opt.value = ins.ins;
-    opt.textContent = _formatDisplayName(ins.ins);
+    opt.value = name;
+    opt.textContent = _formatDisplayName(name);
     sel.appendChild(opt);
   });
-  if (prev) sel.value = prev;
+  sel.disabled = list.length === 0; // yalnızca sistemde hiç inspector kaydı yoksa kilitlenir
+  if (prev && list.includes(prev)) sel.value = prev;
+}
+
+// ─── YENİ AKIŞ: Önce Tarih, Sonra O Tarihe Ait Inspector'lar ───
+// Tarih değiştiğinde: o tarihte en az bir kaydı olan inspector'ları backend'den
+// çeker ve dropdown'u SADECE bu isimlerle doldurur. Daha önce seçili olan
+// Talep No / kriter formu her tarih değişiminde sıfırlanır. Inspector seçimi
+// (varsa) yeni listede hâlâ geçerliyse korunur ve talep bilgisi otomatik
+// yeniden yüklenir; aksi halde kullanıcı yeniden bir inspector seçmelidir.
+async function onTiTarihChange() {
+  const tarih = document.getElementById('ti-tarih')?.value || '';
+
+  // "En son giden istek kazanır" koruması: kullanıcı tarihi hızlıca değiştirirse
+  // (ör. tarih seçicide ok tuşlarıyla gezinirken) birden fazla onTiTarihChange
+  // çağrısı aynı anda uçuşabilir. rid eşleştirmesi (jsonpFetch) sadece FARKLI
+  // action'ların cevaplarının karışmasını önler — aynı action'a (getInspectorlerByGun)
+  // FARKLI tarihlerle yapılan art arda isteklerde, ESKİ isteğin cevabı ağ
+  // gecikmesi yüzünden YENİ isteğin sonucundan SONRA gelebilir ve ekranı yanlış
+  // tarihin sonucuyla eski/stale veriyle ezebilir. Bu yüzden her çağrı kendi sıra
+  // numarasını alır; cevap geldiğinde hâlâ "en son" çağrı o mu diye kontrol edilir,
+  // değilse (daha yeni bir tarih değişikliği araya girmişse) sonuç sessizce atılır.
+  const mySeq = ++_tiTarihReqSeq;
+
+  // Tarih değişince Talep No / kriter formu her zaman sıfırlanır
+  const talepInp = document.getElementById('ti-talep-secili');
+  if (talepInp) talepInp.value = '';
+  const box = document.getElementById('ti-talep-info');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  const warnBox = document.getElementById('ti-tarih-filter-warn');
+  if (warnBox) { warnBox.style.display = 'none'; warnBox.innerHTML = ''; }
+  if (typeof renderTeknikKriterForm === 'function') renderTeknikKriterForm();
+
+  const sel = document.getElementById('ti-inspector');
+  if (!sel) return;
+
+  if (!tarih) {
+    // Tarih henüz seçilmedi — yine de inspector listesi HER HÂLÜKÂRDA görünür
+    // olmalı (kullanıcı isterse tarih seçmeden de devam edebilir); sadece
+    // bilgilendirici bir placeholder gösterilir, seçim kilitlenmez.
+    fillTeknikInspectorDropdown(undefined, '— Inspector seçin (tarih seçerseniz liste daraltılır) —');
+    return;
+  }
+
+  const url = appConfig.sheetsWebAppUrl;
+  const token = appConfig.sheetsApiToken;
+  if (!url || !token) {
+    // Sunucu yapılandırılmamışsa akışı kilitlemek yerine tüm listeye düş
+    fillTeknikInspectorDropdown();
+    if (mySeq === _tiTarihReqSeq && sel.value) await updateTiTalepBilgisi();
+    return;
+  }
+
+  sel.disabled = true;
+  sel.innerHTML = '<option value="">⏳ Yükleniyor...</option>';
+
+  try {
+    const resp = await jsonpFetch(url, { action: 'getInspectorlerByGun', token, gun: tarih });
+    // Bu bekleme sırasında kullanıcı tarihi TEKRAR değiştirdiyse (daha yeni bir
+    // çağrı başladıysa), bu artık BAYAT bir sonuçtur — ekranı bozmadan sessizce çık.
+    if (mySeq !== _tiTarihReqSeq) return;
+    if (resp?.status !== 'ok' || !Array.isArray(resp.inspectorler)) {
+      throw new Error(resp?.message || 'Beklenmeyen sunucu yanıtı');
+    }
+    // PERFORMANS: backend bu tarihe ait tüm inspector'ların talep verisini
+    // AYNI cevapta gönderdi — ön belleğe alıyoruz ki inspector seçilince
+    // updateTiTalepBilgisi() ikinci bir sunucu isteği atmadan anında gösterebilsin.
+    _tiTarihPrefetch = { gun: tarih, talepMap: (resp.talepMap && typeof resp.talepMap === 'object') ? resp.talepMap : {} };
+    if (resp.inspectorler.length === 0) {
+      // Bu tarihte kayıt yok — yine de kullanıcıyı kilitleme, tüm inspector
+      // listesine düş (fillTeknikInspectorDropdown zaten boş liste verilince
+      // otomatik tam listeye düşer), sadece bilgilendirici not göster.
+      fillTeknikInspectorDropdown([], `— ${tarih} tarihinde kayıt bulunamadı, tüm liste gösteriliyor —`);
+    } else {
+      fillTeknikInspectorDropdown(resp.inspectorler);
+    }
+  } catch(e) {
+    if (mySeq !== _tiTarihReqSeq) return; // bayat hata — yeni bir istek zaten devam ediyor
+    console.warn('Tarihe göre inspector listesi çekilemedi:', e.message);
+    // Hata durumunda akışı tamamen kilitlemek yerine tüm inspector listesine düş —
+    // ANCAK bunu ti-talep-info kutusuna yazmıyoruz, çünkü o kutu birazdan
+    // updateTiTalepBilgisi() tarafından ezilir ve bu uyarı hiç görünmeden kaybolur.
+    // Bu yüzden AYRI ve kalıcı bir uyarı kutusu (ti-tarih-filter-warn) kullanılır.
+    fillTeknikInspectorDropdown(undefined, '— Inspector seçin (tarih filtresi uygulanamadı) —');
+    if (warnBox) {
+      const bilinmeyenAction = /bilinmeyen action/i.test(e.message || '');
+      warnBox.style.display = '';
+      warnBox.innerHTML = bilinmeyenAction
+        ? `⚠️ <strong>Tarihe göre filtreleme çalışmıyor.</strong> Google Apps Script backend'i güncel değil (<code>getInspectorlerByGun</code> action'ı bulunamadı). Lütfen güncel <code>Kod.gs</code> içeriğini Apps Script projesine yapıştırıp <strong>yeniden Deploy</strong> edin. Şimdilik aşağıda tüm inspector listesi (tarihe göre filtrelenmemiş) gösteriliyor.`
+        : `⚠️ <strong>Tarihe göre filtreleme çalışmıyor:</strong> ${_escapeHtml(e.message || 'bilinmeyen hata')}. Şimdilik tüm inspector listesi gösteriliyor.`;
+    }
+  }
+
+  // Seçim (varsa) yeni listede korunduysa talep bilgisini otomatik yenile —
+  // yalnızca bu hâlâ en son (bayat olmayan) çağrıysa.
+  if (mySeq === _tiTarihReqSeq && sel.value) await updateTiTalepBilgisi();
 }
 
 // ─── Seçilen Inspector + Tarihe Ait Talep No'ları Getir ───
@@ -10205,6 +10396,12 @@ async function updateTiTalepBilgisi() {
 
   try {
     let talepler = _tiTalepCache[inspector];
+    if (!talepler && _tiTarihPrefetch.gun === tarih) {
+      // PERFORMANS: bu tarih için inspector listesiyle BİRLİKTE zaten talep
+      // verisi de gelmişti (bkz. onTiTarihChange) — sunucuya tekrar gitmeye
+      // gerek yok, doğrudan ondan oku (kayıt yoksa boş dizi de geçerli bir sonuçtur).
+      talepler = _tiTarihPrefetch.talepMap[inspector] || [];
+    }
     if (!talepler) {
       const url = appConfig.sheetsWebAppUrl;
       const token = appConfig.sheetsApiToken;
@@ -10332,6 +10529,217 @@ function renderTeknikKriterForm() {
 }
 
 
+
+// ─── YAZDIR: Kriter metnindeki "6a.", "7b." gibi bileşik numaralandırmayı
+// ayrıştırıp Excel'deki gibi grup başlığı + alt madde satırlarına böler.
+// "6a. Ölçü Kontrolü - Talimatta belirtilen..." → grup "6" başlığı bir kez
+// "Ölçü Kontrolü" olarak yazılır, alt maddeler sadece "a." + geri kalan metin
+// olarak listelenir. Eşleşmeyen (düz "1." ya da admin'in eklediği serbest
+// metin) maddeler tek satır olarak, olduğu gibi yazılır.
+function _tiBuildYazdirRows(kList) {
+  const rows = [];
+  let currentGroupNo = null;
+  kList.forEach((k, idx) => {
+    const metin = String(k.metin || '');
+    const bilesikM = metin.match(/^(\d+)\s*([a-zçğıöşü])\.\s*(.*)$/is);
+    if (bilesikM) {
+      const no = bilesikM[1], alt = bilesikM[2], rest = bilesikM[3];
+      const dashIdx = rest.indexOf(' - ');
+      let grupBaslik = '', aciklamaMetin = rest;
+      if (dashIdx > -1) {
+        grupBaslik = rest.slice(0, dashIdx).trim();
+        aciklamaMetin = rest.slice(dashIdx + 3).trim();
+      }
+      if (no !== currentGroupNo) {
+        currentGroupNo = no;
+        rows.push({ type: 'group', no, label: grupBaslik || metin });
+      }
+      rows.push({ type: 'item', no: '', alt: alt + '.', desc: aciklamaMetin, puan: k.puan, tikli: k.tikli, aciklama: k.aciklama });
+      return;
+    }
+    const duzM = metin.match(/^(\d+)\.\s*(.*)$/s);
+    currentGroupNo = null;
+    if (duzM) {
+      rows.push({ type: 'item', no: duzM[1] + '.', alt: '', desc: duzM[2], puan: k.puan, tikli: k.tikli, aciklama: k.aciklama });
+    } else {
+      rows.push({ type: 'item', no: String(idx + 1) + '.', alt: '', desc: metin, puan: k.puan, tikli: k.tikli, aciklama: k.aciklama });
+    }
+  });
+  return rows;
+}
+
+// ─── Değerlendirme Sonucunu Yazdır (LC Waikiki resmi form ile birebir) ───
+// Ekrandaki formda o an işaretli olan tik/açıklama durumunu (kaydedilmiş
+// olsun olmasın) alıp, ekteki "Kamera Formu" Excel şablonuyla aynı düzende
+// (başlık bilgileri + 21 maddelik tik/puan tablosu + toplam puan +
+// iki imza kutusu) yeni bir sekmede açar ve otomatik yazdırma diyaloğunu
+// tetikler.
+function yazdirTeknikIncelemeSonucu() {
+  const inspector = document.getElementById('ti-inspector')?.value?.trim();
+  const tarih = document.getElementById('ti-tarih')?.value || '';
+  const talepNo = document.getElementById('ti-talep-secili')?.value?.trim();
+
+  if (!inspector) { alert('Lütfen bir inspector seçin.'); return; }
+  if (!talepNo) { alert('Lütfen değerlendirmeyi yaptığınız Talep No\'yu seçin veya girin.'); return; }
+
+  const aktifler = teknikKriterler.filter(k => k.aktif);
+  if (!aktifler.length) { alert('Yazdırılacak kriter yok.'); return; }
+
+  const kList = aktifler.map(k => {
+    const esc = (window.CSS && CSS.escape) ? CSS.escape(k.id) : k.id;
+    const cb = document.querySelector(`.ti-tik-cb[data-kriter="${esc}"]`);
+    const aciklamaInp = document.querySelector(`.ti-aciklama-input[data-kriter="${esc}"]`);
+    return {
+      metin: k.metin,
+      puan: Number(k.puan) || 0,
+      tikli: !!(cb && cb.checked),
+      aciklama: aciklamaInp ? aciklamaInp.value.trim() : ''
+    };
+  });
+
+  const rows = _tiBuildYazdirRows(kList);
+  const maxToplam = kList.reduce((s, k) => s + k.puan, 0);
+  const kazanilanToplam = kList.reduce((s, k) => s + (k.tikli ? k.puan : 0), 0);
+
+  const inspectorAd = _formatDisplayName(inspector);
+  const tarihStr = tarih ? new Date(tarih + 'T00:00:00').toLocaleDateString('tr-TR') : '';
+  const degerlendirenAd = (currentUser && currentUser.username && currentUser.username.toLowerCase() !== 'admin')
+    ? _formatDisplayName(currentUser.username) : '';
+
+  let bodyRows = '';
+  rows.forEach(r => {
+    if (r.type === 'group') {
+      bodyRows += `<tr class="ti-pr-grouprow">
+        <td class="ti-pr-no">${_escapeHtml(r.no)}.</td>
+        <td class="ti-pr-desc" colspan="4">${_escapeHtml(r.label)}</td>
+      </tr>`;
+    } else {
+      bodyRows += `<tr>
+        <td class="ti-pr-no">${_escapeHtml(r.no)}</td>
+        <td class="ti-pr-alt">${_escapeHtml(r.alt)}</td>
+        <td class="ti-pr-desc">${_escapeHtml(r.desc)}</td>
+        <td class="ti-pr-tick">${r.tikli ? '✔' : ''}</td>
+        <td class="ti-pr-puan">${r.tikli ? r.puan : 0}</td>
+        <td class="ti-pr-olay">${_escapeHtml(r.aciklama || '')}</td>
+      </tr>`;
+    }
+  });
+
+  const html = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Teknik İnceleme Değerlendirme Formu - ${_escapeHtml(inspectorAd)}</title>
+<style>
+  @page { size: A4; margin: 8mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; font-size: 9.5px; line-height: 1.2; }
+  .ti-pr-title { text-align:center; font-size:13px; font-weight:700; margin-bottom:6px; text-transform:uppercase; letter-spacing:.3px; }
+  table { border-collapse: collapse; width: 100%; }
+  .ti-pr-info td { border: 1px solid #000; padding: 2px 5px; font-size: 9.5px; vertical-align: middle; line-height:1.15; }
+  .ti-pr-info .lbl { font-weight: 700; width: 19%; background:#F2F2F2; }
+  .ti-pr-info .val { width: 31%; }
+  .ti-pr-main { margin-top: 6px; }
+  .ti-pr-main th { border: 1px solid #000; background:#F2F2F2; font-weight:700; font-size:9px; padding:3px 4px; text-align:center; }
+  .ti-pr-main td { border: 1px solid #000; padding: 1.5px 4px; font-size: 9px; vertical-align: middle; line-height:1.15; }
+  .ti-pr-no { text-align:center; font-weight:700; width:4%; }
+  .ti-pr-alt { text-align:center; font-weight:700; width:3%; }
+  .ti-pr-desc { text-align:left; }
+  .ti-pr-tick { text-align:center; width:5%; font-weight:700; }
+  .ti-pr-puan { text-align:center; width:6%; font-weight:700; }
+  .ti-pr-olay { width:18%; font-size:8.5px; }
+  .ti-pr-grouprow td { background:#EAEAEA; font-weight:700; }
+  .ti-pr-total td { border: 1px solid #000; padding:3px 6px; font-weight:700; font-size:10px; }
+  .ti-pr-total .lbl { text-align:right; background:#F2F2F2; }
+  .ti-pr-total .val { text-align:center; width:10%; }
+  .ti-pr-sign { margin-top:8px; }
+  .ti-pr-sign td { border: 1px solid #000; padding:4px; text-align:center; font-weight:600; height: 46px; vertical-align: top; width:50%; font-size:9.5px; }
+  .ti-pr-note { margin-top:3px; font-size:8.5px; font-style:italic; }
+  @media print {
+    .ti-pr-noprint { display:none; }
+  }
+</style>
+</head>
+<body>
+  <div class="ti-pr-title">LC Waikiki — Teknik İnceleme Değerlendirme Formu</div>
+
+  <table class="ti-pr-info">
+    <tr>
+      <td class="lbl">Inspektör</td><td class="val">${_escapeHtml(inspectorAd)}</td>
+      <td class="lbl">Ekip Yöneticisi</td><td class="val">${_escapeHtml(degerlendirenAd)}</td>
+    </tr>
+    <tr>
+      <td class="lbl">İnspection Tarihi</td><td class="val">${_escapeHtml(tarihStr)}</td>
+      <td class="lbl">Başlama-Bitiş Saati</td><td class="val">&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="lbl">Sipariş No</td><td class="val">&nbsp;</td>
+      <td class="lbl">Talep No</td><td class="val">${_escapeHtml(talepNo)}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Masa Numarası</td><td class="val">&nbsp;</td>
+      <td class="lbl">Ürün Cinsi</td><td class="val">&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="lbl">Inspection Talep Adeti</td><td class="val">&nbsp;</td>
+      <td class="lbl">Beden Sayısı</td><td class="val">&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="lbl">Kontrol Edilen AQL Adet</td><td class="val">&nbsp;</td>
+      <td class="lbl">Ölçüm Yapılan Ürün Adeti</td><td class="val">&nbsp;</td>
+    </tr>
+  </table>
+
+  <table class="ti-pr-main">
+    <colgroup>
+      <col style="width:4%"><col style="width:3%"><col style="width:47%">
+      <col style="width:5%"><col style="width:6%"><col style="width:35%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th colspan="3">Değerlendirme Maddesi</th>
+        <th>Tick</th>
+        <th>Puan</th>
+        <th>Olay Saati / Olay Açıklaması</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${bodyRows}
+    </tbody>
+  </table>
+
+  <table class="ti-pr-total">
+    <tr>
+      <td class="lbl" style="width:84%">Toplam Puan (Max: ${maxToplam})</td>
+      <td class="val">${kazanilanToplam}</td>
+    </tr>
+  </table>
+
+  <div class="ti-pr-note">Not: Yapılan işlemlerdeki kutulara ✔ koyunuz.</div>
+
+  <table class="ti-pr-sign">
+    <tr>
+      <td>İlgili Ekip Yöneticisi<br>Tarih/İmza</td>
+      <td>Gözlem Yapılan İnspektör<br>Tarih/İmza</td>
+    </tr>
+  </table>
+
+  <div class="ti-pr-noprint" style="margin-top:14px;text-align:center">
+    <button onclick="window.print()" style="padding:8px 18px;font-size:13px;cursor:pointer">🖨️ Yazdır</button>
+  </div>
+
+  <script>
+    window.onload = function() { setTimeout(function(){ window.print(); }, 200); };
+  </script>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { alert('Yazdırma penceresi açılamadı. Lütfen tarayıcınızın açılır pencere engelleyicisini kontrol edin.'); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
 
 // ─── Değerlendirmeyi Kaydet ───
 async function kaydetTeknikInceleme() {
@@ -10472,7 +10880,7 @@ function renderTiKriterYonetimList() {
     <div style="font-size:11px;color:var(--muted2);margin-bottom:2px">Toplam maksimum puan: <strong>${toplamPuan}</strong> (idealde 100 olması önerilir)</div>
     ${teknikKriterler.map((k, i) => `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--offwhite);border:1px solid var(--border2);border-radius:8px">
-      <input type="checkbox" data-ti-idx="${i}" class="ti-kriter-aktif" ${k.aktif ? 'checked' : ''} title="Aktif/Pasif">
+      <input type="checkbox" data-ti-idx="${i}" class="ti-kriter-aktif" ${k.aktif ? 'checked' : ''} title="Aktif/Pasif" style="width:16px;height:16px;flex:0 0 16px;cursor:pointer">
       <input type="text" data-ti-idx="${i}" class="ti-kriter-metin" value="${_escapeHtml(k.metin)}" style="flex:1;font-size:13px">
       <input type="number" min="0" step="1" data-ti-idx="${i}" class="ti-kriter-puan" value="${Number(k.puan)||0}" title="Madde puanı (ağırlığı)" style="width:70px;font-size:13px;text-align:center">
       <button onclick="silTiKriter(${i})" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer">🗑️</button>
