@@ -11211,7 +11211,29 @@ function laHesapla() {
     kayipSaatMap[key] = (kayipSaatMap[key] || 0) + ((k.sureDk || 0) / 60);
   });
 
-  // 4) Ham + Adil (düzeltilmiş) sonuçları birleştir
+  // 4) Ana lokasyon (core) + yıl-ay bazında TOPLAM talep sayısını hesapla.
+  // NEDEN GEREKLİ: Kayıp Zaman modülü "Aksaray Depo" gibi TEK bir seçenek sunuyor,
+  // ama Excel raporunda "AKSARAY DEPO", "AKSARAY DIR DEPO", "AKSARAY TAMİR ATÖLYESİ"
+  // gibi BİRDEN FAZLA alt-lokasyon aynı ana koda ("AKSARAY") eşleşebiliyor. Kayıp
+  // saat havuzunu her alt-lokasyonun KENDİ (küçük) talep sayısına bölersek:
+  //  a) Aynı havuz her alt-lokasyona AYRI AYRI tam olarak uygulanır (mükerrer sayım —
+  //     sanki kayıp 3 kat fazlaymış gibi davranılır),
+  //  b) Talep sayısı az olan alt-lokasyonlarda (ör. "Tamir Atölyesi") aşırı büyük,
+  //     talep sayısı çok olan alt-lokasyonlarda (ör. "Esenyurt Depo", binlerce talep)
+  //     neredeyse sıfıra yakın bir düzeltme çıkar — adil değil.
+  // Çözüm: kayıp saat havuzunu, o ana lokasyonu paylaşan TÜM alt-lokasyonların
+  // TOPLAM talep sayısına bölüp, "talep başına ortalama kayıp saat" olarak
+  // HER birine aynı oranda uyguluyoruz. Böylece toplamda havuz sadece 1 kez
+  // sayılmış olur ve düzeltme, hacme göre orantılı/anlamlı kalır.
+  const coreTalepToplamMap = {}; // key: coreDepo|yılAy -> toplam talep sayısı
+  Object.values(grupMap).forEach(g => {
+    const depoAna = laDepoAnaAd(g.depo);
+    if (!depoAna) return;
+    const key = depoAna + '|' + g.yilAy;
+    coreTalepToplamMap[key] = (coreTalepToplamMap[key] || 0) + g.talepSayisi;
+  });
+
+  // 5) Ham + Adil (düzeltilmiş) sonuçları birleştir
   const eslesmeyenDepolar = new Set();
   laSonuclar = Object.values(grupMap).map(g => {
     const hamOrtalama = g.kontrolMiktarToplam > 0 ? (g.agirlikliSureToplam / g.kontrolMiktarToplam) : (g.agirlikliSureToplam / Math.max(g.talepSayisi, 1));
@@ -11219,7 +11241,8 @@ function laHesapla() {
     if (!depoAna) eslesmeyenDepolar.add(g.depo);
     const key = (depoAna || '') + '|' + g.yilAy;
     const kayipSaat = kayipSaatMap[key] || 0;
-    const kayipSaatPerTalep = g.talepSayisi > 0 ? (kayipSaat / g.talepSayisi) : 0;
+    const coreTalepToplam = coreTalepToplamMap[key] || g.talepSayisi;
+    const kayipSaatPerTalep = coreTalepToplam > 0 ? (kayipSaat / coreTalepToplam) : 0;
     const duzeltilmisOrtalama = Math.max(0, hamOrtalama - kayipSaatPerTalep);
     return { ...g, hamOrtalama, kayipSaat, kayipSaatPerTalep, duzeltilmisOrtalama, depoAna };
   }).sort((a, b) => a.depo.localeCompare(b.depo, 'tr') || a.yilAy.localeCompare(b.yilAy));
@@ -11251,6 +11274,11 @@ function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
   const fmtInt = n => Math.round(n || 0).toLocaleString('tr-TR');
 
   let genelToplam = { giren: 0, kontrol: 0, talep: 0, agirlikliSaatHam: 0, kayipSaat: 0 };
+  // Genel Toplam'daki Kayıp Saat, her ana lokasyon+ay havuzunu SADECE BİR KEZ
+  // saymalı — aksi halde aynı havuzu paylaşan alt-lokasyonlar (ör. 3 farklı
+  // "Aksaray" satırı) yüzünden mükerrer toplanır. Bu yüzden ayrı bir Set ile
+  // hangi havuzların zaten sayıldığı takip ediliyor.
+  const sayilanCorePools = new Set();
 
   let html = `<div class="card" style="overflow:hidden"><div class="card-body" style="padding:0">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -11284,7 +11312,16 @@ function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
     genelToplam.kontrol += depoKontrolToplam;
     genelToplam.talep += depoTalepToplam;
     genelToplam.agirlikliSaatHam += depoAgirlikliSaatHamToplam;
-    genelToplam.kayipSaat += depoKayipSaat;
+    // Kayıp saat: sadece bu depo grubunun İÇİNDE henüz sayılmamış (coreDepo|yılAy)
+    // havuzlarını Genel Toplam'a ekle — aynı havuz başka bir alt-lokasyon
+    // satırında zaten sayıldıysa tekrar eklenmez (mükerrer sayımı önler).
+    rows.forEach(r => {
+      const coreKey = (r.depoAna || r.depo) + '|' + r.yilAy;
+      if (!sayilanCorePools.has(coreKey)) {
+        sayilanCorePools.add(coreKey);
+        genelToplam.kayipSaat += r.kayipSaat;
+      }
+    });
 
     const eslesmedi = eslesmeyenDepolar.includes(depo);
 
@@ -11332,6 +11369,26 @@ function renderLokasyonAnalizSonuc(eslesmeyenDepolar) {
       ⚠️ Şu lokasyon adları Kayıp Zaman modülündeki 7 ana depo adından (Esenyurt/Titiz/Eroğlu/Yalova/Aksaray/Silivri/Yılmaz) biriyle eşleştirilemedi, bu yüzden bu lokasyonlar için "Adil" sütunu Ham ile aynı kaldı: <strong>${eslesmeyenDepolar.map(_escapeHtml).join(', ')}</strong>
     </div>`;
   }
+
+  // Aynı ana lokasyonu (core) paylaşan birden fazla alt-lokasyon var mı? Varsa
+  // kullanıcıya açıkça belirt — bu durumda "Kayıp Saat" sütununda aynı değerin
+  // birkaç satırda tekrar etmesi NORMALDİR (Kayıp Zaman modülü bu alt-lokasyonları
+  // ayıramadığı için tek bir ortak havuzu paylaşıyorlar; düzeltme bu havuzu
+  // aralarında paylaştırarak mükerrer sayılmayacak şekilde uygulanıyor).
+  const coreToDepolar = {};
+  laSonuclar.forEach(s => {
+    if (!s.depoAna) return;
+    if (!coreToDepolar[s.depoAna]) coreToDepolar[s.depoAna] = new Set();
+    coreToDepolar[s.depoAna].add(s.depo);
+  });
+  const paylasimliCoreler = Object.entries(coreToDepolar).filter(([,set]) => set.size > 1);
+  if (paylasimliCoreler.length) {
+    html += `<div style="margin-top:10px;font-size:11px;color:var(--navy);background:var(--lblue3);border:1px solid var(--lblue);border-radius:8px;padding:10px 14px">
+      ℹ️ Kayıp Zaman modülü aşağıdaki alt-lokasyonları ayrı ayrı ayırt edemiyor (tek bir "Depo" seçeneği paylaşıyorlar), bu yüzden aynı ay için "Kayıp Saat" değeri bu alt-lokasyonlarda aynı görünür — düzeltme, bu ortak havuzu aralarındaki talep hacmine göre paylaştırarak (mükerrer saymadan) uygulanmıştır:<br>
+      ${paylasimliCoreler.map(([core, set]) => `<strong>${_escapeHtml(core)}</strong>: ${Array.from(set).map(_escapeHtml).join(', ')}`).join('<br>')}
+    </div>`;
+  }
+
   if (laAtlananSatir > 0) {
     html += `<div style="margin-top:8px;font-size:11px;color:var(--muted)">ℹ️ ${laAtlananSatir} satır, Talep No/Depo/Teslim Tarihi/Sonlandırma Tarihi eksikliği nedeniyle hesaba katılamadı.</div>`;
   }
