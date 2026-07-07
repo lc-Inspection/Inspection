@@ -130,10 +130,6 @@
       <span class="nav-icon">🧪</span>
       <span>Teknik İnceleme</span>
     </div>
-    <div class="nav-item" id="nav-lokasyon-analiz" onclick="showLokasyonAnalizSayfasi()" style="display:none">
-      <span class="nav-icon">🏭</span>
-      <span>Lokasyon Süre Analizi</span>
-    </div>
 
     <div class="sb-label" data-i18n="nav_display">Görüntüleme</div>
     <div class="nav-item" onclick="showPage('canli')">
@@ -1244,41 +1240,6 @@
           <div class="card-body">
             <div id="ti-kayitlar-tablo" style="overflow-x:auto"></div>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══════════ LOKASYON SÜRE ANALİZİ (Admin, bağımsız/izole özellik) ══════════ -->
-    <div id="page-lokasyon-analiz" class="page">
-      <div class="ph">
-        <div class="ph-left">
-          <h1>🏭 Lokasyon Süre Analizi</h1>
-          <p>Depo bazında ağırlıklandırılmış Merkez Inspection Süresi — ham ve kayıp zaman düşülmüş (adil) karşılaştırma</p>
-        </div>
-        <div class="ph-buttons">
-          <button class="btn" onclick="laExcelYukleBaslat()">📂 Rapor Excel'i Yükle</button>
-          <button class="btn" onclick="exportLaExcel()" id="la-export-btn" style="display:none">📊 Excel Olarak İndir</button>
-        </div>
-      </div>
-
-      <!-- Metodoloji / varsayım bilgi kutusu -->
-      <div style="background:var(--lblue3);border:1px solid var(--lblue);border-radius:var(--r);padding:14px 18px;margin-bottom:16px;font-size:12px;color:var(--navy);line-height:1.7">
-        <strong>📐 Hesaplama yöntemi:</strong><br>
-        • <strong>Merkez Inspection Süresi</strong> = "Ürünlerin Inspectiona Teslim Tarihi" ile "Inspection Sonlandırma Tarihi" arasındaki fark (saat), talep bazında hesaplanır (bir talebin birden çok klasman satırı varsa en erken teslim / en geç sonlandırma tarihi esas alınır).<br>
-        • <strong>Ham</strong> sütunu bu süreyi olduğu gibi, "Kontrol Edilen Miktar" ile ağırlıklandırılmış ortalama olarak gösterir (paylaştığınız rapordaki mantıkla aynı).<br>
-        • <strong>Adil (Düzeltilmiş)</strong> sütunu, o depo + ay için Kayıp Zaman modülünde girilmiş <strong>"Insp. Lokasyon Değişimi"</strong> ve <strong>"Ürün Olmaması"</strong> sebepli kayıpların toplam saatini, o ana lokasyonu paylaşan TÜM alt-lokasyonların toplam talep sayısına bölüp (talep başına ortalama kayıp saat), Ham değerden düşer. "Diğer" ve "Sistemsel Hata" sebepleri hesaba katılmaz.<br>
-        • Depo eşleştirmesi: Excel'deki depo adı (ör. "AKSARAY ANTREPO") ile Kayıp Zaman modülündeki depo adı (ör. "Aksaray Depo") arasında ana lokasyon adına göre (Esenyurt / Titiz / Eroğlu / Yalova / Aksaray / Silivri / Yılmaz) eşleştirme yapılır. Aynı ana lokasyonu paylaşan birden fazla alt-lokasyon varsa (Kayıp Zaman modülü bunları ayıramadığı için), kayıp saat havuzu bu alt-lokasyonlar arasında talep hacmine göre paylaştırılır — mükerrer sayılmaz. Eşleşmeyen/paylaşımlı gruplar sonuç ekranının altında ayrıca listelenir.<br>
-        • <strong>Tahmini Kayıp Adet</strong> ve <strong>≈ Kayıp Talep Sayısı</strong> sütunları, aynı kayıp zaman kayıtlarına <em>farklı bir açıdan</em> (saat yerine adet/talep) bakar: Kayıp Zaman modülündeki mevcut "Tahmini Kayıp Adet" formülü (ilgili inspector'ın kendi gerçek ortalama hızına göre) aynen kullanılır, sonra bu adet, o ana lokasyonun ortalama talep büyüklüğüne (kontrol edilen miktar / talep sayısı) bölünerek "kaç talep eşdeğeri kapasite kaybedildi" tahmini elde edilir — saat bazlı düzeltmenin yüksek hacimli lokasyonlarda görünmez kalabilen etkisini daha somut hale getirir.
-      </div>
-
-      <input type="file" id="la-file-input" accept=".xlsx,.xls" style="display:none" onchange="laExcelYukle(event)">
-      <div id="la-file-status" style="font-size:12px;margin-bottom:12px"></div>
-
-      <div id="la-sonuc-container">
-        <div class="empty" style="padding:40px">
-          <div class="empty-icon">🏭</div>
-          <h3>Rapor Excel'ini Yükleyin</h3>
-          <p>"Ürünlerin Inspectiona Teslim Tarihi", "Inspection Sonlandırma Tarihi", "TalepNumarası", "BakilacakMiktar" ve "InspectionYapilanDepo" sütunlarını içeren Excel dosyasını yükleyerek başlayın.</p>
         </div>
       </div>
     </div>
