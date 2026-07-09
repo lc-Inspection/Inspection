@@ -904,7 +904,7 @@ function loadConfig() {
     'https://script.google.com/macros/s/AKfycbzXFslNKDL3LlWEQPi8suFqSw5iqm65r2-KamgptTK1tXUY6Fpl25C8ok5zhoUGW1bSAg/exec'
   ];
   // Her zaman HTML içindeki sabit URL kullan (farklı bilgisayarda da değişmez)
-  appConfig.sheetsWebAppUrl = DEFAULT_SHEETS_URL;
+  if (!appConfig.sheetsWebAppUrl) appConfig.sheetsWebAppUrl = DEFAULT_SHEETS_URL;
   if (!appConfig.sheetsApiToken) appConfig.sheetsApiToken = DEFAULT_API_TOKEN;
   // UI'ya yansıt
   const wuEl = document.getElementById('sheets-webapp-url');
