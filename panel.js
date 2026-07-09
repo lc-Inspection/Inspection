@@ -15,14 +15,6 @@ const TI_SKOR_LS_KEY   = 'lc_teknik_inceleme_skor_cache';
 const TI_KRITER_LS_KEY = 'lc_teknik_inceleme_kriter_cache';
 let teknikKriterler = [];   // [{id, metin, puan, aktif, sira}]
 let teknikSkorlar   = [];   // ham cevap satırları [{id, inspector, degerlendiren, tarih, kriterId, kriterMetin, maxPuan, tikli, kazanilanPuan, aciklama, savedAt}]
-let _tiTalepCache   = {};   // { inspectorName: [{klasman, talepNo, adet, gun}, ...] } — TÜM tarihler için (getInspectorTalepNolar'dan)
-let _tiTarihReqSeq  = 0;    // "en son giden istek kazanır" korumasi — bkz. onTiTarihChange
-// SADECE seçili tarihe ait, getInspectorlerByGun cevabıyla birlikte önceden
-// gelen talep verisi. Bu sayede inspector seçildiğinde ayrıca sunucuya
-// gidilmeden talep listesi ANINDA gösterilebilir (performans). _tiTalepCache'ten
-// farkı: bu sadece TEK bir tarihi kapsar, o yüzden ayrı tutulur — inspector
-// için tüm-tarihler cache'i (_tiTalepCache) zaten varsa o her zaman önceliklidir.
-let _tiTarihPrefetch = { gun: '', talepMap: {} };
 const TI_BASARI_ESIGI = 85; // Değerlendirme başına başarı eşiği (%) — bu ve üstü "Başarılı" sayılır
 
 // Admin'in yüklediği resmi "Teknik İnceleme" checklist formundaki 21 madde (toplam 100 puan).
@@ -704,37 +696,53 @@ async function pushConfigToSheets() {
 // script.google.com → script.googleusercontent.com redirect'i nedeniyle
 // GitHub Pages'ten çalışmıyordu. iframe redirect'i sorunsuz takip eder,
 // içindeki <script> postMessage ile veriyi üst pencereye iletir.
+// ─── jsonpFetch: Google Apps Script'e CORS kısıtlaması olmadan istek atar ───
+// v2 — GERÇEK JSONP (script etiketi) yöntemi. ESKİDEN gizli bir <iframe> açılıp
+// Apps Script'in ürettiği HTML sayfasının İÇİNDEKİ bir <script>'in
+// window.parent.postMessage() ile cevabı geri göndermesi bekleniyordu. Google
+// bazı durumlarda Apps Script exec cevaplarına X-Frame-Options: SAMEORIGIN
+// veya nonce tabanlı sıkı bir CSP ekleyebiliyor — bu, iframe İÇİNDEKİ script'in
+// hiç çalışmamasına yol açıyor: ağ isteği 200 OK döner ama postMessage asla
+// gönderilmediği için istemci 25 saniye sonra zaman aşımına düşüyor
+// ("internetim çalışıyor ama bağlanamıyor" şikayetinin kök nedeni buydu).
+// ÇÖZÜM: <script src="..."> etiketiyle klasik JSONP. Script etiketleri
+// X-Frame-Options'tan HİÇ etkilenmez (o başlık sadece iframe/frame gömülmesini
+// kısıtlar, script yüklemesini değil) — bu yüzden çok daha sağlam.
 function jsonpFetch(url, params) {
   const action = params.action || '';
   const token  = params.token  || '';
-  // Her çağrıya benzersiz bir kimlik üretilir. Aynı anda birden fazla
-  // jsonpFetch isteği uçuşurken (ör. sayfa açılışındaki arka plan çekmeleri +
-  // kullanıcının o an yaptığı bir işlem), tüm istekler AYNI paylaşılan
-  // 'message' event'ini dinlediği için, bu rid olmadan bir isteğin cevap
-  // dinleyicisi YANLIŞLIKLA başka bir isteğin cevabını kabul edebilir
-  // (ör. "getInspectorlerByGun" beklerken "getTeknikKriterler" cevabı gelip
-  // 'inspectorler' alanı olmadığından hataya yol açabilir). Backend (autoResp)
-  // bu rid'i cevaba aynen geri ekler; eşleşmeyen cevaplar burada yok sayılır.
+  // Her çağrıya benzersiz bir kimlik üretilir — hem rid (eşzamanlı isteklerin
+  // cevaplarının karışmasını önlemek için, bkz. backend autoResp) hem de JSONP
+  // callback fonksiyon adı olarak kullanılır (her çağrı kendi global callback'ini
+  // alır, böylece eşzamanlı çağrılar birbirine karışmaz).
   const rid = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const callbackName = '_jsonpCb_' + rid;
+
   return new Promise((resolve, reject) => {
     // action ve token dışındaki tüm parametreleri de URL'e ekle
-    let iframeUrl = url + '?action=' + encodeURIComponent(action) +
+    let scriptUrl = url + '?action=' + encodeURIComponent(action) +
                           '&token='  + encodeURIComponent(token) +
-                          '&rid='    + encodeURIComponent(rid);
+                          '&rid='    + encodeURIComponent(rid) +
+                          '&callback=' + encodeURIComponent(callbackName);
     Object.entries(params).forEach(([k, v]) => {
       if (k !== 'action' && k !== 'token') {
-        iframeUrl += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(String(v).normalize('NFC'));
+        scriptUrl += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(String(v).normalize('NFC'));
       }
     });
 
-    const iframe = document.createElement('iframe');
-    iframe.src = iframeUrl;
-    iframe.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;border:none;';
-    document.body.appendChild(iframe);
+    const script = document.createElement('script');
+    let bitti = false;
+
+    const temizle = () => {
+      bitti = true;
+      clearTimeout(timer);
+      try { delete window[callbackName]; } catch(e) { window[callbackName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
 
     const timer = setTimeout(() => {
-      window.removeEventListener('message', handler);
-      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      if (bitti) return;
+      temizle();
       reject(new Error(
         'Google Sheets\'e bağlanamadı (25 sn zaman aşımı).\n\n' +
         'Bu geçici bir ağ yavaşlaşması olabilir.\n' +
@@ -742,22 +750,25 @@ function jsonpFetch(url, params) {
       ));
     }, 25000);
 
-    function handler(event) {
-      // Sadece Apps Script kaynaklarından gelen mesajları kabul et
-      const trusted = ['googleusercontent.com', 'script.google.com'];
-      if (!trusted.some(o => event.origin.includes(o))) return;
-      // rid eşleşmiyorsa bu cevap BAŞKA bir isteğe ait — yok say, dinlemeye devam et.
-      // Backend rid göndermiyorsa (henüz güncellenmemiş eski deploy) _rid alanı
-      // olmaz ve eşleşme kontrolü atlanır (geriye dönük uyumluluk).
-      if (event.data && event.data._rid && event.data._rid !== rid) return;
-      clearTimeout(timer);
-      window.removeEventListener('message', handler);
-      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-      console.log('✅ iframe/postMessage başarılı — action:', action);
-      resolve(event.data);
-    }
+    // Backend, cevabı bu global fonksiyonu çağırarak (JSONP) geri gönderir.
+    window[callbackName] = function(data) {
+      if (bitti) return;
+      temizle();
+      console.log('✅ JSONP başarılı — action:', action);
+      resolve(data);
+    };
 
-    window.addEventListener('message', handler);
+    script.onerror = function() {
+      if (bitti) return;
+      temizle();
+      reject(new Error(
+        'Google Sheets\'e bağlanamadı (script yüklenemedi).\n\n' +
+        'Web App URL\'si veya token yanlış olabilir, ya da Apps Script deployment\'ı geçersiz olabilir.'
+      ));
+    };
+
+    script.src = scriptUrl;
+    document.body.appendChild(script);
   });
 }
 
@@ -10226,11 +10237,15 @@ function getTeknikIncelemeSkorForInspector(inspectorName) {
 async function loadTeknikInceleme() {
   const tarihEl = document.getElementById('ti-tarih');
   if (tarihEl && !tarihEl.value) tarihEl.value = new Date().toISOString().split('T')[0];
-  _tiTalepCache = {}; // Yenilemede talep no verisi taze çekilsin
 
-  // YENİ AKIŞ: önce tarihe göre inspector listesi yüklenir; inspector seçimi
-  // ve Talep No bilgisi bundan sonra (kullanıcı bir isim seçtiğinde) gelir.
-  await onTiTarihChange();
+  // SADELEŞTİRİLMİŞ AKIŞ (kullanıcı talebiyle): Inspector listesi artık
+  // tarihten TAMAMEN bağımsız — sayfa açılır açılmaz TÜM inspector'lar
+  // gösterilir, hiçbir sunucu isteği beklenmez. Talep No da artık sunucudan
+  // ÇEKİLMEZ — sadece elle girilen bir metin kutusudur. Bu, eski
+  // "tarih seç → inspector listesinin yüklenmesini bekle → talep no
+  // önerilerinin gelmesini bekle" akışındaki gecikmeyi ve karmaşıklığı
+  // tamamen ortadan kaldırır.
+  fillTeknikInspectorDropdown();
 
   const adminWrap = document.getElementById('ti-admin-wrap');
   const isAdmin = !currentUser || currentUser.isAdmin;
@@ -10256,12 +10271,11 @@ async function loadTeknikInceleme() {
   }
 }
 
-// names verilirse SADECE o isimlerle, verilmezse (veya BOŞ dönerse) tüm
-// performansData inspector'larıyla dropdown'u doldurur. "Her hâlükârda
-// inspector isimleri gelsin" gereksinimi: tarihe göre filtre 0 sonuç verse
-// ya da backend'e hiç ulaşılamasa bile kullanıcı asla boş/kilitli bir
-// seçim kutusuyla baş başa kalmaz — otomatik olarak TÜM listeye düşülür.
-// Önceki seçim, yeni listede hâlâ varsa korunur.
+// names verilirse SADECE o isimlerle, verilmezse tüm performansData
+// inspector'larıyla dropdown'u doldurur. Artık her zaman argümansız
+// çağrılıyor (bkz. loadTeknikInceleme) — tarihe göre filtreleme kaldırıldı,
+// inspector listesi HER HÂLÜKÂRDA tam gelir. Önceki seçim, yeni listede
+// hâlâ varsa korunur.
 function fillTeknikInspectorDropdown(names, placeholder) {
   const sel = document.getElementById('ti-inspector');
   if (!sel) return;
@@ -10280,183 +10294,15 @@ function fillTeknikInspectorDropdown(names, placeholder) {
   if (prev && list.includes(prev)) sel.value = prev;
 }
 
-// ─── YENİ AKIŞ: Önce Tarih, Sonra O Tarihe Ait Inspector'lar ───
-// Tarih değiştiğinde: o tarihte en az bir kaydı olan inspector'ları backend'den
-// çeker ve dropdown'u SADECE bu isimlerle doldurur. Daha önce seçili olan
-// Talep No / kriter formu her tarih değişiminde sıfırlanır. Inspector seçimi
-// (varsa) yeni listede hâlâ geçerliyse korunur ve talep bilgisi otomatik
-// yeniden yüklenir; aksi halde kullanıcı yeniden bir inspector seçmelidir.
-async function onTiTarihChange() {
-  const tarih = document.getElementById('ti-tarih')?.value || '';
-
-  // "En son giden istek kazanır" koruması: kullanıcı tarihi hızlıca değiştirirse
-  // (ör. tarih seçicide ok tuşlarıyla gezinirken) birden fazla onTiTarihChange
-  // çağrısı aynı anda uçuşabilir. rid eşleştirmesi (jsonpFetch) sadece FARKLI
-  // action'ların cevaplarının karışmasını önler — aynı action'a (getInspectorlerByGun)
-  // FARKLI tarihlerle yapılan art arda isteklerde, ESKİ isteğin cevabı ağ
-  // gecikmesi yüzünden YENİ isteğin sonucundan SONRA gelebilir ve ekranı yanlış
-  // tarihin sonucuyla eski/stale veriyle ezebilir. Bu yüzden her çağrı kendi sıra
-  // numarasını alır; cevap geldiğinde hâlâ "en son" çağrı o mu diye kontrol edilir,
-  // değilse (daha yeni bir tarih değişikliği araya girmişse) sonuç sessizce atılır.
-  const mySeq = ++_tiTarihReqSeq;
-
-  // Tarih değişince Talep No / kriter formu her zaman sıfırlanır
-  const talepInp = document.getElementById('ti-talep-secili');
-  if (talepInp) talepInp.value = '';
-  const box = document.getElementById('ti-talep-info');
-  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
-  const warnBox = document.getElementById('ti-tarih-filter-warn');
-  if (warnBox) { warnBox.style.display = 'none'; warnBox.innerHTML = ''; }
-  if (typeof renderTeknikKriterForm === 'function') renderTeknikKriterForm();
-
-  const sel = document.getElementById('ti-inspector');
-  if (!sel) return;
-
-  if (!tarih) {
-    // Tarih henüz seçilmedi — yine de inspector listesi HER HÂLÜKÂRDA görünür
-    // olmalı (kullanıcı isterse tarih seçmeden de devam edebilir); sadece
-    // bilgilendirici bir placeholder gösterilir, seçim kilitlenmez.
-    fillTeknikInspectorDropdown(undefined, '— Inspector seçin (tarih seçerseniz liste daraltılır) —');
-    return;
-  }
-
-  const url = appConfig.sheetsWebAppUrl;
-  const token = appConfig.sheetsApiToken;
-  if (!url || !token) {
-    // Sunucu yapılandırılmamışsa akışı kilitlemek yerine tüm listeye düş
-    fillTeknikInspectorDropdown();
-    if (mySeq === _tiTarihReqSeq && sel.value) await updateTiTalepBilgisi();
-    return;
-  }
-
-  sel.disabled = true;
-  sel.innerHTML = '<option value="">⏳ Yükleniyor...</option>';
-
-  try {
-    const resp = await jsonpFetch(url, { action: 'getInspectorlerByGun', token, gun: tarih });
-    // Bu bekleme sırasında kullanıcı tarihi TEKRAR değiştirdiyse (daha yeni bir
-    // çağrı başladıysa), bu artık BAYAT bir sonuçtur — ekranı bozmadan sessizce çık.
-    if (mySeq !== _tiTarihReqSeq) return;
-    if (resp?.status !== 'ok' || !Array.isArray(resp.inspectorler)) {
-      throw new Error(resp?.message || 'Beklenmeyen sunucu yanıtı');
-    }
-    // PERFORMANS: backend bu tarihe ait tüm inspector'ların talep verisini
-    // AYNI cevapta gönderdi — ön belleğe alıyoruz ki inspector seçilince
-    // updateTiTalepBilgisi() ikinci bir sunucu isteği atmadan anında gösterebilsin.
-    _tiTarihPrefetch = { gun: tarih, talepMap: (resp.talepMap && typeof resp.talepMap === 'object') ? resp.talepMap : {} };
-    if (resp.inspectorler.length === 0) {
-      // Bu tarihte kayıt yok — yine de kullanıcıyı kilitleme, tüm inspector
-      // listesine düş (fillTeknikInspectorDropdown zaten boş liste verilince
-      // otomatik tam listeye düşer), sadece bilgilendirici not göster.
-      fillTeknikInspectorDropdown([], `— ${tarih} tarihinde kayıt bulunamadı, tüm liste gösteriliyor —`);
-    } else {
-      fillTeknikInspectorDropdown(resp.inspectorler);
-    }
-  } catch(e) {
-    if (mySeq !== _tiTarihReqSeq) return; // bayat hata — yeni bir istek zaten devam ediyor
-    console.warn('Tarihe göre inspector listesi çekilemedi:', e.message);
-    // Hata durumunda akışı tamamen kilitlemek yerine tüm inspector listesine düş —
-    // ANCAK bunu ti-talep-info kutusuna yazmıyoruz, çünkü o kutu birazdan
-    // updateTiTalepBilgisi() tarafından ezilir ve bu uyarı hiç görünmeden kaybolur.
-    // Bu yüzden AYRI ve kalıcı bir uyarı kutusu (ti-tarih-filter-warn) kullanılır.
-    fillTeknikInspectorDropdown(undefined, '— Inspector seçin (tarih filtresi uygulanamadı) —');
-    if (warnBox) {
-      const bilinmeyenAction = /bilinmeyen action/i.test(e.message || '');
-      warnBox.style.display = '';
-      warnBox.innerHTML = bilinmeyenAction
-        ? `⚠️ <strong>Tarihe göre filtreleme çalışmıyor.</strong> Google Apps Script backend'i güncel değil (<code>getInspectorlerByGun</code> action'ı bulunamadı). Lütfen güncel <code>Kod.gs</code> içeriğini Apps Script projesine yapıştırıp <strong>yeniden Deploy</strong> edin. Şimdilik aşağıda tüm inspector listesi (tarihe göre filtrelenmemiş) gösteriliyor.`
-        : `⚠️ <strong>Tarihe göre filtreleme çalışmıyor:</strong> ${_escapeHtml(e.message || 'bilinmeyen hata')}. Şimdilik tüm inspector listesi gösteriliyor.`;
-    }
-  }
-
-  // Seçim (varsa) yeni listede korunduysa talep bilgisini otomatik yenile —
-  // yalnızca bu hâlâ en son (bayat olmayan) çağrıysa.
-  if (mySeq === _tiTarihReqSeq && sel.value) await updateTiTalepBilgisi();
-}
-
-// ─── Seçilen Inspector + Tarihe Ait Talep No'ları Getir ───
-// Kaynak: "InspectorKayitlarDetay" sheet'i (getInspectorTalepNolar action'ı).
-// Tarih karşılaştırması backend'de yapılır (Apps Script'in Date işlemleri daha
-// güvenilir), frontend sadece dönen 'gun' (YYYY-MM-DD) alanını filtreler.
-// İnspector başına cache'lenir; tarih değiştiğinde tekrar sunucuya gidilmez.
-// (_tiTalepCache tanımı dosyanın en başına taşındı — bkz. GLOBAL STATE bölümü.)
-
-async function updateTiTalepBilgisi() {
-  const box = document.getElementById('ti-talep-info');
-  if (!box) return;
-  const inspector = document.getElementById('ti-inspector')?.value?.trim();
-  const tarih = document.getElementById('ti-tarih')?.value;
+// Tarih veya Inspector değiştiğinde: önceki Talep No girişini ve kriter
+// formunu sıfırlar (yeni bir değerlendirme bağlamına geçildiği için elle
+// girilecek Talep No'nun eski değerde kalıp yanlış eşleşmesini önler).
+// NOT: Bu fonksiyon artık sunucuya HİÇ istek atmıyor — Inspector listesi
+// tarihten etkilenmiyor, Talep No tamamen elle giriliyor.
+function onTiBaglamDegisti() {
   const talepInp = document.getElementById('ti-talep-secili');
   if (talepInp) talepInp.value = '';
   if (typeof renderTeknikKriterForm === 'function') renderTeknikKriterForm();
-  if (!inspector || !tarih) { box.style.display = 'none'; box.innerHTML = ''; return; }
-
-  box.style.display = '';
-  box.innerHTML = '⏳ Talep No bilgisi yükleniyor...';
-
-  try {
-    let talepler = _tiTalepCache[inspector];
-    if (!talepler && _tiTarihPrefetch.gun === tarih) {
-      // PERFORMANS: bu tarih için inspector listesiyle BİRLİKTE zaten talep
-      // verisi de gelmişti (bkz. onTiTarihChange) — sunucuya tekrar gitmeye
-      // gerek yok, doğrudan ondan oku (kayıt yoksa boş dizi de geçerli bir sonuçtur).
-      talepler = _tiTarihPrefetch.talepMap[inspector] || [];
-    }
-    if (!talepler) {
-      const url = appConfig.sheetsWebAppUrl;
-      const token = appConfig.sheetsApiToken;
-      if (!url) { box.innerHTML = ''; box.style.display = 'none'; return; }
-      const resp = await jsonpFetch(url, { action: 'getInspectorTalepNolar', token, inspectorAdi: inspector });
-      if (resp?.status !== 'ok' || !Array.isArray(resp.talepler)) {
-        box.innerHTML = 'ℹ️ Bu inspector için kayıt bulunamadı.';
-        return;
-      }
-      talepler = resp.talepler;
-      _tiTalepCache[inspector] = talepler;
-    }
-
-    const talepMap = {}; // { talepNo: { adet, klasmanlar: Set } }
-    talepler.filter(r => r.gun === tarih).forEach(r => {
-      const tNo = String(r.talepNo || '').trim();
-      if (!tNo) return;
-      if (!talepMap[tNo]) talepMap[tNo] = { adet: 0, klasmanlar: new Set() };
-      talepMap[tNo].adet += (Number(r.adet) || 0);
-      if (r.klasman) talepMap[tNo].klasmanlar.add(String(r.klasman));
-    });
-
-    const girdiler = Object.entries(talepMap);
-
-    // Datalist'i her durumda güncelle (elle giriş için otomatik tamamlama)
-    const datalist = document.getElementById('ti-talep-datalist');
-    if (datalist) {
-      datalist.innerHTML = girdiler.map(([tNo]) => `<option value="${_escapeHtml(tNo)}"></option>`).join('');
-    }
-
-    if (!girdiler.length) {
-      box.innerHTML = `ℹ️ ${tarih} tarihinde bu inspector için kayıtlı Talep No bulunamadı. Talep No'yu elle girebilirsiniz.`;
-      return;
-    }
-    box.innerHTML = '📦 <strong>Talep No (bu tarihte kontrol edilen) — seçmek için tıklayın:</strong><br>' +
-      girdiler.map(([tNo, info]) => {
-        const klasmanStr = info.klasmanlar.size ? Array.from(info.klasmanlar).join(', ') : '';
-        return `<button type="button" onclick="selectTiTalepNo('${tNo.replace(/'/g,"\\'")}')" class="ti-talep-chip" data-talep="${_escapeHtml(tNo)}" style="display:inline-block;margin:5px 6px 0 0;padding:4px 10px;background:#fff;border:1px solid var(--lblue);border-radius:6px;font-family:'DM Mono',monospace;font-weight:600;cursor:pointer;color:var(--navy)">${_escapeHtml(tNo)} <span style="color:var(--muted2);font-weight:400">(${formatTR(info.adet)} adet${klasmanStr ? ', ' + _escapeHtml(klasmanStr) : ''})</span></button>`;
-      }).join('');
-  } catch(e) {
-    box.innerHTML = 'ℹ️ Talep No bilgisi çekilemedi: ' + e.message;
-  }
-}
-
-// Bir Talep No chip'ine tıklanınca seçili input'a yazar ve o chip'i görsel olarak vurgular
-function selectTiTalepNo(talepNo) {
-  const inp = document.getElementById('ti-talep-secili');
-  if (inp) inp.value = talepNo;
-  document.querySelectorAll('.ti-talep-chip').forEach(btn => {
-    const secili = btn.getAttribute('data-talep') === talepNo;
-    btn.style.background = secili ? 'var(--blue)' : '#fff';
-    btn.style.color = secili ? '#fff' : 'var(--navy)';
-    btn.style.borderColor = secili ? 'var(--blue)' : 'var(--lblue)';
-  });
-  renderTeknikKriterForm();
 }
 
 // ─── Kriterleri Çek ───
@@ -10467,8 +10313,37 @@ async function fetchTeknikKriterler() {
   try {
     const data = await jsonpFetch(url, { action: 'getTeknikKriterler', token });
     if (data?.status === 'ok' && Array.isArray(data.kriterler)) {
-      teknikKriterler = data.kriterler;
+      // Otomatik mükerrer temizliği: aynı metne sahip kriterlerden sadece
+      // ilkini tut. Kök neden geçmişte düzeltildi ("Varsayılan Soruları Yükle"
+      // artık listenin üzerine eklemek yerine önce temizliyor), ANCAK o
+      // düzeltmeden ÖNCE zaten birikmiş mükerrer kayıtlar sunucuda kalmaya
+      // devam ediyordu ve "Toplam Puan (Max: 200)" gibi yanlış toplamlara,
+      // aynı 14/21 maddenin formda 2 kez görünmesine yol açıyordu. Bu blok,
+      // veri her çekildiğinde otomatik olarak temizler ve mükerrer bulunursa
+      // temiz listeyi hemen sunucuya geri yazar — kullanıcının bir buton
+      // tıklamayı hatırlaması gerekmez, sorun kendiliğinden düzelir.
+      const gorulen = new Set();
+      const temiz = [];
+      let mukerrerVarMi = false;
+      data.kriterler.forEach(k => {
+        const anahtar = String(k.metin || '').trim().toLocaleLowerCase('tr-TR');
+        if (gorulen.has(anahtar)) { mukerrerVarMi = true; return; }
+        gorulen.add(anahtar);
+        temiz.push(k);
+      });
+      teknikKriterler = temiz;
       saveTeknikKriterToLocalStorage();
+      if (mukerrerVarMi) {
+        console.warn('Teknik İnceleme kriterlerinde mükerrer kayıt tespit edildi, otomatik temizlendi ve sunucuya geri kaydedildi.');
+        try {
+          await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'setTeknikKriterler', token, kriterler: teknikKriterler }),
+            mode: 'no-cors'
+          });
+        } catch(saveErr) { console.warn('Mükerrer temizliği sunucuya kaydedilemedi:', saveErr.message); }
+      }
     }
   } catch(e) { console.warn('Teknik İnceleme kriter çekme hatası:', e.message); }
 }
